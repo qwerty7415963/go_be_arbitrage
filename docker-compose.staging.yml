@@ -1,0 +1,55 @@
+services:
+  arbitrage-be:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-arbitrage-be}:staging-latest
+    container_name: arbitrage-be-staging
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_ENV=staging
+      - LOG_LEVEL=debug
+      - DATABASE_URL=postgres://arbitrage:${POSTGRES_PASSWORD}@postgres:5432/arbitrage?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - arbitrage-net
+    volumes:
+      - app-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: arbitrage-postgres-staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: arbitrage
+      POSTGRES_USER: arbitrage
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - arbitrage-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arbitrage -d arbitrage"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+    driver: local
+  app-data:
+    driver: local
+
+networks:
+  arbitrage-net:
+    driver: bridge

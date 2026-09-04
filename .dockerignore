@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+arbitrage-platform-docs/
+*.md
+LICENSE
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+*_test.go
+testdata/
+fixtures/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Build artifacts
+arbitrage-be
+*.exe
+*.test
+*.out
+
+# Docker compose files
+docker-compose*.yml
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
