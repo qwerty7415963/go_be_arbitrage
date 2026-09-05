@@ -51,6 +51,261 @@ definitions:
       success:
         type: boolean
     type: object
+  instrument.ContractType:
+    enum:
+    - LINEAR
+    - INVERSE
+    - SPOT
+    - OTHER
+    type: string
+    x-enum-varnames:
+    - ContractTypeLinear
+    - ContractTypeInverse
+    - ContractTypeSpot
+    - ContractTypeOther
+  instrument.CreateInstrumentRequest:
+    properties:
+      base_asset:
+        type: string
+      canonical_symbol:
+        type: string
+      contract_size:
+        type: string
+      contract_type:
+        allOf:
+        - $ref: '#/definitions/instrument.ContractType'
+        enum:
+        - LINEAR
+        - INVERSE
+        - SPOT
+        - OTHER
+      instrument_type:
+        allOf:
+        - $ref: '#/definitions/instrument.InstrumentType'
+        enum:
+        - SPOT
+        - PERP
+        - FUTURE
+      margin_asset:
+        type: string
+      min_notional:
+        type: string
+      min_quantity:
+        type: string
+      price_tick:
+        type: string
+      quantity_step:
+        type: string
+      quote_asset:
+        type: string
+      settlement_asset:
+        type: string
+    required:
+    - base_asset
+    - canonical_symbol
+    - contract_type
+    - instrument_type
+    - price_tick
+    - quantity_step
+    - quote_asset
+    type: object
+  instrument.CreateVenueInstrumentRequest:
+    properties:
+      instrument_id:
+        type: string
+      venue_id:
+        type: string
+      venue_symbol:
+        type: string
+    required:
+    - instrument_id
+    - venue_id
+    - venue_symbol
+    type: object
+  instrument.DiscoveryStatus:
+    enum:
+    - DISCOVERED
+    - REVIEWED
+    - REJECTED
+    type: string
+    x-enum-varnames:
+    - DiscoveryStatusDiscovered
+    - DiscoveryStatusReviewed
+    - DiscoveryStatusRejected
+  instrument.EnableTradingRequest:
+    properties:
+      enabled:
+        type: boolean
+    type: object
+  instrument.Instrument:
+    properties:
+      base_asset:
+        type: string
+      canonical_symbol:
+        type: string
+      contract_size:
+        type: string
+      contract_type:
+        $ref: '#/definitions/instrument.ContractType'
+      created_at:
+        type: string
+      discovery_status:
+        $ref: '#/definitions/instrument.DiscoveryStatus'
+      id:
+        type: string
+      instrument_type:
+        $ref: '#/definitions/instrument.InstrumentType'
+      margin_asset:
+        type: string
+      min_notional:
+        type: string
+      min_quantity:
+        type: string
+      price_tick:
+        type: string
+      quantity_step:
+        type: string
+      quote_asset:
+        type: string
+      settlement_asset:
+        type: string
+      trading_enabled:
+        type: boolean
+      updated_at:
+        type: string
+    type: object
+  instrument.InstrumentType:
+    enum:
+    - SPOT
+    - PERP
+    - FUTURE
+    type: string
+    x-enum-varnames:
+    - InstrumentTypeSpot
+    - InstrumentTypePerp
+    - InstrumentTypeFuture
+  instrument.UpdateInstrumentRequest:
+    properties:
+      contract_size:
+        type: string
+      discovery_status:
+        allOf:
+        - $ref: '#/definitions/instrument.DiscoveryStatus'
+        enum:
+        - DISCOVERED
+        - REVIEWED
+        - REJECTED
+      margin_asset:
+        type: string
+      min_notional:
+        type: string
+      min_quantity:
+        type: string
+      price_tick:
+        type: string
+      quantity_step:
+        type: string
+      settlement_asset:
+        type: string
+    type: object
+  instrument.VenueInstrument:
+    properties:
+      first_seen_at:
+        type: string
+      id:
+        type: string
+      instrument_id:
+        type: string
+      last_seen_at:
+        type: string
+      status:
+        type: string
+      venue_id:
+        type: string
+      venue_metadata: {}
+      venue_symbol:
+        type: string
+    type: object
+  venue.Capabilities:
+    properties:
+      has_rest:
+        type: boolean
+      has_ws:
+        type: boolean
+      supports_futures:
+        type: boolean
+      supports_perp:
+        type: boolean
+      supports_spot:
+        type: boolean
+    type: object
+  venue.CreateVenueRequest:
+    properties:
+      capabilities:
+        $ref: '#/definitions/venue.Capabilities'
+      code:
+        type: string
+      name:
+        type: string
+      venue_type:
+        allOf:
+        - $ref: '#/definitions/venue.VenueType'
+        enum:
+        - CEX
+        - PERP_DEX
+    required:
+    - code
+    - name
+    - venue_type
+    type: object
+  venue.UpdateVenueRequest:
+    properties:
+      capabilities:
+        $ref: '#/definitions/venue.Capabilities'
+      name:
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/venue.VenueStatus'
+        enum:
+        - ACTIVE
+        - DISABLED
+    type: object
+  venue.Venue:
+    properties:
+      capabilities: {}
+      code:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      metadata: {}
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/venue.VenueStatus'
+      updated_at:
+        type: string
+      venue_type:
+        $ref: '#/definitions/venue.VenueType'
+    type: object
+  venue.VenueStatus:
+    enum:
+    - ACTIVE
+    - DISABLED
+    type: string
+    x-enum-varnames:
+    - VenueStatusActive
+    - VenueStatusDisabled
+  venue.VenueType:
+    enum:
+    - CEX
+    - PERP_DEX
+    type: string
+    x-enum-varnames:
+    - VenueTypeCEX
+    - VenueTypePerpDEX
 host: localhost:8080
 info:
   contact:
@@ -63,6 +318,260 @@ info:
   title: Arbitrage Platform API
   version: "1.0"
 paths:
+  /api/v1/instruments:
+    get:
+      description: Get all instruments
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/instrument.Instrument'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: List instruments
+      tags:
+      - instruments
+    post:
+      consumes:
+      - application/json
+      description: Create a new instrument
+      parameters:
+      - description: Instrument to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/instrument.CreateInstrumentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/instrument.Instrument'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Create instrument
+      tags:
+      - instruments
+  /api/v1/instruments/{id}:
+    delete:
+      description: Delete instrument by ID
+      parameters:
+      - description: Instrument ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Delete instrument
+      tags:
+      - instruments
+    get:
+      description: Get instrument by ID
+      parameters:
+      - description: Instrument ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/instrument.Instrument'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get instrument
+      tags:
+      - instruments
+    put:
+      consumes:
+      - application/json
+      description: Update instrument by ID
+      parameters:
+      - description: Instrument ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/instrument.UpdateInstrumentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/instrument.Instrument'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Update instrument
+      tags:
+      - instruments
+  /api/v1/instruments/{id}/trading:
+    put:
+      consumes:
+      - application/json
+      description: Enable or disable trading for an instrument
+      parameters:
+      - description: Instrument ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Enable/disable trading
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/instrument.EnableTradingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Enable/disable trading
+      tags:
+      - instruments
+  /api/v1/instruments/tradable:
+    get:
+      description: Get all instruments with trading enabled
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/instrument.Instrument'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: List tradable instruments
+      tags:
+      - instruments
   /api/v1/ping:
     get:
       description: Simple ping endpoint to test connectivity
@@ -81,6 +590,265 @@ paths:
       summary: Ping test
       tags:
       - system
+  /api/v1/venue-instruments:
+    get:
+      description: Get all venue instruments for a venue
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/instrument.VenueInstrument'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: List venue instruments
+      tags:
+      - instruments
+    post:
+      consumes:
+      - application/json
+      description: Map a venue symbol to a canonical instrument
+      parameters:
+      - description: Venue instrument mapping
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/instrument.CreateVenueInstrumentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/instrument.VenueInstrument'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Create venue instrument mapping
+      tags:
+      - instruments
+  /api/v1/venues:
+    get:
+      description: Get all venues
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/venue.Venue'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: List venues
+      tags:
+      - venues
+    post:
+      consumes:
+      - application/json
+      description: Create a new venue
+      parameters:
+      - description: Venue to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/venue.CreateVenueRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/venue.Venue'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Create venue
+      tags:
+      - venues
+  /api/v1/venues/{id}:
+    delete:
+      description: Delete venue by ID
+      parameters:
+      - description: Venue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Delete venue
+      tags:
+      - venues
+    get:
+      description: Get venue by ID
+      parameters:
+      - description: Venue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/venue.Venue'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get venue
+      tags:
+      - venues
+    put:
+      consumes:
+      - application/json
+      description: Update venue by ID
+      parameters:
+      - description: Venue ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/venue.UpdateVenueRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/venue.Venue'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Update venue
+      tags:
+      - venues
   /health:
     get:
       description: Check service health status including all registered checkers

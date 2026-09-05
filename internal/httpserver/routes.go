@@ -9,9 +9,15 @@ import (
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver/middleware"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 )
 
-func (s *Server) SetupRoutes(healthHandler *health.Handler) {
+func (s *Server) SetupRoutes(
+	healthHandler *health.Handler,
+	venueHandler *venue.Handler,
+	instrumentHandler *instrument.Handler,
+) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
 
@@ -21,6 +27,35 @@ func (s *Server) SetupRoutes(healthHandler *health.Handler) {
 	v1 := s.engine.Group("/api/v1")
 	{
 		v1.GET("/ping", pingHandler)
+
+		// Venues
+		venues := v1.Group("/venues")
+		{
+			venues.GET("", venueHandler.List)
+			venues.POST("", venueHandler.Create)
+			venues.GET("/:id", venueHandler.GetByID)
+			venues.PUT("/:id", venueHandler.Update)
+			venues.DELETE("/:id", venueHandler.Delete)
+		}
+
+		// Instruments
+		instruments := v1.Group("/instruments")
+		{
+			instruments.GET("", instrumentHandler.List)
+			instruments.POST("", instrumentHandler.Create)
+			instruments.GET("/tradable", instrumentHandler.ListTradable)
+			instruments.GET("/:id", instrumentHandler.GetByID)
+			instruments.PUT("/:id", instrumentHandler.Update)
+			instruments.DELETE("/:id", instrumentHandler.Delete)
+			instruments.PUT("/:id/trading", instrumentHandler.EnableTrading)
+		}
+
+		// Venue Instruments
+		venueInstruments := v1.Group("/venue-instruments")
+		{
+			venueInstruments.GET("", instrumentHandler.ListVenueInstruments)
+			venueInstruments.POST("", instrumentHandler.CreateVenueInstrument)
+		}
 	}
 
 	s.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

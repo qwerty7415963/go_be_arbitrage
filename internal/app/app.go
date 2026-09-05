@@ -13,18 +13,22 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/database"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/ws"
 )
 
 type App struct {
-	config     *config.Config
-	logger     *logger.Logger
-	database   *database.Database
-	httpServer *httpserver.Server
-	hub        *ws.Hub
-	auth       *auth.Service
-	health     *health.Handler
+	config           *config.Config
+	logger           *logger.Logger
+	database         *database.Database
+	httpServer       *httpserver.Server
+	hub              *ws.Hub
+	auth             *auth.Service
+	health           *health.Handler
+	venueService     *venue.Service
+	instrumentService *instrument.Service
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -46,17 +50,27 @@ func New(cfg *config.Config) (*App, error) {
 	healthHandler := health.NewHandler()
 	healthHandler.Register("database", db)
 
+	venueRepo := venue.NewRepository(db.Pool())
+	venueService := venue.NewService(venueRepo)
+	venueHandler := venue.NewHandler(venueService)
+
+	instrumentRepo := instrument.NewRepository(db.Pool())
+	instrumentService := instrument.NewService(instrumentRepo)
+	instrumentHandler := instrument.NewHandler(instrumentService)
+
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler)
 
 	return &App{
-		config:     cfg,
-		logger:     log,
-		database:   db,
-		httpServer: httpServer,
-		hub:        hub,
-		auth:       authService,
-		health:     healthHandler,
+		config:            cfg,
+		logger:            log,
+		database:          db,
+		httpServer:        httpServer,
+		hub:               hub,
+		auth:              authService,
+		health:            healthHandler,
+		venueService:      venueService,
+		instrumentService: instrumentService,
 	}, nil
 }
 

@@ -22,6 +22,457 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/instruments": {
+            "get": {
+                "description": "Get all instruments",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "List instruments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/instrument.Instrument"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new instrument",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "Create instrument",
+                "parameters": [
+                    {
+                        "description": "Instrument to create",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/instrument.CreateInstrumentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/instrument.Instrument"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/instruments/tradable": {
+            "get": {
+                "description": "Get all instruments with trading enabled",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "List tradable instruments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/instrument.Instrument"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/instruments/{id}": {
+            "get": {
+                "description": "Get instrument by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "Get instrument",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/instrument.Instrument"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update instrument by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "Update instrument",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/instrument.UpdateInstrumentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/instrument.Instrument"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete instrument by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "Delete instrument",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/instruments/{id}/trading": {
+            "put": {
+                "description": "Enable or disable trading for an instrument",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "Enable/disable trading",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Enable/disable trading",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/instrument.EnableTradingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/ping": {
             "get": {
                 "description": "Simple ping endpoint to test connectivity",
@@ -45,6 +496,469 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/api.PingResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/venue-instruments": {
+            "get": {
+                "description": "Get all venue instruments for a venue",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "List venue instruments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "venue_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/instrument.VenueInstrument"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Map a venue symbol to a canonical instrument",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instruments"
+                ],
+                "summary": "Create venue instrument mapping",
+                "parameters": [
+                    {
+                        "description": "Venue instrument mapping",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/instrument.CreateVenueInstrumentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/instrument.VenueInstrument"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/venues": {
+            "get": {
+                "description": "Get all venues",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "venues"
+                ],
+                "summary": "List venues",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/venue.Venue"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new venue",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "venues"
+                ],
+                "summary": "Create venue",
+                "parameters": [
+                    {
+                        "description": "Venue to create",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/venue.CreateVenueRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/venue.Venue"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/venues/{id}": {
+            "get": {
+                "description": "Get venue by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "venues"
+                ],
+                "summary": "Get venue",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/venue.Venue"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update venue by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "venues"
+                ],
+                "summary": "Update venue",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/venue.UpdateVenueRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/venue.Venue"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete venue by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "venues"
+                ],
+                "summary": "Delete venue",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
                                         }
                                     }
                                 }
@@ -232,6 +1146,386 @@ const docTemplate = `{
                     "type": "boolean"
                 }
             }
+        },
+        "instrument.ContractType": {
+            "type": "string",
+            "enum": [
+                "LINEAR",
+                "INVERSE",
+                "SPOT",
+                "OTHER"
+            ],
+            "x-enum-varnames": [
+                "ContractTypeLinear",
+                "ContractTypeInverse",
+                "ContractTypeSpot",
+                "ContractTypeOther"
+            ]
+        },
+        "instrument.CreateInstrumentRequest": {
+            "type": "object",
+            "required": [
+                "base_asset",
+                "canonical_symbol",
+                "contract_type",
+                "instrument_type",
+                "price_tick",
+                "quantity_step",
+                "quote_asset"
+            ],
+            "properties": {
+                "base_asset": {
+                    "type": "string"
+                },
+                "canonical_symbol": {
+                    "type": "string"
+                },
+                "contract_size": {
+                    "type": "string"
+                },
+                "contract_type": {
+                    "enum": [
+                        "LINEAR",
+                        "INVERSE",
+                        "SPOT",
+                        "OTHER"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/instrument.ContractType"
+                        }
+                    ]
+                },
+                "instrument_type": {
+                    "enum": [
+                        "SPOT",
+                        "PERP",
+                        "FUTURE"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/instrument.InstrumentType"
+                        }
+                    ]
+                },
+                "margin_asset": {
+                    "type": "string"
+                },
+                "min_notional": {
+                    "type": "string"
+                },
+                "min_quantity": {
+                    "type": "string"
+                },
+                "price_tick": {
+                    "type": "string"
+                },
+                "quantity_step": {
+                    "type": "string"
+                },
+                "quote_asset": {
+                    "type": "string"
+                },
+                "settlement_asset": {
+                    "type": "string"
+                }
+            }
+        },
+        "instrument.CreateVenueInstrumentRequest": {
+            "type": "object",
+            "required": [
+                "instrument_id",
+                "venue_id",
+                "venue_symbol"
+            ],
+            "properties": {
+                "instrument_id": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                },
+                "venue_symbol": {
+                    "type": "string"
+                }
+            }
+        },
+        "instrument.DiscoveryStatus": {
+            "type": "string",
+            "enum": [
+                "DISCOVERED",
+                "REVIEWED",
+                "REJECTED"
+            ],
+            "x-enum-varnames": [
+                "DiscoveryStatusDiscovered",
+                "DiscoveryStatusReviewed",
+                "DiscoveryStatusRejected"
+            ]
+        },
+        "instrument.EnableTradingRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "instrument.Instrument": {
+            "type": "object",
+            "properties": {
+                "base_asset": {
+                    "type": "string"
+                },
+                "canonical_symbol": {
+                    "type": "string"
+                },
+                "contract_size": {
+                    "type": "string"
+                },
+                "contract_type": {
+                    "$ref": "#/definitions/instrument.ContractType"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "discovery_status": {
+                    "$ref": "#/definitions/instrument.DiscoveryStatus"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instrument_type": {
+                    "$ref": "#/definitions/instrument.InstrumentType"
+                },
+                "margin_asset": {
+                    "type": "string"
+                },
+                "min_notional": {
+                    "type": "string"
+                },
+                "min_quantity": {
+                    "type": "string"
+                },
+                "price_tick": {
+                    "type": "string"
+                },
+                "quantity_step": {
+                    "type": "string"
+                },
+                "quote_asset": {
+                    "type": "string"
+                },
+                "settlement_asset": {
+                    "type": "string"
+                },
+                "trading_enabled": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "instrument.InstrumentType": {
+            "type": "string",
+            "enum": [
+                "SPOT",
+                "PERP",
+                "FUTURE"
+            ],
+            "x-enum-varnames": [
+                "InstrumentTypeSpot",
+                "InstrumentTypePerp",
+                "InstrumentTypeFuture"
+            ]
+        },
+        "instrument.UpdateInstrumentRequest": {
+            "type": "object",
+            "properties": {
+                "contract_size": {
+                    "type": "string"
+                },
+                "discovery_status": {
+                    "enum": [
+                        "DISCOVERED",
+                        "REVIEWED",
+                        "REJECTED"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/instrument.DiscoveryStatus"
+                        }
+                    ]
+                },
+                "margin_asset": {
+                    "type": "string"
+                },
+                "min_notional": {
+                    "type": "string"
+                },
+                "min_quantity": {
+                    "type": "string"
+                },
+                "price_tick": {
+                    "type": "string"
+                },
+                "quantity_step": {
+                    "type": "string"
+                },
+                "settlement_asset": {
+                    "type": "string"
+                }
+            }
+        },
+        "instrument.VenueInstrument": {
+            "type": "object",
+            "properties": {
+                "first_seen_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instrument_id": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                },
+                "venue_metadata": {},
+                "venue_symbol": {
+                    "type": "string"
+                }
+            }
+        },
+        "venue.Capabilities": {
+            "type": "object",
+            "properties": {
+                "has_rest": {
+                    "type": "boolean"
+                },
+                "has_ws": {
+                    "type": "boolean"
+                },
+                "supports_futures": {
+                    "type": "boolean"
+                },
+                "supports_perp": {
+                    "type": "boolean"
+                },
+                "supports_spot": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "venue.CreateVenueRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "name",
+                "venue_type"
+            ],
+            "properties": {
+                "capabilities": {
+                    "$ref": "#/definitions/venue.Capabilities"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "venue_type": {
+                    "enum": [
+                        "CEX",
+                        "PERP_DEX"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/venue.VenueType"
+                        }
+                    ]
+                }
+            }
+        },
+        "venue.UpdateVenueRequest": {
+            "type": "object",
+            "properties": {
+                "capabilities": {
+                    "$ref": "#/definitions/venue.Capabilities"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "ACTIVE",
+                        "DISABLED"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/venue.VenueStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "venue.Venue": {
+            "type": "object",
+            "properties": {
+                "capabilities": {},
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "metadata": {},
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/venue.VenueStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "venue_type": {
+                    "$ref": "#/definitions/venue.VenueType"
+                }
+            }
+        },
+        "venue.VenueStatus": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "DISABLED"
+            ],
+            "x-enum-varnames": [
+                "VenueStatusActive",
+                "VenueStatusDisabled"
+            ]
+        },
+        "venue.VenueType": {
+            "type": "string",
+            "enum": [
+                "CEX",
+                "PERP_DEX"
+            ],
+            "x-enum-varnames": [
+                "VenueTypeCEX",
+                "VenueTypePerpDEX"
+            ]
         }
     },
     "securityDefinitions": {
