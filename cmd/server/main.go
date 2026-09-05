@@ -3,11 +3,14 @@ package main
 import (
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/app"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
 )
 
 func main() {
+	_ = godotenv.Load()
+
 	cfg, err := config.Load()
 	if err != nil {
 		panic(err)
