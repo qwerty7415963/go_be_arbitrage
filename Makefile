@@ -142,15 +142,19 @@ db-migrate-create: ## Create new migration (usage: make db-migrate-create name=a
 docker-build: ## Build Docker image
 	@docker build -t arbitrage-be .
 
-docker-up: ## Start services with docker compose
-	@docker compose up -d
-
-docker-down: ## Stop services
-	@docker compose down
-
-docker-test: ## Start test database
+docker-up: ## Start test database
 	@docker compose -f docker-compose.test.yml up -d
 	@echo "✓ Test database started on port 5433"
+
+docker-down: ## Stop test database
+	@docker compose -f docker-compose.test.yml down
+
+docker-staging: ## Start staging (app + database)
+	@docker compose -f docker-compose.staging.yml up -d
+	@echo "✓ Staging started"
+
+docker-staging-down: ## Stop staging
+	@docker compose -f docker-compose.staging.yml down
 
 # ═══════════════════════════════════════════════════════════════
 # CI
