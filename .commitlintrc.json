@@ -1,0 +1,22 @@
+{
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "type-enum": [2, "always", [
+      "feat",     // New feature
+      "fix",      // Bug fix
+      "chore",    // Maintenance tasks
+      "refactor", // Code refactoring
+      "docs",     // Documentation
+      "test",     // Tests
+      "perf",     // Performance improvement
+      "ci",       // CI/CD changes
+      "build",    // Build system changes
+      "revert"    // Revert commit
+    ]],
+    "subject-max-length": [2, "always", 100],
+    "body-max-line-length": [1, "always", 120],
+    "header-max-length": [2, "always", 120],
+    "subject-empty": [2, "never"],
+    "type-empty": [2, "never"]
+  }
+}
