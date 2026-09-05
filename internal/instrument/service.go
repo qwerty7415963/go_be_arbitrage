@@ -8,11 +8,25 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
 
-type Service struct {
-	repo *Repository
+type RepositoryInterface interface {
+	Create(ctx context.Context, inst *Instrument) error
+	GetByID(ctx context.Context, id uuid.UUID) (*Instrument, error)
+	GetByCanonicalSymbol(ctx context.Context, symbol string) (*Instrument, error)
+	List(ctx context.Context) ([]*Instrument, error)
+	ListTradable(ctx context.Context) ([]*Instrument, error)
+	Update(ctx context.Context, inst *Instrument) error
+	EnableTrading(ctx context.Context, id uuid.UUID, enabled bool) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	CreateVenueInstrument(ctx context.Context, vi *VenueInstrument) error
+	GetVenueInstrument(ctx context.Context, venueID uuid.UUID, venueSymbol string) (*VenueInstrument, error)
+	ListVenueInstruments(ctx context.Context, venueID uuid.UUID) ([]*VenueInstrument, error)
 }
 
-func NewService(repo *Repository) *Service {
+type Service struct {
+	repo RepositoryInterface
+}
+
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{repo: repo}
 }
 

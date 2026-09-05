@@ -9,11 +9,20 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
 
-type Service struct {
-	repo *Repository
+type RepositoryInterface interface {
+	Create(ctx context.Context, v *Venue) error
+	GetByID(ctx context.Context, id uuid.UUID) (*Venue, error)
+	GetByCode(ctx context.Context, code string) (*Venue, error)
+	List(ctx context.Context) ([]*Venue, error)
+	Update(ctx context.Context, v *Venue) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-func NewService(repo *Repository) *Service {
+type Service struct {
+	repo RepositoryInterface
+}
+
+func NewService(repo RepositoryInterface) *Service {
 	return &Service{repo: repo}
 }
 
