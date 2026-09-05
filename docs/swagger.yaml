@@ -1,0 +1,147 @@
+basePath: /
+definitions:
+  api.ErrorBody:
+    properties:
+      code:
+        type: string
+      details: {}
+      message:
+        type: string
+      request_id:
+        type: string
+    type: object
+  api.HealthResponse:
+    properties:
+      checks:
+        additionalProperties:
+          type: string
+        type: object
+      status:
+        example: healthy
+        type: string
+    type: object
+  api.Meta:
+    properties:
+      cursor:
+        type: string
+      has_more:
+        type: boolean
+      limit:
+        type: integer
+    type: object
+  api.PingResponse:
+    properties:
+      message:
+        example: pong
+        type: string
+    type: object
+  api.ReadyResponse:
+    properties:
+      status:
+        example: ready
+        type: string
+    type: object
+  api.Response:
+    properties:
+      data: {}
+      error:
+        $ref: '#/definitions/api.ErrorBody'
+      meta:
+        $ref: '#/definitions/api.Meta'
+      success:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@arbitrage.com
+    name: API Support
+  description: Backend API for arbitrage trading platform
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: Arbitrage Platform API
+  version: "1.0"
+paths:
+  /api/v1/ping:
+    get:
+      description: Simple ping endpoint to test connectivity
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.PingResponse'
+              type: object
+      summary: Ping test
+      tags:
+      - system
+  /health:
+    get:
+      description: Check service health status including all registered checkers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.HealthResponse'
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Health check
+      tags:
+      - system
+  /ready:
+    get:
+      description: Check if service is ready to accept requests
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ReadyResponse'
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Readiness check
+      tags:
+      - system
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

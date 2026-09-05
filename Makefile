@@ -164,3 +164,17 @@ docker-staging-down: ## Stop staging
 
 ci: fmt vet lint test-unit build ## Run full CI pipeline
 	@echo "✓ CI passed"
+
+# ═══════════════════════════════════════════════════════════════
+# Swagger
+# ═══════════════════════════════════════════════════════════════
+
+.PHONY: swagger-gen swagger-serve
+
+swagger-gen: ## Generate swagger docs
+	@echo "Generating swagger docs..."
+	@swag init -g cmd/server/main.go -o docs
+	@echo "✓ Swagger docs generated"
+
+swagger-serve: ## Run app and access /swagger/index.html
+	@go run ./cmd/server

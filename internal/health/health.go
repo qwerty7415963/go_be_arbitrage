@@ -31,6 +31,14 @@ func (h *Handler) Register(name string, checker Checker) {
 	h.checkers[name] = checker
 }
 
+// Health godoc
+// @Summary      Health check
+// @Description  Check service health status including all registered checkers
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  api.Response{data=api.HealthResponse}
+// @Failure      503  {object}  api.Response{error=api.ErrorBody}
+// @Router       /health [get]
 func (h *Handler) Health(c *gin.Context) {
 	status := "healthy"
 	checks := make(map[string]string)
@@ -64,13 +72,21 @@ func (h *Handler) Health(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.Response{
 		Success: true,
-		Data: map[string]interface{}{
-			"status": status,
-			"checks": checks,
+		Data: api.HealthResponse{
+			Status: status,
+			Checks: checks,
 		},
 	})
 }
 
+// Ready godoc
+// @Summary      Readiness check
+// @Description  Check if service is ready to accept requests
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  api.Response{data=api.ReadyResponse}
+// @Failure      503  {object}  api.Response{error=api.ErrorBody}
+// @Router       /ready [get]
 func (h *Handler) Ready(c *gin.Context) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -78,8 +94,8 @@ func (h *Handler) Ready(c *gin.Context) {
 	if len(h.checkers) == 0 {
 		c.JSON(http.StatusOK, api.Response{
 			Success: true,
-			Data: map[string]interface{}{
-				"status": "ready",
+			Data: api.ReadyResponse{
+				Status: "ready",
 			},
 		})
 		return
@@ -107,8 +123,8 @@ func (h *Handler) Ready(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.Response{
 		Success: true,
-		Data: map[string]interface{}{
-			"status": "ready",
+		Data: api.ReadyResponse{
+			Status: "ready",
 		},
 	})
 }
