@@ -226,6 +226,111 @@ definitions:
       venue_symbol:
         type: string
     type: object
+  market.FundingEvent:
+    properties:
+      funding_rate:
+        type: string
+      id:
+        type: integer
+      index_price:
+        type: string
+      instrument_id:
+        type: string
+      interval_seconds:
+        type: integer
+      mark_price:
+        type: string
+      next_funding_at:
+        type: string
+      observed_at:
+        type: string
+      premium_rate:
+        type: string
+      source_event_id:
+        type: integer
+      venue_id:
+        type: string
+    type: object
+  market.Subscription:
+    properties:
+      channel:
+        type: string
+      connectionID:
+        type: string
+      error: {}
+      id:
+        type: string
+      instrumentID:
+        type: string
+      status:
+        $ref: '#/definitions/market.SubscriptionStatus'
+      venueID:
+        type: string
+    type: object
+  market.SubscriptionStatus:
+    enum:
+    - PENDING
+    - ACTIVE
+    - FAILED
+    - UNSUBSCRIBED
+    type: string
+    x-enum-varnames:
+    - SubscriptionStatusPending
+    - SubscriptionStatusActive
+    - SubscriptionStatusFailed
+    - SubscriptionStatusUnsubscribed
+  market.TickerEvent:
+    properties:
+      best_ask_price:
+        type: string
+      best_ask_qty:
+        type: string
+      best_bid_price:
+        type: string
+      best_bid_qty:
+        type: string
+      exchange_timestamp:
+        type: string
+      id:
+        type: integer
+      index_price:
+        type: string
+      instrument_id:
+        type: string
+      mark_price:
+        type: string
+      receive_timestamp:
+        type: string
+      sequence_no:
+        type: integer
+      venue_id:
+        type: string
+    type: object
+  market.TradeEvent:
+    properties:
+      exchange_timestamp:
+        type: string
+      exchange_trade_id:
+        type: string
+      id:
+        type: integer
+      instrument_id:
+        type: string
+      price:
+        type: string
+      quantity:
+        type: string
+      raw_event_id:
+        type: integer
+      receive_timestamp:
+        type: string
+      sequence_no:
+        type: integer
+      side:
+        type: string
+      venue_id:
+        type: string
+    type: object
   venue.Capabilities:
     properties:
       has_rest:
@@ -572,6 +677,202 @@ paths:
       summary: List tradable instruments
       tags:
       - instruments
+  /api/v1/market/funding:
+    get:
+      description: Get latest funding rate for a venue instrument
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/market.FundingEvent'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get latest funding rate
+      tags:
+      - market
+  /api/v1/market/subscribe:
+    get:
+      description: Subscribe to market data updates via WebSocket
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      - description: Channel (trades, ticker, funding)
+        in: query
+        name: channel
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: Switching Protocols
+          schema:
+            $ref: '#/definitions/api.Response'
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Subscribe to market data
+      tags:
+      - market
+  /api/v1/market/subscriptions:
+    get:
+      description: Get all active market data subscriptions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/market.Subscription'
+                  type: array
+              type: object
+      summary: Get active subscriptions
+      tags:
+      - market
+  /api/v1/market/ticker:
+    get:
+      description: Get latest ticker for a venue instrument
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/market.TickerEvent'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get latest ticker
+      tags:
+      - market
+  /api/v1/market/trades:
+    get:
+      description: Get recent trades for a venue instrument
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      - description: Limit (default 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/market.TradeEvent'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get recent trades
+      tags:
+      - market
   /api/v1/ping:
     get:
       description: Simple ping endpoint to test connectivity

@@ -10,6 +10,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver/middleware"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 )
 
@@ -17,6 +18,7 @@ func (s *Server) SetupRoutes(
 	healthHandler *health.Handler,
 	venueHandler *venue.Handler,
 	instrumentHandler *instrument.Handler,
+	marketHandler *market.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -55,6 +57,16 @@ func (s *Server) SetupRoutes(
 		{
 			venueInstruments.GET("", instrumentHandler.ListVenueInstruments)
 			venueInstruments.POST("", instrumentHandler.CreateVenueInstrument)
+		}
+
+		// Market Data
+		marketData := v1.Group("/market")
+		{
+			marketData.GET("/subscribe", marketHandler.Subscribe)
+			marketData.GET("/trades", marketHandler.GetTrades)
+			marketData.GET("/ticker", marketHandler.GetTicker)
+			marketData.GET("/funding", marketHandler.GetFunding)
+			marketData.GET("/subscriptions", marketHandler.GetSubscriptions)
 		}
 	}
 
