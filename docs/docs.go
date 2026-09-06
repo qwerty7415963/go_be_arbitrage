@@ -812,6 +812,316 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/orderbook/depth": {
+            "get": {
+                "description": "Get L2 order book for a venue instrument",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orderbook"
+                ],
+                "summary": "Get order book",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "venue_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "instrument_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Depth levels (default 10, max 20)",
+                        "name": "depth",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/orderbook.OrderBookDepth"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/orderbook/health": {
+            "get": {
+                "description": "Get health status of an order book",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orderbook"
+                ],
+                "summary": "Get order book health",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "venue_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "instrument_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/orderbook.OrderBookHealth"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/orderbook/resync": {
+            "post": {
+                "description": "Request a resync of the order book",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orderbook"
+                ],
+                "summary": "Request order book resync",
+                "parameters": [
+                    {
+                        "description": "Resync request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/orderbook.SubscribeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/orderbook/tradable": {
+            "get": {
+                "description": "Check if the order book is healthy and tradable",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orderbook"
+                ],
+                "summary": "Check if order book is tradable",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "venue_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "instrument_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/ping": {
             "get": {
                 "description": "Simple ping endpoint to test connectivity",
@@ -1893,6 +2203,122 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "side": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "orderbook.BookState": {
+            "type": "string",
+            "enum": [
+                "HEALTHY",
+                "STALE",
+                "DESYNCED",
+                "RESYNCING",
+                "DISCONNECTED"
+            ],
+            "x-enum-varnames": [
+                "BookStateHealthy",
+                "BookStateStale",
+                "BookStateDesynced",
+                "BookStateResyncing",
+                "BookStateDisconnected"
+            ]
+        },
+        "orderbook.DepthLevel": {
+            "type": "object",
+            "properties": {
+                "notional": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "string"
+                }
+            }
+        },
+        "orderbook.OrderBookDepth": {
+            "type": "object",
+            "properties": {
+                "ask_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orderbook.DepthLevel"
+                    }
+                },
+                "best_ask": {
+                    "type": "string"
+                },
+                "best_bid": {
+                    "type": "string"
+                },
+                "bid_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orderbook.DepthLevel"
+                    }
+                },
+                "spread": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "orderbook.OrderBookHealth": {
+            "type": "object",
+            "properties": {
+                "age_ms": {
+                    "type": "integer"
+                },
+                "gap_count": {
+                    "type": "integer"
+                },
+                "instrument_id": {
+                    "type": "string"
+                },
+                "is_healthy": {
+                    "type": "boolean"
+                },
+                "last_update": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "resync_count": {
+                    "type": "integer"
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "state": {
+                    "$ref": "#/definitions/orderbook.BookState"
+                },
+                "venue_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "orderbook.SubscribeRequest": {
+            "type": "object",
+            "required": [
+                "depth",
+                "instrument_id",
+                "venue_id"
+            ],
+            "properties": {
+                "depth": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1
+                },
+                "instrument_id": {
                     "type": "string"
                 },
                 "venue_id": {

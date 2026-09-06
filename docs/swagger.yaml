@@ -331,6 +331,86 @@ definitions:
       venue_id:
         type: string
     type: object
+  orderbook.BookState:
+    enum:
+    - HEALTHY
+    - STALE
+    - DESYNCED
+    - RESYNCING
+    - DISCONNECTED
+    type: string
+    x-enum-varnames:
+    - BookStateHealthy
+    - BookStateStale
+    - BookStateDesynced
+    - BookStateResyncing
+    - BookStateDisconnected
+  orderbook.DepthLevel:
+    properties:
+      notional:
+        type: string
+      price:
+        type: string
+      quantity:
+        type: string
+    type: object
+  orderbook.OrderBookDepth:
+    properties:
+      ask_depth:
+        items:
+          $ref: '#/definitions/orderbook.DepthLevel'
+        type: array
+      best_ask:
+        type: string
+      best_bid:
+        type: string
+      bid_depth:
+        items:
+          $ref: '#/definitions/orderbook.DepthLevel'
+        type: array
+      spread:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  orderbook.OrderBookHealth:
+    properties:
+      age_ms:
+        type: integer
+      gap_count:
+        type: integer
+      instrument_id:
+        type: string
+      is_healthy:
+        type: boolean
+      last_update:
+        type: string
+      message:
+        type: string
+      resync_count:
+        type: integer
+      sequence:
+        type: integer
+      state:
+        $ref: '#/definitions/orderbook.BookState'
+      venue_id:
+        type: string
+    type: object
+  orderbook.SubscribeRequest:
+    properties:
+      depth:
+        maximum: 20
+        minimum: 1
+        type: integer
+      instrument_id:
+        type: string
+      venue_id:
+        type: string
+    required:
+    - depth
+    - instrument_id
+    - venue_id
+    type: object
   venue.Capabilities:
     properties:
       has_rest:
@@ -873,6 +953,182 @@ paths:
       summary: Get recent trades
       tags:
       - market
+  /api/v1/orderbook/depth:
+    get:
+      description: Get L2 order book for a venue instrument
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      - description: Depth levels (default 10, max 20)
+        in: query
+        name: depth
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/orderbook.OrderBookDepth'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get order book
+      tags:
+      - orderbook
+  /api/v1/orderbook/health:
+    get:
+      description: Get health status of an order book
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/orderbook.OrderBookHealth'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get order book health
+      tags:
+      - orderbook
+  /api/v1/orderbook/resync:
+    post:
+      description: Request a resync of the order book
+      parameters:
+      - description: Resync request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/orderbook.SubscribeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Request order book resync
+      tags:
+      - orderbook
+  /api/v1/orderbook/tradable:
+    get:
+      description: Check if the order book is healthy and tradable
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: boolean
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Check if order book is tradable
+      tags:
+      - orderbook
   /api/v1/ping:
     get:
       description: Simple ping endpoint to test connectivity

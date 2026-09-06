@@ -16,6 +16,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/ws"
 )
@@ -31,6 +32,7 @@ type App struct {
 	venueService      *venue.Service
 	instrumentService *instrument.Service
 	marketService     *market.Service
+	orderbookService  *orderbook.Service
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -67,8 +69,12 @@ func New(cfg *config.Config) (*App, error) {
 	marketService := market.NewService(rawEventRepo, normalizedEventRepo, connManager, subManager)
 	marketHandler := market.NewHandler(marketService)
 
+	orderbookRepo := orderbook.NewRepository(db.Pool())
+	orderbookService := orderbook.NewService(orderbookRepo)
+	orderbookHandler := orderbook.NewHandler(orderbookService)
+
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler)
 
 	return &App{
 		config:            cfg,
@@ -81,6 +87,7 @@ func New(cfg *config.Config) (*App, error) {
 		venueService:      venueService,
 		instrumentService: instrumentService,
 		marketService:     marketService,
+		orderbookService:  orderbookService,
 	}, nil
 }
 
