@@ -1154,6 +1154,280 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/unified/health": {
+            "get": {
+                "description": "Get health overview for all venues",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unified"
+                ],
+                "summary": "Get health overview",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/unifiedstate.HealthOverview"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/unified/instruments": {
+            "get": {
+                "description": "Get all unified instrument states across venues",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unified"
+                ],
+                "summary": "Get all unified instrument states",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "$ref": "#/definitions/unifiedstate.InstrumentState"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/unified/instruments/{id}": {
+            "get": {
+                "description": "Get unified state for a specific instrument",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unified"
+                ],
+                "summary": "Get unified instrument state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/unifiedstate.InstrumentState"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/unified/instruments/{id}/depth": {
+            "get": {
+                "description": "Get executable depth for an instrument",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unified"
+                ],
+                "summary": "Get executable depth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Depth levels (default 10, max 20)",
+                        "name": "depth",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/unifiedstate.ExecutableDepth"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/unified/ws": {
+            "get": {
+                "description": "Subscribe to real-time unified state updates via WebSocket",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "unified"
+                ],
+                "summary": "Subscribe to unified state updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "instrument_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/venue-instruments": {
             "get": {
                 "description": "Get all venue instruments for a venue",
@@ -2319,6 +2593,278 @@ const docTemplate = `{
                     "minimum": 1
                 },
                 "instrument_id": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "unifiedstate.DepthLevel": {
+            "type": "object",
+            "properties": {
+                "notional": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "string"
+                }
+            }
+        },
+        "unifiedstate.ExecutableDepth": {
+            "type": "object",
+            "properties": {
+                "ask_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                    }
+                },
+                "best_ask": {
+                    "type": "string"
+                },
+                "best_bid": {
+                    "type": "string"
+                },
+                "bid_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                    }
+                },
+                "spread": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "unifiedstate.FundingState": {
+            "type": "object",
+            "properties": {
+                "funding_rate": {
+                    "type": "string"
+                },
+                "index_price": {
+                    "type": "string"
+                },
+                "interval_seconds": {
+                    "type": "integer"
+                },
+                "mark_price": {
+                    "type": "string"
+                },
+                "next_funding_at": {
+                    "type": "string"
+                },
+                "received_at": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "unifiedstate.HealthOverview": {
+            "type": "object",
+            "properties": {
+                "healthy_venues": {
+                    "type": "integer"
+                },
+                "stale_venues": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "total_instruments": {
+                    "type": "integer"
+                },
+                "unhealthy_venues": {
+                    "type": "integer"
+                },
+                "venue_health": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/unifiedstate.VenueHealthStatus"
+                    }
+                }
+            }
+        },
+        "unifiedstate.InstrumentState": {
+            "type": "object",
+            "properties": {
+                "ask_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                    }
+                },
+                "base_asset": {
+                    "type": "string"
+                },
+                "best_ask": {
+                    "type": "string"
+                },
+                "best_ask_venue": {
+                    "type": "string"
+                },
+                "best_bid": {
+                    "type": "string"
+                },
+                "best_bid_venue": {
+                    "type": "string"
+                },
+                "bid_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                    }
+                },
+                "canonical_symbol": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "funding": {
+                    "$ref": "#/definitions/unifiedstate.FundingState"
+                },
+                "funding_venue": {
+                    "type": "string"
+                },
+                "healthy_venues": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "index_price": {
+                    "type": "string"
+                },
+                "instrument_id": {
+                    "type": "string"
+                },
+                "is_stale": {
+                    "type": "boolean"
+                },
+                "last_price": {
+                    "type": "string"
+                },
+                "last_update": {
+                    "type": "string"
+                },
+                "mark_price": {
+                    "type": "string"
+                },
+                "quote_asset": {
+                    "type": "string"
+                },
+                "spread": {
+                    "type": "string"
+                },
+                "total_venues": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "venue_states": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/unifiedstate.VenueMarketState"
+                    }
+                }
+            }
+        },
+        "unifiedstate.PriceLevel": {
+            "type": "object",
+            "properties": {
+                "price": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "string"
+                }
+            }
+        },
+        "unifiedstate.VenueHealthStatus": {
+            "type": "string",
+            "enum": [
+                "HEALTHY",
+                "STALE",
+                "UNHEALTHY",
+                "UNKNOWN"
+            ],
+            "x-enum-varnames": [
+                "VenueHealthHealthy",
+                "VenueHealthStale",
+                "VenueHealthUnhealthy",
+                "VenueHealthUnknown"
+            ]
+        },
+        "unifiedstate.VenueMarketState": {
+            "type": "object",
+            "properties": {
+                "age_ms": {
+                    "type": "integer"
+                },
+                "ask_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/unifiedstate.PriceLevel"
+                    }
+                },
+                "best_ask": {
+                    "type": "string"
+                },
+                "best_bid": {
+                    "type": "string"
+                },
+                "bid_depth": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/unifiedstate.PriceLevel"
+                    }
+                },
+                "funding": {
+                    "$ref": "#/definitions/unifiedstate.FundingState"
+                },
+                "health": {
+                    "$ref": "#/definitions/unifiedstate.VenueHealthStatus"
+                },
+                "index_price": {
+                    "type": "string"
+                },
+                "instrument_id": {
+                    "type": "string"
+                },
+                "last_funding": {
+                    "type": "string"
+                },
+                "last_orderbook": {
+                    "type": "string"
+                },
+                "last_price": {
+                    "type": "string"
+                },
+                "last_ticker": {
+                    "type": "string"
+                },
+                "last_update": {
+                    "type": "string"
+                },
+                "mark_price": {
+                    "type": "string"
+                },
+                "spread": {
+                    "type": "string"
+                },
+                "venue_code": {
                     "type": "string"
                 },
                 "venue_id": {

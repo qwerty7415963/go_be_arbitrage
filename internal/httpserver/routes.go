@@ -12,6 +12,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 )
 
@@ -21,6 +22,7 @@ func (s *Server) SetupRoutes(
 	instrumentHandler *instrument.Handler,
 	marketHandler *market.Handler,
 	orderbookHandler *orderbook.Handler,
+	unifiedHandler *unifiedstate.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -78,6 +80,16 @@ func (s *Server) SetupRoutes(
 			orderbookRoutes.GET("/health", orderbookHandler.GetHealth)
 			orderbookRoutes.GET("/tradable", orderbookHandler.GetTradable)
 			orderbookRoutes.POST("/resync", orderbookHandler.RequestResync)
+		}
+
+		// Unified State
+		unifiedRoutes := v1.Group("/unified")
+		{
+			unifiedRoutes.GET("/instruments", unifiedHandler.GetInstruments)
+			unifiedRoutes.GET("/instruments/:id", unifiedHandler.GetInstrument)
+			unifiedRoutes.GET("/instruments/:id/depth", unifiedHandler.GetExecutableDepth)
+			unifiedRoutes.GET("/health", unifiedHandler.GetHealth)
+			unifiedRoutes.GET("/ws", unifiedHandler.SubscribeWS)
 		}
 	}
 

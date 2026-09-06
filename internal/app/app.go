@@ -17,6 +17,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/ws"
 )
@@ -33,6 +34,7 @@ type App struct {
 	instrumentService *instrument.Service
 	marketService     *market.Service
 	orderbookService  *orderbook.Service
+	unifiedService    *unifiedstate.Service
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -73,8 +75,12 @@ func New(cfg *config.Config) (*App, error) {
 	orderbookService := orderbook.NewService(orderbookRepo)
 	orderbookHandler := orderbook.NewHandler(orderbookService)
 
+	unifiedRepo := unifiedstate.NewRepository(db.Pool())
+	unifiedService := unifiedstate.NewService(unifiedRepo)
+	unifiedHandler := unifiedstate.NewHandler(unifiedService)
+
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler)
 
 	return &App{
 		config:            cfg,
@@ -88,6 +94,7 @@ func New(cfg *config.Config) (*App, error) {
 		instrumentService: instrumentService,
 		marketService:     marketService,
 		orderbookService:  orderbookService,
+		unifiedService:    unifiedService,
 	}, nil
 }
 
