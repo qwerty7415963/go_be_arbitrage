@@ -1328,6 +1328,233 @@ paths:
       summary: Ping test
       tags:
       - system
+  /api/v1/storage/audit/{tenant_id}:
+    get:
+      consumes:
+      - application/json
+      description: List audit events for a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: List audit events
+      tags:
+      - storage
+  /api/v1/storage/decisions/risk/{instance_id}:
+    get:
+      consumes:
+      - application/json
+      description: List risk decisions for a strategy instance
+      parameters:
+      - description: Strategy Instance ID
+        in: path
+        name: instance_id
+        required: true
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: List risk decisions
+      tags:
+      - storage
+  /api/v1/storage/decisions/strategy/{instance_id}:
+    get:
+      consumes:
+      - application/json
+      description: List strategy decisions for a strategy instance
+      parameters:
+      - description: Strategy Instance ID
+        in: path
+        name: instance_id
+        required: true
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: List strategy decisions
+      tags:
+      - storage
+  /api/v1/storage/opportunities:
+    get:
+      consumes:
+      - application/json
+      description: List arbitrage opportunities with pagination
+      parameters:
+      - description: Tenant ID
+        in: query
+        name: tenant_id
+        required: true
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: List opportunities
+      tags:
+      - storage
+  /api/v1/storage/opportunities/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single opportunity with its legs
+      parameters:
+      - description: Opportunity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: Get opportunity by ID
+      tags:
+      - storage
+  /api/v1/storage/replay/market:
+    get:
+      consumes:
+      - application/json
+      description: Replay market events from a time range
+      parameters:
+      - description: Start time (RFC3339)
+        in: query
+        name: start_time
+        required: true
+        type: string
+      - description: End time (RFC3339)
+        in: query
+        name: end_time
+        required: true
+        type: string
+      - description: Venue ID
+        in: query
+        name: venue_id
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        type: string
+      - default: 100
+        description: Max events
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: Replay market events
+      tags:
+      - storage
+  /api/v1/storage/retention/cleanup:
+    post:
+      consumes:
+      - application/json
+      description: Run data retention cleanup with default config
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: Cleanup old data
+      tags:
+      - storage
   /api/v1/unified/health:
     get:
       description: Get health overview for all venues

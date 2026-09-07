@@ -12,6 +12,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 )
@@ -23,6 +24,7 @@ func (s *Server) SetupRoutes(
 	marketHandler *market.Handler,
 	orderbookHandler *orderbook.Handler,
 	unifiedHandler *unifiedstate.Handler,
+	storageHandler *storage.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -90,6 +92,18 @@ func (s *Server) SetupRoutes(
 			unifiedRoutes.GET("/instruments/:id/depth", unifiedHandler.GetExecutableDepth)
 			unifiedRoutes.GET("/health", unifiedHandler.GetHealth)
 			unifiedRoutes.GET("/ws", unifiedHandler.SubscribeWS)
+		}
+
+		// Storage & Audit
+		storageRoutes := v1.Group("/storage")
+		{
+			storageRoutes.GET("/opportunities", storageHandler.ListOpportunities)
+			storageRoutes.GET("/opportunities/:id", storageHandler.GetOpportunity)
+			storageRoutes.GET("/decisions/strategy/:instance_id", storageHandler.ListStrategyDecisions)
+			storageRoutes.GET("/decisions/risk/:instance_id", storageHandler.ListRiskDecisions)
+			storageRoutes.GET("/audit/:tenant_id", storageHandler.ListAuditEvents)
+			storageRoutes.GET("/replay/market", storageHandler.ReplayMarketEvents)
+			storageRoutes.POST("/retention/cleanup", storageHandler.CleanupData)
 		}
 	}
 

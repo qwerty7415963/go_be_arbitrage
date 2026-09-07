@@ -19,6 +19,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/ws"
 )
 
@@ -35,6 +36,7 @@ type App struct {
 	marketService     *market.Service
 	orderbookService  *orderbook.Service
 	unifiedService    *unifiedstate.Service
+	storageHandler    *storage.Handler
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -79,8 +81,15 @@ func New(cfg *config.Config) (*App, error) {
 	unifiedService := unifiedstate.NewService(unifiedRepo)
 	unifiedHandler := unifiedstate.NewHandler(unifiedService)
 
+	opportunityRepo := storage.NewOpportunityRepository(db.Pool())
+	decisionRepo := storage.NewDecisionRepository(db.Pool())
+	auditRepo := storage.NewAuditRepository(db.Pool())
+	replayReader := storage.NewReplayReader(db.Pool())
+	retentionSvc := storage.NewRetentionService(db.Pool())
+	storageHandler := storage.NewHandler(opportunityRepo, decisionRepo, auditRepo, replayReader, retentionSvc)
+
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler)
 
 	return &App{
 		config:            cfg,
@@ -95,6 +104,7 @@ func New(cfg *config.Config) (*App, error) {
 		marketService:     marketService,
 		orderbookService:  orderbookService,
 		unifiedService:    unifiedService,
+		storageHandler:    storageHandler,
 	}, nil
 }
 
