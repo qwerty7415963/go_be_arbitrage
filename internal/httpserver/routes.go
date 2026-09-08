@@ -29,6 +29,7 @@ func (s *Server) SetupRoutes(
 	storageHandler *storage.Handler,
 	exchangeConfigHandler *exchangeconfig.Handler,
 	authService *auth.Service,
+	authHandler *auth.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -39,6 +40,23 @@ func (s *Server) SetupRoutes(
 	v1 := s.engine.Group("/api/v1")
 	{
 		v1.GET("/ping", pingHandler)
+
+		// Auth
+		authRoutes := v1.Group("/auth")
+		{
+			authRoutes.POST("/register", authHandler.Register)
+			authRoutes.POST("/login", authHandler.Login)
+			authRoutes.POST("/refresh", authHandler.Refresh)
+
+			// Protected auth routes
+			authProtected := authRoutes.Group("")
+			authProtected.Use(middleware.JWT(authService))
+			{
+				authProtected.POST("/logout", authHandler.Logout)
+				authProtected.POST("/change-password", authHandler.ChangePassword)
+				authProtected.GET("/me", authHandler.Me)
+			}
+		}
 
 		// Venues
 		venues := v1.Group("/venues")

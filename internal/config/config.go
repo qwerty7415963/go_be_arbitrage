@@ -37,6 +37,8 @@ type AuthConfig struct {
 	JWTSecret          string        `yaml:"jwt_secret"`
 	JWTExpiration      time.Duration `yaml:"jwt_expiration"`
 	RefreshExpiration  time.Duration `yaml:"refresh_expiration"`
+	AdminEmail         string        `yaml:"admin_email"`
+	AdminPassword      string        `yaml:"admin_password"`
 }
 
 type LogConfig struct {
@@ -71,6 +73,8 @@ func Load() (*Config, error) {
 			JWTSecret:         getEnv("ARBITRAGE_JWT_SECRET", ""),
 			JWTExpiration:     getEnvDuration("ARBITRAGE_JWT_EXPIRATION", 15*time.Minute),
 			RefreshExpiration: getEnvDuration("ARBITRAGE_REFRESH_EXPIRATION", 7*24*time.Hour),
+			AdminEmail:        getEnv("ARBITRAGE_ADMIN_EMAIL", ""),
+			AdminPassword:     getEnv("ARBITRAGE_ADMIN_PASSWORD", ""),
 		},
 		Log: LogConfig{
 			Level:  getEnv("ARBITRAGE_LOG_LEVEL", "info"),

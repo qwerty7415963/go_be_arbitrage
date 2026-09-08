@@ -39,6 +39,7 @@ type App struct {
 	unifiedService    *unifiedstate.Service
 	storageHandler    *storage.Handler
 	exchangeConfigHandler *exchangeconfig.Handler
+	authHandler       *auth.Handler
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -55,7 +56,12 @@ func New(cfg *config.Config) (*App, error) {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	authService := auth.NewService(&cfg.Auth)
+	authRepo := auth.NewRepository(db.Pool())
+	authService := auth.NewService(&cfg.Auth, authRepo)
+
+	if err := authService.EnsureAdmin(ctx, cfg.Auth.AdminEmail, cfg.Auth.AdminPassword); err != nil {
+		log.Error("failed to ensure admin user", "error", err)
+	}
 
 	healthHandler := health.NewHandler()
 	healthHandler.Register("database", db)
@@ -94,8 +100,10 @@ func New(cfg *config.Config) (*App, error) {
 	exchangeConfigService := exchangeconfig.NewService(exchangeConfigRepo)
 	exchangeConfigHandler := exchangeconfig.NewHandler(exchangeConfigService)
 
+	authHandler := auth.NewHandler(authService)
+
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, exchangeConfigHandler, authService)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, exchangeConfigHandler, authService, authHandler)
 
 	return &App{
 		config:            cfg,
@@ -112,6 +120,7 @@ func New(cfg *config.Config) (*App, error) {
 		unifiedService:    unifiedService,
 		storageHandler:    storageHandler,
 		exchangeConfigHandler: exchangeConfigHandler,
+		authHandler:       authHandler,
 	}, nil
 }
 

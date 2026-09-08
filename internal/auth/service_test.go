@@ -15,7 +15,7 @@ func TestGenerateTokenPair(t *testing.T) {
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 
-	svc := NewService(cfg)
+	svc := NewService(cfg, nil)
 
 	pair, err := svc.GenerateTokenPair("user-123", "tenant-456", "admin")
 	if err != nil {
@@ -40,7 +40,7 @@ func TestValidateToken(t *testing.T) {
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 
-	svc := NewService(cfg)
+	svc := NewService(cfg, nil)
 
 	pair, err := svc.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
@@ -75,8 +75,8 @@ func TestValidateToken_InvalidSecret(t *testing.T) {
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 
-	svc1 := NewService(cfg1)
-	svc2 := NewService(cfg2)
+	svc1 := NewService(cfg1, nil)
+	svc2 := NewService(cfg2, nil)
 
 	pair, err := svc1.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
@@ -96,7 +96,7 @@ func TestValidateToken_Expired(t *testing.T) {
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 
-	svc := NewService(cfg)
+	svc := NewService(cfg, nil)
 
 	pair, err := svc.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
@@ -116,7 +116,7 @@ func TestValidateToken_InvalidFormat(t *testing.T) {
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 
-	svc := NewService(cfg)
+	svc := NewService(cfg, nil)
 
 	_, err := svc.ValidateToken("invalid-token")
 	if err == nil {
@@ -133,10 +133,68 @@ func TestGenerateTokenPair_NoSecret(t *testing.T) {
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 
-	svc := NewService(cfg)
+	svc := NewService(cfg, nil)
 
 	_, err := svc.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGenerateTokenPair_DefaultRole(t *testing.T) {
+	cfg := &config.AuthConfig{
+		JWTSecret:         "test-secret",
+		JWTExpiration:     15 * time.Minute,
+		RefreshExpiration: 7 * 24 * time.Hour,
+	}
+
+	svc := NewService(cfg, nil)
+
+	pair, err := svc.GenerateTokenPair("user-123", "tenant-456", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	claims, err := svc.ValidateToken(pair.AccessToken)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if claims.Role != "user" {
+		t.Errorf("expected default role user, got %s", claims.Role)
+	}
+}
+
+func TestHashToken(t *testing.T) {
+	token := "test-refresh-token-12345"
+	hash1 := hashToken(token)
+	hash2 := hashToken(token)
+
+	if hash1 != hash2 {
+		t.Error("expected same hash for same token")
+	}
+
+	if hash1 == token {
+		t.Error("hash should not equal original token")
+	}
+}
+
+func TestGenerateRefreshToken(t *testing.T) {
+	token1, err := generateRefreshToken()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	token2, err := generateRefreshToken()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if token1 == token2 {
+		t.Error("expected different refresh tokens")
+	}
+
+	if len(token1) != 64 {
+		t.Errorf("expected 64 char hex string, got %d chars", len(token1))
 	}
 }

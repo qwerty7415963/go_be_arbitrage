@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS refresh_tokens;
+
+ALTER TABLE users ALTER COLUMN tenant_id SET NOT NULL;
