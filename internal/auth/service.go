@@ -11,6 +11,7 @@ import (
 type Claims struct {
 	UserID   string `json:"user_id"`
 	TenantID string `json:"tenant_id"`
+	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -28,13 +29,17 @@ func NewService(cfg *config.AuthConfig) *Service {
 	return &Service{config: cfg}
 }
 
-func (s *Service) GenerateTokenPair(userID, tenantID string) (*TokenPair, error) {
-	accessToken, err := s.generateToken(userID, tenantID, s.config.JWTExpiration)
+func (s *Service) GenerateTokenPair(userID, tenantID, role string) (*TokenPair, error) {
+	if role == "" {
+		role = "user"
+	}
+
+	accessToken, err := s.generateToken(userID, tenantID, role, s.config.JWTExpiration)
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err := s.generateToken(userID, tenantID, s.config.RefreshExpiration)
+	refreshToken, err := s.generateToken(userID, tenantID, role, s.config.RefreshExpiration)
 	if err != nil {
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
@@ -46,10 +51,11 @@ func (s *Service) GenerateTokenPair(userID, tenantID string) (*TokenPair, error)
 	}, nil
 }
 
-func (s *Service) generateToken(userID, tenantID string, expiration time.Duration) (string, error) {
+func (s *Service) generateToken(userID, tenantID, role string, expiration time.Duration) (string, error) {
 	claims := &Claims{
 		UserID:   userID,
 		TenantID: tenantID,
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

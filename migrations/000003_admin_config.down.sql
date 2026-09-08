@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS exchange_configs;
+
+ALTER TABLE users DROP COLUMN IF EXISTS role;

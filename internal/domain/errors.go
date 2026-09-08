@@ -103,6 +103,12 @@ const (
 	ErrCodeSyncStaleState         ErrorCode = "SYNC-709"
 	ErrCodeSyncManualRequired     ErrorCode = "SYNC-710"
 
+	// ADMIN — Admin operations (801-899)
+	ErrCodeAdminForbidden      ErrorCode = "ADMIN-801"
+	ErrCodeExchangeConfigNotFound ErrorCode = "ADMIN-802"
+	ErrCodeExchangeConfigDuplicate ErrorCode = "ADMIN-803"
+	ErrCodeVenueHasStrategy    ErrorCode = "ADMIN-804"
+
 	// COMMON — Cross-cutting (901-999)
 	ErrCodeInternal    ErrorCode = "COMMON-901"
 	ErrCodeValidation  ErrorCode = "COMMON-902"
@@ -248,6 +254,11 @@ var errorStatusMap = map[ErrorCode]int{
 	ErrCodeSyncResumeBlocked:        http.StatusUnprocessableEntity,
 	ErrCodeSyncStaleState:           http.StatusUnprocessableEntity,
 	ErrCodeSyncManualRequired:       http.StatusUnprocessableEntity,
+
+	ErrCodeAdminForbidden:              http.StatusForbidden,
+	ErrCodeExchangeConfigNotFound:      http.StatusNotFound,
+	ErrCodeExchangeConfigDuplicate:     http.StatusConflict,
+	ErrCodeVenueHasStrategy:            http.StatusConflict,
 
 	ErrCodeInternal:           http.StatusInternalServerError,
 	ErrCodeValidation:         http.StatusBadRequest,

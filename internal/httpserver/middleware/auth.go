@@ -39,6 +39,7 @@ func JWT(authService *auth.Service) gin.HandlerFunc {
 
 		c.Set("user_id", claims.UserID)
 		c.Set("tenant_id", claims.TenantID)
+		c.Set("role", claims.Role)
 		c.Next()
 	}
 }

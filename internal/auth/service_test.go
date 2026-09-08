@@ -17,7 +17,7 @@ func TestGenerateTokenPair(t *testing.T) {
 
 	svc := NewService(cfg)
 
-	pair, err := svc.GenerateTokenPair("user-123", "tenant-456")
+	pair, err := svc.GenerateTokenPair("user-123", "tenant-456", "admin")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestValidateToken(t *testing.T) {
 
 	svc := NewService(cfg)
 
-	pair, err := svc.GenerateTokenPair("user-123", "tenant-456")
+	pair, err := svc.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,6 +57,9 @@ func TestValidateToken(t *testing.T) {
 	}
 	if claims.TenantID != "tenant-456" {
 		t.Errorf("expected tenant_id tenant-456, got %s", claims.TenantID)
+	}
+	if claims.Role != "user" {
+		t.Errorf("expected role user, got %s", claims.Role)
 	}
 }
 
@@ -75,7 +78,7 @@ func TestValidateToken_InvalidSecret(t *testing.T) {
 	svc1 := NewService(cfg1)
 	svc2 := NewService(cfg2)
 
-	pair, err := svc1.GenerateTokenPair("user-123", "tenant-456")
+	pair, err := svc1.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,7 +98,7 @@ func TestValidateToken_Expired(t *testing.T) {
 
 	svc := NewService(cfg)
 
-	pair, err := svc.GenerateTokenPair("user-123", "tenant-456")
+	pair, err := svc.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +135,7 @@ func TestGenerateTokenPair_NoSecret(t *testing.T) {
 
 	svc := NewService(cfg)
 
-	_, err := svc.GenerateTokenPair("user-123", "tenant-456")
+	_, err := svc.GenerateTokenPair("user-123", "tenant-456", "user")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
