@@ -51,7 +51,7 @@ type CreateVenueRequest struct {
 	VenueType    VenueType    `json:"venue_type" binding:"required,oneof=CEX PERP_DEX"`
 	ExchangeName string       `json:"exchange_name" binding:"required"`
 	RestBaseURL  string       `json:"rest_base_url" binding:"required"`
-	WsURL        string       `json:"ws_url" binding:"required"`
+	WsURL        string       `json:"ws_url" binding:""`
 	RateLimitRPM int          `json:"rate_limit_rpm"`
 	TimeoutMs    int          `json:"timeout_ms"`
 	Capabilities Capabilities `json:"capabilities"`
