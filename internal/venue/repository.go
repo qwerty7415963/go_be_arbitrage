@@ -29,26 +29,29 @@ func (r *Repository) Create(ctx context.Context, v *Venue) error {
 	}
 
 	query := `
-		INSERT INTO venues (id, code, name, venue_type, status, capabilities, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO venues (id, code, name, venue_type, exchange_name, rest_base_url, ws_url, rate_limit_rpm, timeout_ms, status, capabilities, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING created_at, updated_at`
 
 	return r.db.QueryRow(ctx, query,
-		v.ID, v.Code, v.Name, v.VenueType, v.Status,
-		capsJSON, metaJSON,
+		v.ID, v.Code, v.Name, v.VenueType, v.ExchangeName,
+		v.RestBaseURL, v.WsURL, v.RateLimitRPM, v.TimeoutMs,
+		v.Status, capsJSON, metaJSON,
 	).Scan(&v.CreatedAt, &v.UpdatedAt)
 }
 
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Venue, error) {
 	query := `
-		SELECT id, code, name, venue_type, status, capabilities, metadata, created_at, updated_at
+		SELECT id, code, name, venue_type, exchange_name, rest_base_url, ws_url,
+			rate_limit_rpm, timeout_ms, status, capabilities, metadata, created_at, updated_at
 		FROM venues
 		WHERE id = $1`
 
 	v := &Venue{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
-		&v.ID, &v.Code, &v.Name, &v.VenueType, &v.Status,
-		&v.Capabilities, &v.Metadata, &v.CreatedAt, &v.UpdatedAt,
+		&v.ID, &v.Code, &v.Name, &v.VenueType, &v.ExchangeName,
+		&v.RestBaseURL, &v.WsURL, &v.RateLimitRPM, &v.TimeoutMs,
+		&v.Status, &v.Capabilities, &v.Metadata, &v.CreatedAt, &v.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -58,14 +61,16 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Venue, error) 
 
 func (r *Repository) GetByCode(ctx context.Context, code string) (*Venue, error) {
 	query := `
-		SELECT id, code, name, venue_type, status, capabilities, metadata, created_at, updated_at
+		SELECT id, code, name, venue_type, exchange_name, rest_base_url, ws_url,
+			rate_limit_rpm, timeout_ms, status, capabilities, metadata, created_at, updated_at
 		FROM venues
 		WHERE code = $1`
 
 	v := &Venue{}
 	err := r.db.QueryRow(ctx, query, code).Scan(
-		&v.ID, &v.Code, &v.Name, &v.VenueType, &v.Status,
-		&v.Capabilities, &v.Metadata, &v.CreatedAt, &v.UpdatedAt,
+		&v.ID, &v.Code, &v.Name, &v.VenueType, &v.ExchangeName,
+		&v.RestBaseURL, &v.WsURL, &v.RateLimitRPM, &v.TimeoutMs,
+		&v.Status, &v.Capabilities, &v.Metadata, &v.CreatedAt, &v.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -75,7 +80,8 @@ func (r *Repository) GetByCode(ctx context.Context, code string) (*Venue, error)
 
 func (r *Repository) List(ctx context.Context) ([]*Venue, error) {
 	query := `
-		SELECT id, code, name, venue_type, status, capabilities, metadata, created_at, updated_at
+		SELECT id, code, name, venue_type, exchange_name, rest_base_url, ws_url,
+			rate_limit_rpm, timeout_ms, status, capabilities, metadata, created_at, updated_at
 		FROM venues
 		ORDER BY created_at DESC`
 
@@ -89,8 +95,9 @@ func (r *Repository) List(ctx context.Context) ([]*Venue, error) {
 	for rows.Next() {
 		v := &Venue{}
 		err := rows.Scan(
-			&v.ID, &v.Code, &v.Name, &v.VenueType, &v.Status,
-			&v.Capabilities, &v.Metadata, &v.CreatedAt, &v.UpdatedAt,
+			&v.ID, &v.Code, &v.Name, &v.VenueType, &v.ExchangeName,
+			&v.RestBaseURL, &v.WsURL, &v.RateLimitRPM, &v.TimeoutMs,
+			&v.Status, &v.Capabilities, &v.Metadata, &v.CreatedAt, &v.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -113,12 +120,15 @@ func (r *Repository) Update(ctx context.Context, v *Venue) error {
 
 	query := `
 		UPDATE venues
-		SET name = $2, status = $3, capabilities = $4, metadata = $5, updated_at = NOW()
+		SET name = $2, exchange_name = $3, rest_base_url = $4, ws_url = $5,
+			rate_limit_rpm = $6, timeout_ms = $7, status = $8, capabilities = $9,
+			metadata = $10, updated_at = NOW()
 		WHERE id = $1
 		RETURNING updated_at`
 
 	return r.db.QueryRow(ctx, query,
-		v.ID, v.Name, v.Status, capsJSON, metaJSON,
+		v.ID, v.Name, v.ExchangeName, v.RestBaseURL, v.WsURL,
+		v.RateLimitRPM, v.TimeoutMs, v.Status, capsJSON, metaJSON,
 	).Scan(&v.UpdatedAt)
 }
 

@@ -116,78 +116,6 @@ definitions:
       status:
         type: string
     type: object
-  exchangeconfig.CreateExchangeConfigRequest:
-    properties:
-      exchange_name:
-        type: string
-      rate_limit_rpm:
-        type: integer
-      rest_base_url:
-        type: string
-      timeout_ms:
-        type: integer
-      venue_id:
-        type: string
-      ws_url:
-        type: string
-    required:
-    - exchange_name
-    - rest_base_url
-    - venue_id
-    - ws_url
-    type: object
-  exchangeconfig.ExchangeConfig:
-    properties:
-      created_at:
-        type: string
-      created_by:
-        type: string
-      exchange_name:
-        type: string
-      id:
-        type: string
-      rate_limit_rpm:
-        type: integer
-      rest_base_url:
-        type: string
-      status:
-        $ref: '#/definitions/exchangeconfig.ExchangeConfigStatus'
-      timeout_ms:
-        type: integer
-      updated_at:
-        type: string
-      venue_id:
-        type: string
-      ws_url:
-        type: string
-    type: object
-  exchangeconfig.ExchangeConfigStatus:
-    enum:
-    - ACTIVE
-    - DISABLED
-    type: string
-    x-enum-varnames:
-    - ExchangeConfigStatusActive
-    - ExchangeConfigStatusDisabled
-  exchangeconfig.UpdateExchangeConfigRequest:
-    properties:
-      exchange_name:
-        type: string
-      rate_limit_rpm:
-        type: integer
-      rest_base_url:
-        type: string
-      status:
-        allOf:
-        - $ref: '#/definitions/exchangeconfig.ExchangeConfigStatus'
-        enum:
-        - ACTIVE
-        - DISABLED
-      timeout_ms:
-        type: integer
-      ws_url:
-        type: string
-    type: object
   instrument.ContractType:
     enum:
     - LINEAR
@@ -748,24 +676,43 @@ definitions:
         $ref: '#/definitions/venue.Capabilities'
       code:
         type: string
+      exchange_name:
+        type: string
       name:
         type: string
+      rate_limit_rpm:
+        type: integer
+      rest_base_url:
+        type: string
+      timeout_ms:
+        type: integer
       venue_type:
         allOf:
         - $ref: '#/definitions/venue.VenueType'
         enum:
         - CEX
         - PERP_DEX
+      ws_url:
+        type: string
     required:
     - code
+    - exchange_name
     - name
+    - rest_base_url
     - venue_type
+    - ws_url
     type: object
   venue.UpdateVenueRequest:
     properties:
       capabilities:
         $ref: '#/definitions/venue.Capabilities'
+      exchange_name:
+        type: string
       name:
+        type: string
+      rate_limit_rpm:
+        type: integer
+      rest_base_url:
         type: string
       status:
         allOf:
@@ -773,6 +720,10 @@ definitions:
         enum:
         - ACTIVE
         - DISABLED
+      timeout_ms:
+        type: integer
+      ws_url:
+        type: string
     type: object
   venue.Venue:
     properties:
@@ -781,17 +732,27 @@ definitions:
         type: string
       created_at:
         type: string
+      exchange_name:
+        type: string
       id:
         type: string
       metadata: {}
       name:
         type: string
+      rate_limit_rpm:
+        type: integer
+      rest_base_url:
+        type: string
       status:
         $ref: '#/definitions/venue.VenueStatus'
+      timeout_ms:
+        type: integer
       updated_at:
         type: string
       venue_type:
         $ref: '#/definitions/venue.VenueType'
+      ws_url:
+        type: string
     type: object
   venue.VenueStatus:
     enum:
@@ -989,170 +950,6 @@ paths:
       summary: Register new user
       tags:
       - auth
-  /api/v1/exchange-configs:
-    get:
-      consumes:
-      - application/json
-      description: List all exchange configs (admin only)
-      parameters:
-      - default: 20
-        description: Page size
-        in: query
-        name: limit
-        type: integer
-      - default: 0
-        description: Offset
-        in: query
-        name: offset
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/exchangeconfig.ExchangeConfig'
-                  type: array
-                meta:
-                  $ref: '#/definitions/api.Meta'
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.Response'
-      summary: List exchange configs
-      tags:
-      - exchange-configs
-    post:
-      consumes:
-      - application/json
-      description: Create a new exchange connection config (admin only)
-      parameters:
-      - description: Exchange config
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/exchangeconfig.CreateExchangeConfigRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/exchangeconfig.ExchangeConfig'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Response'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/api.Response'
-      summary: Create exchange config
-      tags:
-      - exchange-configs
-  /api/v1/exchange-configs/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: Delete exchange config (admin only)
-      parameters:
-      - description: Exchange Config ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Response'
-      summary: Delete exchange config
-      tags:
-      - exchange-configs
-    get:
-      consumes:
-      - application/json
-      description: Get exchange config by ID (admin only)
-      parameters:
-      - description: Exchange Config ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/exchangeconfig.ExchangeConfig'
-              type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Response'
-      summary: Get exchange config
-      tags:
-      - exchange-configs
-    put:
-      consumes:
-      - application/json
-      description: Update exchange config (admin only)
-      parameters:
-      - description: Exchange Config ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Update fields
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/exchangeconfig.UpdateExchangeConfigRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/exchangeconfig.ExchangeConfig'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Response'
-      summary: Update exchange config
-      tags:
-      - exchange-configs
   /api/v1/instruments:
     get:
       description: Get all instruments

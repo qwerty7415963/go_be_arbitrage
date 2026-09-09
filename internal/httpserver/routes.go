@@ -16,7 +16,6 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/exchangeconfig"
 )
 
 func (s *Server) SetupRoutes(
@@ -27,7 +26,6 @@ func (s *Server) SetupRoutes(
 	orderbookHandler *orderbook.Handler,
 	unifiedHandler *unifiedstate.Handler,
 	storageHandler *storage.Handler,
-	exchangeConfigHandler *exchangeconfig.Handler,
 	authService *auth.Service,
 	authHandler *auth.Handler,
 ) {
@@ -58,8 +56,10 @@ func (s *Server) SetupRoutes(
 			}
 		}
 
-		// Venues
+		// Venues (admin only)
 		venues := v1.Group("/venues")
+		venues.Use(middleware.JWT(authService))
+		venues.Use(middleware.RequireRole("admin"))
 		{
 			venues.GET("", venueHandler.List)
 			venues.POST("", venueHandler.Create)
@@ -128,17 +128,6 @@ func (s *Server) SetupRoutes(
 			storageRoutes.POST("/retention/cleanup", storageHandler.CleanupData)
 		}
 
-		// Exchange Configs (admin only)
-		exchangeConfigRoutes := v1.Group("/exchange-configs")
-		exchangeConfigRoutes.Use(middleware.JWT(authService))
-		exchangeConfigRoutes.Use(middleware.RequireRole("admin"))
-		{
-			exchangeConfigRoutes.POST("", exchangeConfigHandler.Create)
-			exchangeConfigRoutes.GET("", exchangeConfigHandler.List)
-			exchangeConfigRoutes.GET("/:id", exchangeConfigHandler.GetByID)
-			exchangeConfigRoutes.PUT("/:id", exchangeConfigHandler.Update)
-			exchangeConfigRoutes.DELETE("/:id", exchangeConfigHandler.Delete)
-		}
 	}
 
 	s.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

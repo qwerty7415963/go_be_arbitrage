@@ -42,9 +42,21 @@ func (s *Service) Create(ctx context.Context, req *CreateVenueRequest) (*Venue, 
 		Code:         req.Code,
 		Name:         req.Name,
 		VenueType:    req.VenueType,
+		ExchangeName: req.ExchangeName,
+		RestBaseURL:  req.RestBaseURL,
+		WsURL:        req.WsURL,
+		RateLimitRPM: req.RateLimitRPM,
+		TimeoutMs:    req.TimeoutMs,
 		Status:       VenueStatusActive,
 		Capabilities: caps,
 		Metadata:     json.RawMessage(`{}`),
+	}
+
+	if v.RateLimitRPM == 0 {
+		v.RateLimitRPM = 1200
+	}
+	if v.TimeoutMs == 0 {
+		v.TimeoutMs = 5000
 	}
 
 	if err := s.repo.Create(ctx, v); err != nil {
@@ -82,6 +94,21 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, req *UpdateVenueRequ
 
 	if req.Name != nil {
 		v.Name = *req.Name
+	}
+	if req.ExchangeName != nil {
+		v.ExchangeName = *req.ExchangeName
+	}
+	if req.RestBaseURL != nil {
+		v.RestBaseURL = *req.RestBaseURL
+	}
+	if req.WsURL != nil {
+		v.WsURL = *req.WsURL
+	}
+	if req.RateLimitRPM != nil {
+		v.RateLimitRPM = *req.RateLimitRPM
+	}
+	if req.TimeoutMs != nil {
+		v.TimeoutMs = *req.TimeoutMs
 	}
 	if req.Status != nil {
 		v.Status = *req.Status

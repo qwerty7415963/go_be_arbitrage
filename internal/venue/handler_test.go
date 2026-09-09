@@ -35,9 +35,12 @@ func TestHandler_CreateVenue_WhenValid_Returns201(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	body := CreateVenueRequest{
-		Code:      "binance",
-		Name:      "Binance",
-		VenueType: VenueTypeCEX,
+		Code:         "binance",
+		Name:         "Binance",
+		VenueType:    VenueTypeCEX,
+		ExchangeName: "binance",
+		RestBaseURL:  "https://api.binance.com",
+		WsURL:        "wss://stream.binance.com",
 	}
 	jsonBody, _ := json.Marshal(body)
 
@@ -94,9 +97,12 @@ func TestHandler_CreateVenue_WhenDuplicateCode_Returns409(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	body := CreateVenueRequest{
-		Code:      "binance",
-		Name:      "Binance Duplicate",
-		VenueType: VenueTypeCEX,
+		Code:         "binance",
+		Name:         "Binance Duplicate",
+		VenueType:    VenueTypeCEX,
+		ExchangeName: "binance",
+		RestBaseURL:  "https://api.binance.com",
+		WsURL:        "wss://stream.binance.com",
 	}
 	jsonBody, _ := json.Marshal(body)
 
