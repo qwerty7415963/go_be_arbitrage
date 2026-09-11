@@ -12,9 +12,9 @@ import (
 )
 
 type Handler struct {
-	service   *Service
-	clients   map[uuid.UUID]*websocket.Conn
-	mu        sync.RWMutex
+	service *Service
+	clients map[uuid.UUID]*websocket.Conn
+	mu      sync.RWMutex
 }
 
 func NewHandler(service *Service) *Handler {

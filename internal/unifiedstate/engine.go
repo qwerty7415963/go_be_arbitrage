@@ -339,9 +339,9 @@ func (e *Engine) GetSnapshot() *UnifiedStateSnapshot {
 	defer e.mu.RUnlock()
 
 	snapshot := &UnifiedStateSnapshot{
-		Instruments:     make(map[uuid.UUID]*InstrumentState),
+		Instruments:      make(map[uuid.UUID]*InstrumentState),
 		TotalInstruments: len(e.instruments),
-		Timestamp:       time.Now(),
+		Timestamp:        time.Now(),
 	}
 
 	for id, is := range e.instruments {

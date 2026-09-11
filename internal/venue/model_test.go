@@ -48,8 +48,8 @@ func TestCapabilities(t *testing.T) {
 		SupportsSpot:    true,
 		SupportsPerp:    true,
 		SupportsFutures: false,
-		HasWS:          true,
-		HasREST:        true,
+		HasWS:           true,
+		HasREST:         true,
 	}
 
 	if !caps.SupportsSpot {

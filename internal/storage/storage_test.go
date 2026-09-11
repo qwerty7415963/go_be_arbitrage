@@ -72,10 +72,10 @@ func TestRiskDecisionModel(t *testing.T) {
 func TestAuditEventModel(t *testing.T) {
 	tenantID := uuid.New()
 	event := &AuditEvent{
-		ID:        1,
-		TenantID:  &tenantID,
-		ActorType: "USER",
-		Action:    "LOGIN",
+		ID:         1,
+		TenantID:   &tenantID,
+		ActorType:  "USER",
+		Action:     "LOGIN",
 		OccurredAt: time.Now(),
 	}
 
@@ -89,8 +89,8 @@ func TestAuditEventModel(t *testing.T) {
 
 func TestSystemEventModel(t *testing.T) {
 	event := &SystemEvent{
-		ID:        1,
-		EventType: "APPLICATION_START",
+		ID:         1,
+		EventType:  "APPLICATION_START",
 		OccurredAt: time.Now(),
 	}
 
@@ -157,7 +157,7 @@ func TestOpportunityType(t *testing.T) {
 
 func TestMarketQuality(t *testing.T) {
 	tests := []struct {
-		quality MarketQuality
+		quality  MarketQuality
 		expected string
 	}{
 		{MarketQualityGood, "GOOD"},

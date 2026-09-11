@@ -1,0 +1,230 @@
+package collector
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/qwerty7415963/go_be_arbitrage/internal/exchange"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
+)
+
+// CacheInvalidator is called when new funding data is collected
+type CacheInvalidator interface {
+	Invalidate(venueID uuid.UUID)
+}
+
+// Collector fetches funding data from exchanges and stores in database
+type Collector struct {
+	db          *pgxpool.Pool
+	venueRepo   *venue.Repository
+	logger      *logger.Logger
+	interval    time.Duration
+	invalidator CacheInvalidator
+	mu          sync.Mutex
+	running     bool
+}
+
+func NewCollector(
+	db *pgxpool.Pool,
+	venueRepo *venue.Repository,
+	log *logger.Logger,
+	interval time.Duration,
+	invalidator CacheInvalidator,
+) *Collector {
+	return &Collector{
+		db:          db,
+		venueRepo:   venueRepo,
+		logger:      log,
+		interval:    interval,
+		invalidator: invalidator,
+	}
+}
+
+// Start begins the background collection loop
+func (c *Collector) Start(ctx context.Context) {
+	c.mu.Lock()
+	if c.running {
+		c.mu.Unlock()
+		return
+	}
+	c.running = true
+	c.mu.Unlock()
+
+	c.logger.Info("starting funding collector", "interval", c.interval)
+
+	// Run immediately on start
+	c.collectAll(ctx)
+
+	ticker := time.NewTicker(c.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			c.logger.Info("stopping funding collector")
+			return
+		case <-ticker.C:
+			c.collectAll(ctx)
+		}
+	}
+}
+
+// Stop stops the collector
+func (c *Collector) Stop() {
+	c.mu.Lock()
+	c.running = false
+	c.mu.Unlock()
+}
+
+func (c *Collector) collectAll(ctx context.Context) {
+	c.logger.Debug("collecting funding data from all venues")
+
+	var wg sync.WaitGroup
+
+	// Collect from Binance
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.collectBinance(ctx)
+	}()
+
+	// Collect from Extended
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.collectExtended(ctx)
+	}()
+
+	// Collect from Variational
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.collectVariational(ctx)
+	}()
+
+	wg.Wait()
+	c.logger.Debug("funding collection complete")
+}
+
+func (c *Collector) collectBinance(ctx context.Context) {
+	v, err := c.venueRepo.GetByCode(ctx, "binance")
+	if err != nil {
+		c.logger.Error("failed to get binance venue", "error", err)
+		return
+	}
+
+	adapter := exchange.NewBinanceAdapter()
+	fundingData, err := adapter.FetchAllFunding(ctx)
+	if err != nil {
+		c.logger.Error("failed to fetch binance funding", "error", err)
+		return
+	}
+
+	c.logger.Info("collected binance funding", "count", len(fundingData))
+
+	for _, data := range fundingData {
+		c.storeFunding(ctx, v.ID, data.Symbol, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt)
+	}
+
+	// Invalidate cache for this venue
+	if c.invalidator != nil {
+		c.invalidator.Invalidate(v.ID)
+	}
+}
+
+func (c *Collector) collectExtended(ctx context.Context) {
+	v, err := c.venueRepo.GetByCode(ctx, "extended")
+	if err != nil {
+		c.logger.Error("failed to get extended venue", "error", err)
+		return
+	}
+
+	adapter := exchange.NewExtendedAdapter()
+	fundingData, err := adapter.FetchAllMarkets(ctx)
+	if err != nil {
+		c.logger.Error("failed to fetch extended funding", "error", err)
+		return
+	}
+
+	c.logger.Info("collected extended funding", "count", len(fundingData))
+
+	for _, data := range fundingData {
+		c.storeFunding(ctx, v.ID, data.Symbol, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt)
+	}
+
+	if c.invalidator != nil {
+		c.invalidator.Invalidate(v.ID)
+	}
+}
+
+func (c *Collector) collectVariational(ctx context.Context) {
+	v, err := c.venueRepo.GetByCode(ctx, "variational")
+	if err != nil {
+		c.logger.Error("failed to get variational venue", "error", err)
+		return
+	}
+
+	adapter := exchange.NewVariationalAdapter()
+	fundingData, err := adapter.FetchAllListings(ctx)
+	if err != nil {
+		c.logger.Error("failed to fetch variational funding", "error", err)
+		return
+	}
+
+	c.logger.Info("collected variational funding", "count", len(fundingData))
+
+	for _, data := range fundingData {
+		c.storeFunding(ctx, v.ID, data.Symbol, data.FundingRate, data.IntervalS, data.MarkPrice, "", data.ObservedAt)
+	}
+
+	if c.invalidator != nil {
+		c.invalidator.Invalidate(v.ID)
+	}
+}
+
+func (c *Collector) storeFunding(
+	ctx context.Context,
+	venueID uuid.UUID,
+	symbol string,
+	fundingRate string,
+	intervalSeconds int,
+	markPrice string,
+	indexPrice string,
+	observedAt time.Time,
+) {
+	// First, try to find instrument_id by venue_symbol
+	var instrumentID uuid.UUID
+	err := c.db.QueryRow(ctx,
+		`SELECT instrument_id FROM venue_instruments 
+		 WHERE venue_id = $1 AND venue_symbol = $2 AND status = 'ACTIVE'`,
+		venueID, symbol,
+	).Scan(&instrumentID)
+
+	if err != nil {
+		// Instrument not found in venue_instruments, skip
+		c.logger.Debug("instrument not found in venue_instruments",
+			"venue_id", venueID, "symbol", symbol)
+		return
+	}
+
+	// Insert funding rate
+	_, err = c.db.Exec(ctx,
+		`INSERT INTO funding_rates (venue_id, instrument_id, observed_at, funding_rate, interval_seconds, mark_price, index_price)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		venueID, instrumentID, observedAt, fundingRate, intervalSeconds, markPrice, indexPrice,
+	)
+
+	if err != nil {
+		c.logger.Error("failed to insert funding rate",
+			"venue_id", venueID, "symbol", symbol, "error", err)
+		return
+	}
+
+	c.logger.Debug("stored funding rate",
+		"venue_id", venueID, "symbol", symbol, "rate", fundingRate)
+}

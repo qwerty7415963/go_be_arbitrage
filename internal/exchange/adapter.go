@@ -37,20 +37,20 @@ type Adapter interface {
 
 // SymbolInfo contains normalized symbol information from a venue
 type SymbolInfo struct {
-	VenueSymbol      string    `json:"venue_symbol"`
-	BaseAsset        string    `json:"base_asset"`
-	QuoteAsset       string    `json:"quote_asset"`
-	InstrumentType   string    `json:"instrument_type"`
-	ContractType     string    `json:"contract_type"`
-	ContractSize     *string   `json:"contract_size,omitempty"`
-	PriceTick        string    `json:"price_tick"`
-	QuantityStep     string    `json:"quantity_step"`
-	MinQuantity      *string   `json:"min_quantity,omitempty"`
-	MinNotional      *string   `json:"min_notional,omitempty"`
-	MarginAsset      *string   `json:"margin_asset,omitempty"`
-	SettlementAsset  *string   `json:"settlement_asset,omitempty"`
-	IsTradable       bool      `json:"is_tradable"`
-	DiscoveredAt     time.Time `json:"discovered_at"`
+	VenueSymbol     string    `json:"venue_symbol"`
+	BaseAsset       string    `json:"base_asset"`
+	QuoteAsset      string    `json:"quote_asset"`
+	InstrumentType  string    `json:"instrument_type"`
+	ContractType    string    `json:"contract_type"`
+	ContractSize    *string   `json:"contract_size,omitempty"`
+	PriceTick       string    `json:"price_tick"`
+	QuantityStep    string    `json:"quantity_step"`
+	MinQuantity     *string   `json:"min_quantity,omitempty"`
+	MinNotional     *string   `json:"min_notional,omitempty"`
+	MarginAsset     *string   `json:"margin_asset,omitempty"`
+	SettlementAsset *string   `json:"settlement_asset,omitempty"`
+	IsTradable      bool      `json:"is_tradable"`
+	DiscoveredAt    time.Time `json:"discovered_at"`
 }
 
 // TickerEvent represents a normalized ticker update
@@ -65,10 +65,10 @@ type TickerEvent struct {
 
 // OrderBookEvent represents a normalized orderbook update
 type OrderBookEvent struct {
-	VenueSymbol string      `json:"venue_symbol"`
+	VenueSymbol string       `json:"venue_symbol"`
 	Bids        []PriceLevel `json:"bids"`
 	Asks        []PriceLevel `json:"asks"`
-	Timestamp   time.Time   `json:"timestamp"`
+	Timestamp   time.Time    `json:"timestamp"`
 }
 
 // PriceLevel represents a price level in the orderbook

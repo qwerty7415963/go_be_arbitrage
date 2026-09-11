@@ -61,26 +61,26 @@ func (d *Database) Pool() *pgxpool.Pool {
 func (d *Database) Stats() *Stats {
 	stats := d.pool.Stat()
 	return &Stats{
-		TotalConns:      stats.TotalConns(),
-		IdleConns:       stats.IdleConns(),
-		AcquiredConns:   stats.AcquiredConns(),
-		MaxConns:        stats.MaxConns(),
-		ConstructingConns: stats.ConstructingConns(),
-		EmptyAcquireCount: stats.EmptyAcquireCount(),
-		AcquireCount:    stats.AcquireCount(),
-		AcquireDuration: stats.AcquireDuration(),
+		TotalConns:           stats.TotalConns(),
+		IdleConns:            stats.IdleConns(),
+		AcquiredConns:        stats.AcquiredConns(),
+		MaxConns:             stats.MaxConns(),
+		ConstructingConns:    stats.ConstructingConns(),
+		EmptyAcquireCount:    stats.EmptyAcquireCount(),
+		AcquireCount:         stats.AcquireCount(),
+		AcquireDuration:      stats.AcquireDuration(),
 		CanceledAcquireCount: stats.CanceledAcquireCount(),
 	}
 }
 
 type Stats struct {
-	TotalConns        int32
-	IdleConns         int32
-	AcquiredConns     int32
-	MaxConns          int32
-	ConstructingConns int32
-	EmptyAcquireCount int64
-	AcquireCount      int64
-	AcquireDuration   time.Duration
+	TotalConns           int32
+	IdleConns            int32
+	AcquiredConns        int32
+	MaxConns             int32
+	ConstructingConns    int32
+	EmptyAcquireCount    int64
+	AcquireCount         int64
+	AcquireDuration      time.Duration
 	CanceledAcquireCount int64
 }

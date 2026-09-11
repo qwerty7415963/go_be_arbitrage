@@ -18,13 +18,13 @@ const (
 )
 
 type ConnectionConfig struct {
-	VenueCode       string
-	MaxReconnect    int
-	InitialBackoff  time.Duration
-	MaxBackoff      time.Duration
+	VenueCode         string
+	MaxReconnect      int
+	InitialBackoff    time.Duration
+	MaxBackoff        time.Duration
 	BackoffMultiplier float64
-	PingInterval    time.Duration
-	PongTimeout     time.Duration
+	PingInterval      time.Duration
+	PongTimeout       time.Duration
 }
 
 func DefaultConnectionConfig() ConnectionConfig {
@@ -39,15 +39,15 @@ func DefaultConnectionConfig() ConnectionConfig {
 }
 
 type Connection struct {
-	ID            uuid.UUID
-	VenueCode     string
-	State         ConnectionState
-	ConnectedAt   *time.Time
+	ID             uuid.UUID
+	VenueCode      string
+	State          ConnectionState
+	ConnectedAt    *time.Time
 	DisconnectedAt *time.Time
 	ReconnectCount int
-	LastPingAt    *time.Time
-	LastPongAt    *time.Time
-	mu            sync.RWMutex
+	LastPingAt     *time.Time
+	LastPongAt     *time.Time
+	mu             sync.RWMutex
 }
 
 type ConnectionManager struct {

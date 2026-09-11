@@ -34,11 +34,11 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret          string        `yaml:"jwt_secret"`
-	JWTExpiration      time.Duration `yaml:"jwt_expiration"`
-	RefreshExpiration  time.Duration `yaml:"refresh_expiration"`
-	AdminEmail         string        `yaml:"admin_email"`
-	AdminPassword      string        `yaml:"admin_password"`
+	JWTSecret         string        `yaml:"jwt_secret"`
+	JWTExpiration     time.Duration `yaml:"jwt_expiration"`
+	RefreshExpiration time.Duration `yaml:"refresh_expiration"`
+	AdminEmail        string        `yaml:"admin_email"`
+	AdminPassword     string        `yaml:"admin_password"`
 }
 
 type LogConfig struct {

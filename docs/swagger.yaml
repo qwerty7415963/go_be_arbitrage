@@ -116,6 +116,85 @@ definitions:
       status:
         type: string
     type: object
+  fundingarbitrage.ArbitrageToken:
+    properties:
+      apr_1h_percent:
+        type: number
+      apr_4h_percent:
+        type: number
+      apy_percent:
+        type: number
+      funding_available:
+        type: boolean
+      instrument_id:
+        type: string
+      is_stale:
+        type: boolean
+      long_venue_id:
+        type: string
+      short_venue_id:
+        type: string
+      symbol:
+        type: string
+      venue_a_funding_rate:
+        type: string
+      venue_a_interval_seconds:
+        type: integer
+      venue_a_observed_at:
+        type: string
+      venue_a_symbol:
+        type: string
+      venue_b_funding_rate:
+        type: string
+      venue_b_interval_seconds:
+        type: integer
+      venue_b_observed_at:
+        type: string
+      venue_b_symbol:
+        type: string
+    type: object
+  fundingarbitrage.FundingArbitrageResponse:
+    properties:
+      cache_status:
+        type: string
+      data_as_of:
+        type: string
+      pairs:
+        items:
+          $ref: '#/definitions/fundingarbitrage.Pair'
+        type: array
+    type: object
+  fundingarbitrage.Pair:
+    properties:
+      tokens:
+        items:
+          $ref: '#/definitions/fundingarbitrage.ArbitrageToken'
+        type: array
+      venue_a:
+        $ref: '#/definitions/fundingarbitrage.VenueInfo'
+      venue_b:
+        $ref: '#/definitions/fundingarbitrage.VenueInfo'
+    type: object
+  fundingarbitrage.VenueInfo:
+    properties:
+      code:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  fundingarbitrage.VenuePerp:
+    properties:
+      code:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      venue_type:
+        type: string
+    type: object
   instrument.ContractType:
     enum:
     - LINEAR
@@ -700,7 +779,6 @@ definitions:
     - name
     - rest_base_url
     - venue_type
-    - ws_url
     type: object
   venue.UpdateVenueRequest:
     properties:
@@ -950,6 +1028,62 @@ paths:
       summary: Register new user
       tags:
       - auth
+  /api/v1/funding/arbitrage:
+    get:
+      description: Get funding arbitrage table for selected venues
+      parameters:
+      - collectionFormat: csv
+        description: Venue IDs (min 2, max 10)
+        in: query
+        items:
+          type: string
+        name: venue_id
+        required: true
+        type: array
+      - default: apr_4h_desc
+        description: Sort by
+        enum:
+        - apr_1h_desc
+        - apr_4h_desc
+        - apy_desc
+        - spread_desc
+        in: query
+        name: sort
+        type: string
+      - default: false
+        description: Include stale data
+        in: query
+        name: include_stale
+        type: boolean
+      - default: false
+        description: Force refresh cache
+        in: query
+        name: refresh
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/fundingarbitrage.FundingArbitrageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Get funding arbitrage opportunities
+      tags:
+      - funding-arbitrage
   /api/v1/instruments:
     get:
       description: Get all instruments
@@ -1594,6 +1728,33 @@ paths:
       summary: Ping test
       tags:
       - system
+  /api/v1/public/venues:
+    get:
+      description: Get all active venues that support perpetual trading
+      parameters:
+      - description: Filter by market type
+        enum:
+        - perp
+        in: query
+        name: market
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/fundingarbitrage.VenuePerp'
+                  type: array
+              type: object
+      summary: List perp venues
+      tags:
+      - funding-arbitrage
   /api/v1/storage/audit/{tenant_id}:
     get:
       consumes:

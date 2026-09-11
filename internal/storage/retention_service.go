@@ -16,14 +16,14 @@ func NewRetentionService(db *pgxpool.Pool) *RetentionService {
 }
 
 type RetentionResult struct {
-	RawMarketEvents int64 `json:"raw_market_events"`
-	MarketTrades    int64 `json:"market_trades"`
-	MarketTickers   int64 `json:"market_tickers"`
-	FundingRates    int64 `json:"funding_rates"`
+	RawMarketEvents    int64 `json:"raw_market_events"`
+	MarketTrades       int64 `json:"market_trades"`
+	MarketTickers      int64 `json:"market_tickers"`
+	FundingRates       int64 `json:"funding_rates"`
 	OrderbookSnapshots int64 `json:"orderbook_snapshots"`
-	OrderbookDeltas int64 `json:"orderbook_deltas"`
-	Opportunities   int64 `json:"opportunities"`
-	SystemEvents    int64 `json:"system_events"`
+	OrderbookDeltas    int64 `json:"orderbook_deltas"`
+	Opportunities      int64 `json:"opportunities"`
+	SystemEvents       int64 `json:"system_events"`
 }
 
 func (s *RetentionService) CleanupRawMarketEvents(ctx context.Context, maxAge time.Duration) (int64, error) {
@@ -147,13 +147,13 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 }
 
 type RetentionConfig struct {
-	RawMarketEventsMaxAge  time.Duration
-	MarketTradesMaxAge     time.Duration
-	MarketTickersMaxAge    time.Duration
-	FundingRatesMaxAge     time.Duration
+	RawMarketEventsMaxAge    time.Duration
+	MarketTradesMaxAge       time.Duration
+	MarketTickersMaxAge      time.Duration
+	FundingRatesMaxAge       time.Duration
 	OrderbookSnapshotsMaxAge time.Duration
-	OrderbookDeltasMaxAge  time.Duration
-	SystemEventsMaxAge     time.Duration
+	OrderbookDeltasMaxAge    time.Duration
+	SystemEventsMaxAge       time.Duration
 }
 
 func DefaultRetentionConfig() RetentionConfig {

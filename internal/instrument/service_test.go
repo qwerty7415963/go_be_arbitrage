@@ -9,13 +9,13 @@ import (
 )
 
 type mockRepository struct {
-	instruments    map[uuid.UUID]*Instrument
+	instruments      map[uuid.UUID]*Instrument
 	venueInstruments map[uuid.UUID]*VenueInstrument
 }
 
 func newMockRepository() *mockRepository {
 	return &mockRepository{
-		instruments:    make(map[uuid.UUID]*Instrument),
+		instruments:      make(map[uuid.UUID]*Instrument),
 		venueInstruments: make(map[uuid.UUID]*VenueInstrument),
 	}
 }

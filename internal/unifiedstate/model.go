@@ -132,39 +132,39 @@ func (v *VenueMarketState) GetSnapshot() *VenueMarketState {
 }
 
 type InstrumentState struct {
-	ID              uuid.UUID                        `json:"id"`
-	InstrumentID    uuid.UUID                        `json:"instrument_id"`
-	CanonicalSymbol string                           `json:"canonical_symbol"`
-	BaseAsset       string                           `json:"base_asset"`
-	QuoteAsset      string                           `json:"quote_asset"`
-	BestBid         *string                          `json:"best_bid"`
-	BestBidVenue    *uuid.UUID                       `json:"best_bid_venue"`
-	BestAsk         *string                          `json:"best_ask"`
-	BestAskVenue    *uuid.UUID                       `json:"best_ask_venue"`
-	Spread          *string                          `json:"spread"`
-	LastPrice       *string                          `json:"last_price"`
-	BidDepth        []DepthLevel                     `json:"bid_depth"`
-	AskDepth        []DepthLevel                     `json:"ask_depth"`
-	Funding         *FundingState                    `json:"funding"`
-	FundingVenue    *uuid.UUID                       `json:"funding_venue"`
-	MarkPrice       *string                          `json:"mark_price"`
-	IndexPrice      *string                          `json:"index_price"`
-	VenueStates     map[uuid.UUID]*VenueMarketState  `json:"venue_states"`
-	HealthyVenues   int                              `json:"healthy_venues"`
-	TotalVenues     int                              `json:"total_venues"`
-	LastUpdate      time.Time                        `json:"last_update"`
-	IsStale         bool                             `json:"is_stale"`
-	CreatedAt       time.Time                        `json:"created_at"`
-	UpdatedAt       time.Time                        `json:"updated_at"`
-	mu              sync.RWMutex                     `json:"-"`
+	ID              uuid.UUID                       `json:"id"`
+	InstrumentID    uuid.UUID                       `json:"instrument_id"`
+	CanonicalSymbol string                          `json:"canonical_symbol"`
+	BaseAsset       string                          `json:"base_asset"`
+	QuoteAsset      string                          `json:"quote_asset"`
+	BestBid         *string                         `json:"best_bid"`
+	BestBidVenue    *uuid.UUID                      `json:"best_bid_venue"`
+	BestAsk         *string                         `json:"best_ask"`
+	BestAskVenue    *uuid.UUID                      `json:"best_ask_venue"`
+	Spread          *string                         `json:"spread"`
+	LastPrice       *string                         `json:"last_price"`
+	BidDepth        []DepthLevel                    `json:"bid_depth"`
+	AskDepth        []DepthLevel                    `json:"ask_depth"`
+	Funding         *FundingState                   `json:"funding"`
+	FundingVenue    *uuid.UUID                      `json:"funding_venue"`
+	MarkPrice       *string                         `json:"mark_price"`
+	IndexPrice      *string                         `json:"index_price"`
+	VenueStates     map[uuid.UUID]*VenueMarketState `json:"venue_states"`
+	HealthyVenues   int                             `json:"healthy_venues"`
+	TotalVenues     int                             `json:"total_venues"`
+	LastUpdate      time.Time                       `json:"last_update"`
+	IsStale         bool                            `json:"is_stale"`
+	CreatedAt       time.Time                       `json:"created_at"`
+	UpdatedAt       time.Time                       `json:"updated_at"`
+	mu              sync.RWMutex                    `json:"-"`
 }
 
 type UnifiedStateSnapshot struct {
-	Instruments     map[uuid.UUID]*InstrumentState `json:"instruments"`
+	Instruments      map[uuid.UUID]*InstrumentState `json:"instruments"`
 	TotalInstruments int                            `json:"total_instruments"`
-	TotalHealthy    int                            `json:"total_healthy"`
-	TotalStale      int                            `json:"total_stale"`
-	Timestamp       time.Time                      `json:"timestamp"`
+	TotalHealthy     int                            `json:"total_healthy"`
+	TotalStale       int                            `json:"total_stale"`
+	Timestamp        time.Time                      `json:"timestamp"`
 }
 
 type ExecutableDepth struct {
@@ -177,10 +177,10 @@ type ExecutableDepth struct {
 }
 
 type HealthOverview struct {
-	TotalInstruments int                            `json:"total_instruments"`
-	HealthyVenues    int                            `json:"healthy_venues"`
-	StaleVenues      int                            `json:"stale_venues"`
-	UnhealthyVenues  int                            `json:"unhealthy_venues"`
+	TotalInstruments int                             `json:"total_instruments"`
+	HealthyVenues    int                             `json:"healthy_venues"`
+	StaleVenues      int                             `json:"stale_venues"`
+	UnhealthyVenues  int                             `json:"unhealthy_venues"`
 	VenueHealth      map[uuid.UUID]VenueHealthStatus `json:"venue_health"`
-	Timestamp        time.Time                      `json:"timestamp"`
+	Timestamp        time.Time                       `json:"timestamp"`
 }

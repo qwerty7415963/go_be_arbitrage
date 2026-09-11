@@ -301,6 +301,96 @@
                 }
             }
         },
+        "/api/v1/funding/arbitrage": {
+            "get": {
+                "description": "Get funding arbitrage table for selected venues",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "funding-arbitrage"
+                ],
+                "summary": "Get funding arbitrage opportunities",
+                "parameters": [
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Venue IDs (min 2, max 10)",
+                        "name": "venue_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "apr_1h_desc",
+                            "apr_4h_desc",
+                            "apy_desc",
+                            "spread_desc"
+                        ],
+                        "type": "string",
+                        "default": "apr_4h_desc",
+                        "description": "Sort by",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Include stale data",
+                        "name": "include_stale",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Force refresh cache",
+                        "name": "refresh",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/fundingarbitrage.FundingArbitrageResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/instruments": {
             "get": {
                 "description": "Get all instruments",
@@ -1424,6 +1514,52 @@
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/api.PingResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/public/venues": {
+            "get": {
+                "description": "Get all active venues that support perpetual trading",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "funding-arbitrage"
+                ],
+                "summary": "List perp venues",
+                "parameters": [
+                    {
+                        "enum": [
+                            "perp"
+                        ],
+                        "type": "string",
+                        "description": "Filter by market type",
+                        "name": "market",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/fundingarbitrage.VenuePerp"
+                                            }
                                         }
                                     }
                                 }
@@ -2785,6 +2921,127 @@
                 }
             }
         },
+        "fundingarbitrage.ArbitrageToken": {
+            "type": "object",
+            "properties": {
+                "apr_1h_percent": {
+                    "type": "number"
+                },
+                "apr_4h_percent": {
+                    "type": "number"
+                },
+                "apy_percent": {
+                    "type": "number"
+                },
+                "funding_available": {
+                    "type": "boolean"
+                },
+                "instrument_id": {
+                    "type": "string"
+                },
+                "is_stale": {
+                    "type": "boolean"
+                },
+                "long_venue_id": {
+                    "type": "string"
+                },
+                "short_venue_id": {
+                    "type": "string"
+                },
+                "symbol": {
+                    "type": "string"
+                },
+                "venue_a_funding_rate": {
+                    "type": "string"
+                },
+                "venue_a_interval_seconds": {
+                    "type": "integer"
+                },
+                "venue_a_observed_at": {
+                    "type": "string"
+                },
+                "venue_a_symbol": {
+                    "type": "string"
+                },
+                "venue_b_funding_rate": {
+                    "type": "string"
+                },
+                "venue_b_interval_seconds": {
+                    "type": "integer"
+                },
+                "venue_b_observed_at": {
+                    "type": "string"
+                },
+                "venue_b_symbol": {
+                    "type": "string"
+                }
+            }
+        },
+        "fundingarbitrage.FundingArbitrageResponse": {
+            "type": "object",
+            "properties": {
+                "cache_status": {
+                    "type": "string"
+                },
+                "data_as_of": {
+                    "type": "string"
+                },
+                "pairs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/fundingarbitrage.Pair"
+                    }
+                }
+            }
+        },
+        "fundingarbitrage.Pair": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/fundingarbitrage.ArbitrageToken"
+                    }
+                },
+                "venue_a": {
+                    "$ref": "#/definitions/fundingarbitrage.VenueInfo"
+                },
+                "venue_b": {
+                    "$ref": "#/definitions/fundingarbitrage.VenueInfo"
+                }
+            }
+        },
+        "fundingarbitrage.VenueInfo": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "fundingarbitrage.VenuePerp": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "venue_type": {
+                    "type": "string"
+                }
+            }
+        },
         "instrument.ContractType": {
             "type": "string",
             "enum": [
@@ -3614,8 +3871,7 @@
                 "exchange_name",
                 "name",
                 "rest_base_url",
-                "venue_type",
-                "ws_url"
+                "venue_type"
             ],
             "properties": {
                 "capabilities": {

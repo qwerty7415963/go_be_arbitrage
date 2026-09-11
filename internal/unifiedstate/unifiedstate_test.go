@@ -111,14 +111,14 @@ func TestEngine_MergeVenueState_Funding(t *testing.T) {
 
 	now := time.Now()
 	funding1 := &FundingState{
-		VenueID:      venueID1,
-		FundingRate:  "0.0001",
-		ReceivedAt:   now.Add(-1 * time.Hour),
+		VenueID:     venueID1,
+		FundingRate: "0.0001",
+		ReceivedAt:  now.Add(-1 * time.Hour),
 	}
 	funding2 := &FundingState{
-		VenueID:      venueID2,
-		FundingRate:  "0.0002",
-		ReceivedAt:   now,
+		VenueID:     venueID2,
+		FundingRate: "0.0002",
+		ReceivedAt:  now,
 	}
 
 	vs1.UpdateFunding(funding1)

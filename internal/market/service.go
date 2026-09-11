@@ -10,10 +10,10 @@ import (
 )
 
 type Service struct {
-	rawRepo      *RawEventRepository
+	rawRepo        *RawEventRepository
 	normalizedRepo *NormalizedEventRepository
-	connManager  *ConnectionManager
-	subManager   *SubscriptionManager
+	connManager    *ConnectionManager
+	subManager     *SubscriptionManager
 }
 
 func NewService(
@@ -23,10 +23,10 @@ func NewService(
 	subManager *SubscriptionManager,
 ) *Service {
 	return &Service{
-		rawRepo:      rawRepo,
+		rawRepo:        rawRepo,
 		normalizedRepo: normalizedRepo,
-		connManager:  connManager,
-		subManager:   subManager,
+		connManager:    connManager,
+		subManager:     subManager,
 	}
 }
 

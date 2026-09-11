@@ -56,9 +56,9 @@ func RespondError(c *gin.Context, err *domain.AppError) {
 	c.JSON(statusCode, gin.H{
 		"success": false,
 		"error": gin.H{
-			"code":      string(err.Code),
-			"message":   err.Message,
-			"details":   err.Details,
+			"code":       string(err.Code),
+			"message":    err.Message,
+			"details":    err.Details,
 			"request_id": requestIDStr,
 		},
 	})

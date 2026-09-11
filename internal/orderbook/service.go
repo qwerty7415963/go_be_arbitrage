@@ -9,8 +9,8 @@ import (
 )
 
 type Service struct {
-	engine    *Engine
-	repo      *Repository
+	engine      *Engine
+	repo        *Repository
 	subscribers map[string][]chan *OrderBookSnapshot
 	mu          sync.RWMutex
 }

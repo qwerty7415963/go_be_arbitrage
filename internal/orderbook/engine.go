@@ -187,15 +187,15 @@ func (e *Engine) GetHealth(book *OrderBook) *OrderBookHealth {
 	}
 
 	return &OrderBookHealth{
-		VenueID:     book.VenueID,
+		VenueID:      book.VenueID,
 		InstrumentID: book.InstrumentID,
-		State:       state,
-		Sequence:    book.Sequence,
-		LastUpdate:  book.LastUpdate,
-		AgeMs:       age.Milliseconds(),
-		GapCount:    book.GapCount,
-		ResyncCount: book.ResyncCount,
-		IsHealthy:   state == BookStateHealthy,
+		State:        state,
+		Sequence:     book.Sequence,
+		LastUpdate:   book.LastUpdate,
+		AgeMs:        age.Milliseconds(),
+		GapCount:     book.GapCount,
+		ResyncCount:  book.ResyncCount,
+		IsHealthy:    state == BookStateHealthy,
 	}
 }
 

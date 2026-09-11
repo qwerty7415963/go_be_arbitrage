@@ -9,29 +9,29 @@ import (
 type SubscriptionStatus string
 
 const (
-	SubscriptionStatusPending    SubscriptionStatus = "PENDING"
-	SubscriptionStatusActive     SubscriptionStatus = "ACTIVE"
-	SubscriptionStatusFailed     SubscriptionStatus = "FAILED"
+	SubscriptionStatusPending      SubscriptionStatus = "PENDING"
+	SubscriptionStatusActive       SubscriptionStatus = "ACTIVE"
+	SubscriptionStatusFailed       SubscriptionStatus = "FAILED"
 	SubscriptionStatusUnsubscribed SubscriptionStatus = "UNSUBSCRIBED"
 )
 
 type Subscription struct {
-	ID            uuid.UUID
-	VenueID       uuid.UUID
-	InstrumentID  uuid.UUID
-	Channel       string
-	Status        SubscriptionStatus
-	ConnectionID  uuid.UUID
-	Error         error
-	mu            sync.RWMutex
+	ID           uuid.UUID
+	VenueID      uuid.UUID
+	InstrumentID uuid.UUID
+	Channel      string
+	Status       SubscriptionStatus
+	ConnectionID uuid.UUID
+	Error        error
+	mu           sync.RWMutex
 }
 
 type SubscriptionManager struct {
-	subscriptions map[uuid.UUID]*Subscription
-	venueSubs     map[uuid.UUID]map[uuid.UUID]bool
+	subscriptions  map[uuid.UUID]*Subscription
+	venueSubs      map[uuid.UUID]map[uuid.UUID]bool
 	instrumentSubs map[uuid.UUID]map[uuid.UUID]bool
-	channelSubs   map[string]map[uuid.UUID]bool
-	mu            sync.RWMutex
+	channelSubs    map[string]map[uuid.UUID]bool
+	mu             sync.RWMutex
 }
 
 func NewSubscriptionManager() *SubscriptionManager {

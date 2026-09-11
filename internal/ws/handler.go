@@ -37,7 +37,7 @@ func (h *Handler) HandleMessage(client *Client, data []byte) error {
 		}
 
 	case "ping":
-	 response, _ := json.Marshal(Message{
+		response, _ := json.Marshal(Message{
 			Type:    "pong",
 			Channel: "",
 			Payload: nil,

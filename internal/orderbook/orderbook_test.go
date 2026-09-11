@@ -233,8 +233,8 @@ func TestEngine_ApplyDelta_DeleteLevel(t *testing.T) {
 		Bids: []PriceLevel{
 			{Price: "99", Quantity: "0"},
 		},
-		Asks:         []PriceLevel{},
-		Timestamp:    time.Now(),
+		Asks:      []PriceLevel{},
+		Timestamp: time.Now(),
 	}
 
 	engine.ApplyDelta(book, delta)
@@ -506,8 +506,8 @@ func TestEngine_ApplyDelta_ReplaceLevel(t *testing.T) {
 		Bids: []PriceLevel{
 			{Price: "100", Quantity: "20"},
 		},
-		Asks:         []PriceLevel{},
-		Timestamp:    time.Now(),
+		Asks:      []PriceLevel{},
+		Timestamp: time.Now(),
 	}
 
 	engine.ApplyDelta(book, delta)

@@ -9,17 +9,19 @@ import (
 	"time"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/collector"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/database"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/fundingarbitrage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/ws"
 )
 
@@ -38,6 +40,7 @@ type App struct {
 	unifiedService    *unifiedstate.Service
 	storageHandler    *storage.Handler
 	authHandler       *auth.Handler
+	collector         *collector.Collector
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -96,8 +99,23 @@ func New(cfg *config.Config) (*App, error) {
 
 	authHandler := auth.NewHandler(authService)
 
+	// Funding Arbitrage
+	fundingArbitrageRepo := fundingarbitrage.NewRepository(db.Pool())
+	fundingArbitrageCache := fundingarbitrage.NewCache(30 * time.Second)
+	fundingArbitrageService := fundingarbitrage.NewService(fundingArbitrageRepo, fundingArbitrageCache)
+	fundingArbitrageHandler := fundingarbitrage.NewHandler(fundingArbitrageService)
+
+	// Collector (lazy start - will start on first request context)
+	fundingCollector := collector.NewCollector(
+		db.Pool(),
+		venueRepo,
+		log,
+		30*time.Second,
+		fundingArbitrageCache,
+	)
+
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, fundingArbitrageHandler)
 
 	return &App{
 		config:            cfg,
@@ -114,12 +132,16 @@ func New(cfg *config.Config) (*App, error) {
 		unifiedService:    unifiedService,
 		storageHandler:    storageHandler,
 		authHandler:       authHandler,
+		collector:         fundingCollector,
 	}, nil
 }
 
 func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start collector in background
+	go a.collector.Start(ctx)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

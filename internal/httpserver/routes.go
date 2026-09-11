@@ -7,6 +7,8 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/fundingarbitrage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver/middleware"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
@@ -15,7 +17,6 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
 )
 
 func (s *Server) SetupRoutes(
@@ -28,6 +29,7 @@ func (s *Server) SetupRoutes(
 	storageHandler *storage.Handler,
 	authService *auth.Service,
 	authHandler *auth.Handler,
+	fundingArbitrageHandler *fundingarbitrage.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -115,6 +117,15 @@ func (s *Server) SetupRoutes(
 			unifiedRoutes.GET("/health", unifiedHandler.GetHealth)
 			unifiedRoutes.GET("/ws", unifiedHandler.SubscribeWS)
 		}
+
+		// Public routes (no auth)
+		public := v1.Group("/public")
+		{
+			public.GET("/venues", fundingArbitrageHandler.ListPerpVenues)
+		}
+
+		// Funding Arbitrage
+		v1.GET("/funding/arbitrage", fundingArbitrageHandler.GetFundingArbitrage)
 
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")
