@@ -1050,6 +1050,17 @@ paths:
         in: query
         name: sort
         type: string
+      - default: 50
+        description: Items per page
+        in: query
+        maximum: 200
+        minimum: 1
+        name: limit
+        type: integer
+      - description: Pagination cursor (from previous response meta.cursor)
+        in: query
+        name: cursor
+        type: string
       - default: false
         description: Include stale data
         in: query
@@ -1071,6 +1082,8 @@ paths:
             - properties:
                 data:
                   $ref: '#/definitions/fundingarbitrage.FundingArbitrageResponse'
+                meta:
+                  $ref: '#/definitions/api.Meta'
               type: object
         "400":
           description: Bad Request

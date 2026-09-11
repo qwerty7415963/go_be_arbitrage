@@ -69,6 +69,8 @@ type BinanceOpenInterest struct {
 
 type BinanceFundingData struct {
 	Symbol      string
+	BaseAsset   string
+	QuoteAsset  string
 	FundingRate string
 	MarkPrice   string
 	IndexPrice  string
@@ -231,12 +233,16 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 		oiMap[oi.Symbol] = oi
 	}
 
+	// Build perp lookup for BaseAsset/QuoteAsset
+	perpMap := make(map[string]BinanceSymbol)
+	for _, p := range perps {
+		perpMap[p.Symbol] = p
+	}
+
 	// Combine all data
 	now := time.Now()
 	for _, p := range perps {
 		premium, hasPremium := premiumMap[p.Symbol]
-		_ = tickerMap[p.Symbol] // ticker data available if needed
-		_ = oiMap[p.Symbol]     // OI data available if needed
 
 		if !hasPremium {
 			continue
@@ -244,6 +250,8 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 
 		data := BinanceFundingData{
 			Symbol:      p.Symbol,
+			BaseAsset:   p.BaseAsset,
+			QuoteAsset:  p.QuoteAsset,
 			FundingRate: premium.LastFundingRate,
 			MarkPrice:   premium.MarkPrice,
 			IndexPrice:  premium.IndexPrice,

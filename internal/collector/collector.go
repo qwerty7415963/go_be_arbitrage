@@ -127,9 +127,23 @@ func (c *Collector) collectBinance(ctx context.Context) {
 
 	c.logger.Info("collected binance funding", "count", len(fundingData))
 
+	stored := 0
 	for _, data := range fundingData {
-		c.storeFunding(ctx, v.ID, data.Symbol, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt)
+		baseAsset := data.BaseAsset
+		quoteAsset := data.QuoteAsset
+		if baseAsset == "" {
+			baseAsset = NormalizeBaseAsset(data.Symbol, "binance")
+		}
+		if quoteAsset == "" {
+			quoteAsset = NormalizeQuoteAsset(data.Symbol, "binance")
+		}
+
+		if c.storeFundingWithDiscovery(ctx, v.ID, "binance", data.Symbol, baseAsset, quoteAsset, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt) {
+			stored++
+		}
 	}
+
+	c.logger.Info("stored binance funding", "stored", stored, "total", len(fundingData))
 
 	// Invalidate cache for this venue
 	if c.invalidator != nil {
@@ -153,9 +167,20 @@ func (c *Collector) collectExtended(ctx context.Context) {
 
 	c.logger.Info("collected extended funding", "count", len(fundingData))
 
+	stored := 0
 	for _, data := range fundingData {
-		c.storeFunding(ctx, v.ID, data.Symbol, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt)
+		baseAsset := data.BaseAsset
+		if baseAsset == "" {
+			baseAsset = NormalizeBaseAsset(data.Symbol, "extended")
+		}
+		quoteAsset := NormalizeQuoteAsset(data.Symbol, "extended")
+
+		if c.storeFundingWithDiscovery(ctx, v.ID, "extended", data.Symbol, baseAsset, quoteAsset, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt) {
+			stored++
+		}
 	}
+
+	c.logger.Info("stored extended funding", "stored", stored, "total", len(fundingData))
 
 	if c.invalidator != nil {
 		c.invalidator.Invalidate(v.ID)
@@ -178,38 +203,115 @@ func (c *Collector) collectVariational(ctx context.Context) {
 
 	c.logger.Info("collected variational funding", "count", len(fundingData))
 
+	stored := 0
 	for _, data := range fundingData {
-		c.storeFunding(ctx, v.ID, data.Symbol, data.FundingRate, data.IntervalS, data.MarkPrice, "", data.ObservedAt)
+		baseAsset := data.BaseAsset
+		if baseAsset == "" {
+			baseAsset = NormalizeBaseAsset(data.Symbol, "variational")
+		}
+		quoteAsset := NormalizeQuoteAsset(data.Symbol, "variational")
+
+		if c.storeFundingWithDiscovery(ctx, v.ID, "variational", data.Symbol, baseAsset, quoteAsset, data.FundingRate, data.IntervalS, data.MarkPrice, "", data.ObservedAt) {
+			stored++
+		}
 	}
+
+	c.logger.Info("stored variational funding", "stored", stored, "total", len(fundingData))
 
 	if c.invalidator != nil {
 		c.invalidator.Invalidate(v.ID)
 	}
 }
 
-func (c *Collector) storeFunding(
+// ensureInstrument finds or creates an instrument + venue_instrument mapping.
+// Returns instrument_id.
+func (c *Collector) ensureInstrument(ctx context.Context, venueID uuid.UUID, venueCode, venueSymbol, baseAsset, quoteAsset string) (uuid.UUID, error) {
+	// 1. Check if venue_instrument already exists
+	var instrumentID uuid.UUID
+	err := c.db.QueryRow(ctx,
+		`SELECT instrument_id FROM venue_instruments 
+		 WHERE venue_id = $1 AND venue_symbol = $2 AND status = 'ACTIVE'`,
+		venueID, venueSymbol,
+	).Scan(&instrumentID)
+
+	if err == nil {
+		return instrumentID, nil
+	}
+
+	// 2. Normalize quote asset for canonical symbol matching
+	// USDT, USD, BUSD, USDC are all stablecoins → treat as "USD" for canonical matching
+	normalizedQuote := quoteAsset
+	switch quoteAsset {
+	case "USDT", "BUSD", "USDC":
+		normalizedQuote = "USD"
+	}
+
+	// 3. Build canonical symbol (e.g., "BTCUSD", "SOLUSD")
+	canonicalSymbol := baseAsset + normalizedQuote
+
+	// 4. Find or create instrument by canonical_symbol
+	err = c.db.QueryRow(ctx,
+		`SELECT id FROM instruments WHERE canonical_symbol = $1`,
+		canonicalSymbol,
+	).Scan(&instrumentID)
+
+	if err != nil {
+		// Instrument doesn't exist, create it
+		instrumentType := "PERP"
+		contractType := "LINEAR"
+
+		err = c.db.QueryRow(ctx,
+			`INSERT INTO instruments (canonical_symbol, base_asset, quote_asset, instrument_type, contract_type, price_tick, quantity_step, trading_enabled, discovery_status)
+			 VALUES ($1, $2, $3, $4, $5, 0.01, 0.001, false, 'DISCOVERED')
+			 RETURNING id`,
+			canonicalSymbol, baseAsset, normalizedQuote, instrumentType, contractType,
+		).Scan(&instrumentID)
+
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		c.logger.Info("auto-discovered new instrument",
+			"canonical", canonicalSymbol, "base", baseAsset, "quote", quoteAsset)
+	}
+
+	// 4. Create venue_instrument mapping
+	_, err = c.db.Exec(ctx,
+		`INSERT INTO venue_instruments (venue_id, instrument_id, venue_symbol, status)
+		 VALUES ($1, $2, $3, 'ACTIVE')
+		 ON CONFLICT DO NOTHING`,
+		venueID, instrumentID, venueSymbol,
+	)
+
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	c.logger.Debug("created venue_instrument mapping",
+		"venue", venueCode, "symbol", venueSymbol, "canonical", canonicalSymbol)
+
+	return instrumentID, nil
+}
+
+// storeFundingWithDiscovery auto-discovers instruments and stores funding data.
+func (c *Collector) storeFundingWithDiscovery(
 	ctx context.Context,
 	venueID uuid.UUID,
-	symbol string,
+	venueCode string,
+	venueSymbol string,
+	baseAsset string,
+	quoteAsset string,
 	fundingRate string,
 	intervalSeconds int,
 	markPrice string,
 	indexPrice string,
 	observedAt time.Time,
-) {
-	// First, try to find instrument_id by venue_symbol
-	var instrumentID uuid.UUID
-	err := c.db.QueryRow(ctx,
-		`SELECT instrument_id FROM venue_instruments 
-		 WHERE venue_id = $1 AND venue_symbol = $2 AND status = 'ACTIVE'`,
-		venueID, symbol,
-	).Scan(&instrumentID)
-
+) bool {
+	instrumentID, err := c.ensureInstrument(ctx, venueID, venueCode, venueSymbol, baseAsset, quoteAsset)
 	if err != nil {
-		// Instrument not found in venue_instruments, skip
-		c.logger.Debug("instrument not found in venue_instruments",
-			"venue_id", venueID, "symbol", symbol)
-		return
+		c.logger.Debug("failed to ensure instrument",
+			"venue", venueCode, "symbol", venueSymbol, "error", err)
+		return false
 	}
 
 	// Insert funding rate
@@ -221,10 +323,11 @@ func (c *Collector) storeFunding(
 
 	if err != nil {
 		c.logger.Error("failed to insert funding rate",
-			"venue_id", venueID, "symbol", symbol, "error", err)
-		return
+			"venue_id", venueID, "symbol", venueSymbol, "error", err)
+		return false
 	}
 
 	c.logger.Debug("stored funding rate",
-		"venue_id", venueID, "symbol", symbol, "rate", fundingRate)
+		"venue", venueCode, "symbol", venueSymbol, "rate", fundingRate)
+	return true
 }

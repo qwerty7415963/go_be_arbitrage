@@ -339,6 +339,21 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "maximum": 200,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pagination cursor (from previous response meta.cursor)",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
                         "type": "boolean",
                         "default": false,
                         "description": "Include stale data",
@@ -366,6 +381,9 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/fundingarbitrage.FundingArbitrageResponse"
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/api.Meta"
                                         }
                                     }
                                 }

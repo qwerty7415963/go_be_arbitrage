@@ -1,6 +1,8 @@
 package fundingarbitrage
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,4 +78,34 @@ type VenuePerp struct {
 	Code      string    `json:"code"`
 	Name      string    `json:"name"`
 	VenueType string    `json:"venue_type"`
+}
+
+// PaginationCursor encodes cursor position for pagination
+type PaginationCursor struct {
+	InstrumentID string `json:"i"`
+}
+
+// EncodeCursor encodes a cursor to base64 string
+func EncodeCursor(cursor *PaginationCursor) string {
+	if cursor == nil {
+		return ""
+	}
+	data, _ := json.Marshal(cursor)
+	return base64.StdEncoding.EncodeToString(data)
+}
+
+// DecodeCursor decodes a base64 cursor string
+func DecodeCursor(encoded string) (*PaginationCursor, error) {
+	if encoded == "" {
+		return nil, nil
+	}
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, err
+	}
+	var cursor PaginationCursor
+	if err := json.Unmarshal(data, &cursor); err != nil {
+		return nil, err
+	}
+	return &cursor, nil
 }

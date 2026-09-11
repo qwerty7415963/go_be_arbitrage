@@ -2,12 +2,18 @@ package fundingarbitrage
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+)
+
+const (
+	defaultLimit = 50
+	maxLimit     = 200
 )
 
 type Handler struct {
@@ -46,9 +52,11 @@ func (h *Handler) ListPerpVenues(c *gin.Context) {
 // @Produce      json
 // @Param        venue_id      query     []string  true   "Venue IDs (min 2, max 10)"
 // @Param        sort          query     string    false  "Sort by"  Enums(apr_1h_desc, apr_4h_desc, apy_desc, spread_desc)  Default(apr_4h_desc)
+// @Param        limit         query     int       false  "Items per page"  Default(50)  Minimum(1)  Maximum(200)
+// @Param        cursor        query     string    false  "Pagination cursor (from previous response meta.cursor)"
 // @Param        include_stale query     bool      false  "Include stale data"  Default(false)
 // @Param        refresh       query     bool      false  "Force refresh cache"  Default(false)
-// @Success      200           {object}  api.Response{data=FundingArbitrageResponse}
+// @Success      200           {object}  api.Response{data=FundingArbitrageResponse,meta=api.Meta}
 // @Failure      400           {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/funding/arbitrage [get]
 func (h *Handler) GetFundingArbitrage(c *gin.Context) {
@@ -112,6 +120,24 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		return
 	}
 
+	// Parse limit
+	limit := defaultLimit
+	if limitStr := c.Query("limit"); limitStr != "" {
+		l, err := strconv.Atoi(limitStr)
+		if err != nil || l < 1 || l > maxLimit {
+			respondValidationError(c, "limit must be between 1 and 200")
+			return
+		}
+		limit = l
+	}
+
+	// Parse cursor
+	cursor, err := DecodeCursor(c.Query("cursor"))
+	if err != nil {
+		respondValidationError(c, "invalid cursor")
+		return
+	}
+
 	// Parse include_stale
 	includeStale := c.Query("include_stale") == "true"
 
@@ -131,9 +157,65 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		return
 	}
 
+	// Apply pagination to tokens in each pair
+	var lastCursor *PaginationCursor
+	hasMore := false
+	for i := range result.Pairs {
+		pair := &result.Pairs[i]
+		tokens := pair.Tokens
+
+		startIdx := 0
+		if cursor != nil {
+			// Find cursor position
+			for idx, t := range tokens {
+				if t.InstrumentID.String() == cursor.InstrumentID {
+					startIdx = idx + 1
+					break
+				}
+			}
+		}
+
+		// Slice tokens
+		if startIdx > 0 || limit < len(tokens) {
+			endIdx := startIdx + limit
+			if endIdx > len(tokens) {
+				endIdx = len(tokens)
+			}
+			pair.Tokens = tokens[startIdx:endIdx]
+
+			if endIdx < len(tokens) {
+				hasMore = true
+				lastToken := pair.Tokens[len(pair.Tokens)-1]
+				lastCursor = &PaginationCursor{
+					InstrumentID: lastToken.InstrumentID.String(),
+				}
+			}
+		} else {
+			// All tokens fit in one page
+			if len(tokens) > limit {
+				pair.Tokens = tokens[:limit]
+				hasMore = true
+				lastToken := pair.Tokens[len(pair.Tokens)-1]
+				lastCursor = &PaginationCursor{
+					InstrumentID: lastToken.InstrumentID.String(),
+				}
+			}
+		}
+	}
+
+	// Build response with meta
+	meta := &api.Meta{
+		HasMore: hasMore,
+		Limit:   limit,
+	}
+	if lastCursor != nil {
+		meta.Cursor = EncodeCursor(lastCursor)
+	}
+
 	c.JSON(http.StatusOK, api.Response{
 		Success: true,
 		Data:    result,
+		Meta:    meta,
 	})
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -99,9 +100,18 @@ func (a *VariationalAdapter) FetchAllListings(ctx context.Context) ([]Variationa
 		shortOI, _ := strconv.ParseFloat(l.OpenInterest.ShortOpenInterest, 64)
 		totalOI := longOI + shortOI
 
+		// Extract base asset from ticker (e.g., BTCUSDT → BTC, 1000PEPEUSDT → 1000PEPE)
+		baseAsset := l.Ticker
+		for _, suffix := range []string{"USDT", "USD", "BUSD", "USDC"} {
+			if strings.HasSuffix(l.Ticker, suffix) {
+				baseAsset = strings.TrimSuffix(l.Ticker, suffix)
+				break
+			}
+		}
+
 		listing := VariationalFundingData{
 			Symbol:      l.Ticker,
-			BaseAsset:   l.Ticker,
+			BaseAsset:   baseAsset,
 			FundingRate: l.FundingRate,
 			MarkPrice:   l.MarkPrice,
 			Volume24h:   l.Volume24h,
