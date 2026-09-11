@@ -52,14 +52,25 @@ func (h *Handler) ListPerpVenues(c *gin.Context) {
 // @Failure      400           {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/funding/arbitrage [get]
 func (h *Handler) GetFundingArbitrage(c *gin.Context) {
-	// Parse venue_ids
+	// Parse venue_ids (handles both duplicate params and comma-separated)
 	venueIDStrs := c.QueryArray("venue_id")
 	if len(venueIDStrs) == 0 {
-		// Also try comma-separated format
 		if venuesStr := c.Query("venue_id"); venuesStr != "" {
 			venueIDStrs = strings.Split(venuesStr, ",")
 		}
 	}
+
+	// Expand any comma-separated values within each element
+	var expanded []string
+	for _, s := range venueIDStrs {
+		for _, part := range strings.Split(s, ",") {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				expanded = append(expanded, trimmed)
+			}
+		}
+	}
+	venueIDStrs = expanded
 
 	if len(venueIDStrs) < 2 {
 		respondValidationError(c, "at least 2 venue_ids required")
