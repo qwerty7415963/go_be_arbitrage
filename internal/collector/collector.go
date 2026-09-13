@@ -138,7 +138,7 @@ func (c *Collector) collectBinance(ctx context.Context) {
 			quoteAsset = NormalizeQuoteAsset(data.Symbol, "binance")
 		}
 
-		if c.storeFundingWithDiscovery(ctx, v.ID, "binance", data.Symbol, baseAsset, quoteAsset, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt) {
+		if c.storeFundingWithDiscovery(ctx, v.ID, "binance", data.Symbol, baseAsset, quoteAsset, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.OI, data.ObservedAt) {
 			stored++
 		}
 	}
@@ -175,7 +175,7 @@ func (c *Collector) collectExtended(ctx context.Context) {
 		}
 		quoteAsset := NormalizeQuoteAsset(data.Symbol, "extended")
 
-		if c.storeFundingWithDiscovery(ctx, v.ID, "extended", data.Symbol, baseAsset, quoteAsset, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.ObservedAt) {
+		if c.storeFundingWithDiscovery(ctx, v.ID, "extended", data.Symbol, baseAsset, quoteAsset, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.OI, data.ObservedAt) {
 			stored++
 		}
 	}
@@ -209,9 +209,12 @@ func (c *Collector) collectVariational(ctx context.Context) {
 		if baseAsset == "" {
 			baseAsset = NormalizeBaseAsset(data.Symbol, "variational")
 		}
-		quoteAsset := NormalizeQuoteAsset(data.Symbol, "variational")
+		quoteAsset := data.QuoteAsset
+		if quoteAsset == "" {
+			quoteAsset = NormalizeQuoteAsset(data.Symbol, "variational")
+		}
 
-		if c.storeFundingWithDiscovery(ctx, v.ID, "variational", data.Symbol, baseAsset, quoteAsset, data.FundingRate, data.IntervalS, data.MarkPrice, "", data.ObservedAt) {
+		if c.storeFundingWithDiscovery(ctx, v.ID, "variational", data.Symbol, baseAsset, quoteAsset, data.FundingRate, data.IntervalS, data.MarkPrice, "", data.OI, data.ObservedAt) {
 			stored++
 		}
 	}
@@ -305,6 +308,7 @@ func (c *Collector) storeFundingWithDiscovery(
 	intervalSeconds int,
 	markPrice string,
 	indexPrice string,
+	openInterest string,
 	observedAt time.Time,
 ) bool {
 	instrumentID, err := c.ensureInstrument(ctx, venueID, venueCode, venueSymbol, baseAsset, quoteAsset)
@@ -316,9 +320,9 @@ func (c *Collector) storeFundingWithDiscovery(
 
 	// Insert funding rate
 	_, err = c.db.Exec(ctx,
-		`INSERT INTO funding_rates (venue_id, instrument_id, observed_at, funding_rate, interval_seconds, mark_price, index_price)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		venueID, instrumentID, observedAt, fundingRate, intervalSeconds, markPrice, indexPrice,
+		`INSERT INTO funding_rates (venue_id, instrument_id, observed_at, funding_rate, interval_seconds, mark_price, index_price, open_interest)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		venueID, instrumentID, observedAt, fundingRate, intervalSeconds, markPrice, indexPrice, openInterest,
 	)
 
 	if err != nil {

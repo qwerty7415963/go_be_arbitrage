@@ -37,15 +37,18 @@ type ArbitrageToken struct {
 	VenueAFundingRate     string    `json:"venue_a_funding_rate"`
 	VenueAIntervalSeconds int       `json:"venue_a_interval_seconds"`
 	VenueAObservedAt      time.Time `json:"venue_a_observed_at"`
+	VenueAOI              string    `json:"venue_a_oi"`
 	VenueBSymbol          string    `json:"venue_b_symbol"`
 	VenueBFundingRate     string    `json:"venue_b_funding_rate"`
 	VenueBIntervalSeconds int       `json:"venue_b_interval_seconds"`
 	VenueBObservedAt      time.Time `json:"venue_b_observed_at"`
+	VenueBOI              string    `json:"venue_b_oi"`
 	LongVenueID           uuid.UUID `json:"long_venue_id"`
 	ShortVenueID          uuid.UUID `json:"short_venue_id"`
 	APR1hPercent          *float64  `json:"apr_1h_percent"`
 	APR4hPercent          *float64  `json:"apr_4h_percent"`
 	APYPercent            *float64  `json:"apy_percent"`
+	PriceSpreadPercent    *float64  `json:"price_spread_percent"`
 	FundingAvailable      bool      `json:"funding_available"`
 	IsStale               bool      `json:"is_stale"`
 }
@@ -70,6 +73,7 @@ type FundingRecord struct {
 	IntervalSeconds int
 	MarkPrice       string
 	IndexPrice      string
+	OpenInterest    string
 }
 
 // VenuePerp represents a venue that supports perps

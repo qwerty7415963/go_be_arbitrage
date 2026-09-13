@@ -182,10 +182,20 @@ func (s *Service) buildArbitrageToken(
 	token.VenueAFundingRate = fundingA.FundingRate
 	token.VenueAIntervalSeconds = fundingA.IntervalSeconds
 	token.VenueAObservedAt = fundingA.ObservedAt
+	token.VenueAOI = fundingA.OpenInterest
 	token.VenueBFundingRate = fundingB.FundingRate
 	token.VenueBIntervalSeconds = fundingB.IntervalSeconds
 	token.VenueBObservedAt = fundingB.ObservedAt
+	token.VenueBOI = fundingB.OpenInterest
 	token.FundingAvailable = true
+
+	// Calculate price spread from mark_price
+	markA := parseFundingRate(fundingA.MarkPrice)
+	markB := parseFundingRate(fundingB.MarkPrice)
+	if markA > 0 && markB > 0 {
+		spread := math.Abs(markA-markB) / math.Min(markA, markB) * 100
+		token.PriceSpreadPercent = &spread
+	}
 
 	// Calculate APR and APY from net hourly rate
 	// APR = net_hourly * 24 * 365 * 100 (annualized percentage)

@@ -100,7 +100,7 @@ func (r *Repository) GetVenueInstrumentMappings(ctx context.Context, venueIDs []
 func (r *Repository) GetLatestFunding(ctx context.Context, venueID, instrumentID uuid.UUID) (*FundingRecord, error) {
 	query := `
 		SELECT id, venue_id, instrument_id, observed_at, funding_rate, 
-		       interval_seconds, mark_price, index_price
+		       interval_seconds, mark_price, index_price, open_interest
 		FROM funding_rates
 		WHERE venue_id = $1 AND instrument_id = $2
 		ORDER BY observed_at DESC
@@ -109,7 +109,7 @@ func (r *Repository) GetLatestFunding(ctx context.Context, venueID, instrumentID
 	var f FundingRecord
 	err := r.db.QueryRow(ctx, query, venueID, instrumentID).Scan(
 		&f.ID, &f.VenueID, &f.InstrumentID, &f.ObservedAt,
-		&f.FundingRate, &f.IntervalSeconds, &f.MarkPrice, &f.IndexPrice,
+		&f.FundingRate, &f.IntervalSeconds, &f.MarkPrice, &f.IndexPrice, &f.OpenInterest,
 	)
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func (r *Repository) GetLatestFunding(ctx context.Context, venueID, instrumentID
 func (r *Repository) GetFundingHistory(ctx context.Context, venueID, instrumentID uuid.UUID, since time.Time) ([]FundingRecord, error) {
 	query := `
 		SELECT id, venue_id, instrument_id, observed_at, funding_rate, 
-		       interval_seconds, mark_price, index_price
+		       interval_seconds, mark_price, index_price, open_interest
 		FROM funding_rates
 		WHERE venue_id = $1 AND instrument_id = $2 AND observed_at >= $3
 		ORDER BY observed_at DESC`
@@ -136,7 +136,7 @@ func (r *Repository) GetFundingHistory(ctx context.Context, venueID, instrumentI
 	for rows.Next() {
 		var f FundingRecord
 		if err := rows.Scan(&f.ID, &f.VenueID, &f.InstrumentID, &f.ObservedAt,
-			&f.FundingRate, &f.IntervalSeconds, &f.MarkPrice, &f.IndexPrice); err != nil {
+			&f.FundingRate, &f.IntervalSeconds, &f.MarkPrice, &f.IndexPrice, &f.OpenInterest); err != nil {
 			return nil, err
 		}
 		records = append(records, f)

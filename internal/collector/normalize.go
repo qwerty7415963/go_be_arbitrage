@@ -41,8 +41,9 @@ func NormalizeQuoteAsset(symbol, venueCode string) string {
 		return "USD"
 	default:
 		// Binance-style: detect quote asset
+		// Only match if symbol is longer than suffix (base asset must be non-empty)
 		for _, suffix := range []string{"USDT", "BUSD", "USDC", "BTC", "ETH", "BNB"} {
-			if strings.HasSuffix(symbol, suffix) {
+			if strings.HasSuffix(symbol, suffix) && len(symbol) > len(suffix) {
 				return suffix
 			}
 		}

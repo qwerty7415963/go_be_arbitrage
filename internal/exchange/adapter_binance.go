@@ -74,6 +74,7 @@ type BinanceFundingData struct {
 	FundingRate string
 	MarkPrice   string
 	IndexPrice  string
+	OI          string
 	NextFunding int64
 	ObservedAt  time.Time
 }
@@ -248,6 +249,11 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 			continue
 		}
 
+		oi := ""
+		if oiData, ok := oiMap[p.Symbol]; ok {
+			oi = oiData.OpenInterest
+		}
+
 		data := BinanceFundingData{
 			Symbol:      p.Symbol,
 			BaseAsset:   p.BaseAsset,
@@ -255,6 +261,7 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 			FundingRate: premium.LastFundingRate,
 			MarkPrice:   premium.MarkPrice,
 			IndexPrice:  premium.IndexPrice,
+			OI:          oi,
 			NextFunding: premium.NextFundingTime,
 			ObservedAt:  now,
 		}

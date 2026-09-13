@@ -184,6 +184,16 @@ func SortTokens(tokens []ArbitrageToken, sortBy string) {
 			}
 			return *tokens[i].APYPercent > *tokens[j].APYPercent
 		})
+	case "spread_desc":
+		sort.Slice(tokens, func(i, j int) bool {
+			if tokens[i].PriceSpreadPercent == nil {
+				return false
+			}
+			if tokens[j].PriceSpreadPercent == nil {
+				return true
+			}
+			return *tokens[i].PriceSpreadPercent > *tokens[j].PriceSpreadPercent
+		})
 	default: // apr_24h_desc or default
 		sort.Slice(tokens, func(i, j int) bool {
 			if tokens[i].APR4hPercent == nil {

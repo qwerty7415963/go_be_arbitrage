@@ -45,6 +45,7 @@ type VariationalOpenInterest struct {
 type VariationalFundingData struct {
 	Symbol      string
 	BaseAsset   string
+	QuoteAsset  string
 	FundingRate string
 	MarkPrice   string
 	Volume24h   string
@@ -101,18 +102,29 @@ func (a *VariationalAdapter) FetchAllListings(ctx context.Context) ([]Variationa
 		totalOI := longOI + shortOI
 
 		// Extract base asset from ticker (e.g., BTCUSDT → BTC, 1000PEPEUSDT → 1000PEPE)
+		// Variational tickers are often just the base asset (e.g., BTC, ETH, SOL)
 		baseAsset := l.Ticker
+		quoteAsset := "USD"
 		for _, suffix := range []string{"USDT", "USD", "BUSD", "USDC"} {
 			if strings.HasSuffix(l.Ticker, suffix) {
 				baseAsset = strings.TrimSuffix(l.Ticker, suffix)
+				quoteAsset = "USD"
 				break
 			}
+		}
+
+		// Normalize funding rate: Variational API returns percentage (e.g. 0.068 = 0.068%),
+		// divide by 100 to match decimal fraction format used by Binance/Extended (e.g. 0.00068)
+		normalizedRate := l.FundingRate
+		if rateFloat, err := strconv.ParseFloat(l.FundingRate, 64); err == nil {
+			normalizedRate = strconv.FormatFloat(rateFloat/100.0, 'f', -1, 64)
 		}
 
 		listing := VariationalFundingData{
 			Symbol:      l.Ticker,
 			BaseAsset:   baseAsset,
-			FundingRate: l.FundingRate,
+			QuoteAsset:  quoteAsset,
+			FundingRate: normalizedRate,
 			MarkPrice:   l.MarkPrice,
 			Volume24h:   l.Volume24h,
 			OI:          strconv.FormatFloat(totalOI, 'f', -1, 64),
