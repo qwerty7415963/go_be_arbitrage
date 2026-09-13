@@ -251,7 +251,11 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 
 		oi := ""
 		if oiData, ok := oiMap[p.Symbol]; ok {
-			oi = oiData.OpenInterest
+			oiBase, _ := strconv.ParseFloat(oiData.OpenInterest, 64)
+			markP, _ := strconv.ParseFloat(premium.MarkPrice, 64)
+			if oiBase > 0 && markP > 0 {
+				oi = strconv.FormatFloat(oiBase*markP, 'f', -1, 64)
+			}
 		}
 
 		data := BinanceFundingData{
