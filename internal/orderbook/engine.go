@@ -85,6 +85,10 @@ func (e *Engine) ApplyDelta(book *OrderBook, delta *OrderBookDelta) error {
 	book.mu.Lock()
 	defer book.mu.Unlock()
 
+	if delta.ToSequence <= book.Sequence {
+		return nil
+	}
+
 	if delta.FromSequence != book.Sequence {
 		book.State = BookStateDesynced
 		book.GapCount++

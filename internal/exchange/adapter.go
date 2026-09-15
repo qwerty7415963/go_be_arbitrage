@@ -65,10 +65,13 @@ type TickerEvent struct {
 
 // OrderBookEvent represents a normalized orderbook update
 type OrderBookEvent struct {
-	VenueSymbol string       `json:"venue_symbol"`
-	Bids        []PriceLevel `json:"bids"`
-	Asks        []PriceLevel `json:"asks"`
-	Timestamp   time.Time    `json:"timestamp"`
+	VenueSymbol  string       `json:"venue_symbol"`
+	Bids         []PriceLevel `json:"bids"`
+	Asks         []PriceLevel `json:"asks"`
+	Timestamp    time.Time    `json:"timestamp"`
+	IsSnapshot   bool         `json:"is_snapshot"`
+	Sequence     int64        `json:"sequence"`
+	FromSequence int64        `json:"from_sequence"`
 }
 
 // PriceLevel represents a price level in the orderbook
