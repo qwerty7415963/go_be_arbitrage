@@ -106,6 +106,7 @@ func (s *Server) SetupRoutes(
 			orderbookRoutes.GET("/health", orderbookHandler.GetHealth)
 			orderbookRoutes.GET("/tradable", orderbookHandler.GetTradable)
 			orderbookRoutes.POST("/resync", orderbookHandler.RequestResync)
+			orderbookRoutes.GET("/ws", orderbookHandler.SubscribeWS)
 		}
 
 		// Unified State

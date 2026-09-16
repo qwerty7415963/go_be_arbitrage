@@ -171,3 +171,7 @@ func (s *Service) CleanupOldData(ctx context.Context, maxAge time.Duration) (int
 
 	return snapshots, deltas, nil
 }
+
+func (s *Service) NotifySubscribers(snapshot *OrderBookSnapshot) {
+	s.notifySubscribers(snapshot)
+}

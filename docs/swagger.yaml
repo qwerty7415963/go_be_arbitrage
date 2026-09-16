@@ -132,6 +132,8 @@ definitions:
         type: boolean
       long_venue_id:
         type: string
+      price_spread_percent:
+        type: number
       short_venue_id:
         type: string
       symbol:
@@ -142,6 +144,8 @@ definitions:
         type: integer
       venue_a_observed_at:
         type: string
+      venue_a_oi:
+        type: string
       venue_a_symbol:
         type: string
       venue_b_funding_rate:
@@ -149,6 +153,8 @@ definitions:
       venue_b_interval_seconds:
         type: integer
       venue_b_observed_at:
+        type: string
+      venue_b_oi:
         type: string
       venue_b_symbol:
         type: string
@@ -1721,6 +1727,41 @@ paths:
                   $ref: '#/definitions/api.ErrorBody'
               type: object
       summary: Check if order book is tradable
+      tags:
+      - orderbook
+  /api/v1/orderbook/ws:
+    get:
+      description: Subscribe to real-time order book updates via WebSocket
+      parameters:
+      - description: Venue ID
+        in: query
+        name: venue_id
+        required: true
+        type: string
+      - description: Instrument ID
+        in: query
+        name: instrument_id
+        required: true
+        type: string
+      - description: Depth levels (default 10, max 20)
+        in: query
+        name: depth
+        type: integer
+      responses:
+        "101":
+          description: Switching Protocols
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Subscribe to order book WebSocket
       tags:
       - orderbook
   /api/v1/ping:

@@ -22,7 +22,6 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/ws"
 )
 
 type App struct {
@@ -30,7 +29,6 @@ type App struct {
 	logger            *logger.Logger
 	database          *database.Database
 	httpServer        *httpserver.Server
-	hub               *ws.Hub
 	auth              *auth.Service
 	health            *health.Handler
 	venueService      *venue.Service
@@ -53,9 +51,6 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect database: %w", err)
 	}
-
-	hub := ws.NewHub()
-	go hub.Run()
 
 	authRepo := auth.NewRepository(db.Pool())
 	authService := auth.NewService(&cfg.Auth, authRepo)
@@ -84,7 +79,9 @@ func New(cfg *config.Config) (*App, error) {
 
 	orderbookRepo := orderbook.NewRepository(db.Pool())
 	orderbookService := orderbook.NewService(orderbookRepo)
-	orderbookHandler := orderbook.NewHandler(orderbookService)
+	orderbookHub := orderbook.NewWsHub()
+	go orderbookHub.Run()
+	orderbookHandler := orderbook.NewHandler(orderbookService, orderbookHub)
 
 	unifiedRepo := unifiedstate.NewRepository(db.Pool())
 	unifiedService := unifiedstate.NewService(unifiedRepo)
@@ -122,7 +119,6 @@ func New(cfg *config.Config) (*App, error) {
 		logger:            log,
 		database:          db,
 		httpServer:        httpServer,
-		hub:               hub,
 		auth:              authService,
 		health:            healthHandler,
 		venueService:      venueService,

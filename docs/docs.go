@@ -1511,6 +1511,63 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/orderbook/ws": {
+            "get": {
+                "description": "Subscribe to real-time order book updates via WebSocket",
+                "tags": [
+                    "orderbook"
+                ],
+                "summary": "Subscribe to order book WebSocket",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Venue ID",
+                        "name": "venue_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Instrument ID",
+                        "name": "instrument_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Depth levels (default 10, max 20)",
+                        "name": "depth",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/ping": {
             "get": {
                 "description": "Simple ping endpoint to test connectivity",
@@ -2965,6 +3022,9 @@ const docTemplate = `{
                 "long_venue_id": {
                     "type": "string"
                 },
+                "price_spread_percent": {
+                    "type": "number"
+                },
                 "short_venue_id": {
                     "type": "string"
                 },
@@ -2980,6 +3040,9 @@ const docTemplate = `{
                 "venue_a_observed_at": {
                     "type": "string"
                 },
+                "venue_a_oi": {
+                    "type": "string"
+                },
                 "venue_a_symbol": {
                     "type": "string"
                 },
@@ -2990,6 +3053,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "venue_b_observed_at": {
+                    "type": "string"
+                },
+                "venue_b_oi": {
                     "type": "string"
                 },
                 "venue_b_symbol": {
