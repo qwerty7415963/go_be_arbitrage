@@ -291,7 +291,6 @@ func (h *Handler) SubscribeWS(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
 	client := &WsClient{
 		hub:          h.hub,
 		conn:         conn,
@@ -302,7 +301,7 @@ func (h *Handler) SubscribeWS(c *gin.Context) {
 		depth:        depth,
 	}
 
-	subCtx, cancel := context.WithCancel(ctx)
+	subCtx, cancel := context.WithCancel(context.Background())
 	client.cancel = cancel
 
 	h.hub.register <- client
