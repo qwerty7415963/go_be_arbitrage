@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS fills;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS execution_legs;
+DROP TABLE IF EXISTS executions;

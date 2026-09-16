@@ -8,6 +8,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/execution"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/fundingarbitrage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver/middleware"
@@ -15,6 +16,8 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/opportunity"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/reconciliation"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/risk"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
@@ -34,6 +37,9 @@ func (s *Server) SetupRoutes(
 	fundingArbitrageHandler *fundingarbitrage.Handler,
 	opportunityHandler *opportunity.Handler,
 	strategyHandler *strategy.Handler,
+	riskHandler *risk.Handler,
+	executionHandler *execution.Handler,
+	reconciliationHandler *reconciliation.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -137,6 +143,15 @@ func (s *Server) SetupRoutes(
 
 		// Strategy Engine
 		strategyHandler.RegisterRoutes(v1)
+
+		// Risk Engine
+		riskHandler.RegisterRoutes(v1)
+
+		// Execution Engine
+		executionHandler.RegisterRoutes(v1)
+
+		// Reconciliation Engine
+		reconciliationHandler.RegisterRoutes(v1)
 
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")

@@ -12,6 +12,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/collector"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/database"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/execution"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/fundingarbitrage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver"
@@ -20,6 +21,8 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/opportunity"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/reconciliation"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/risk"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
@@ -114,6 +117,21 @@ func New(cfg *config.Config) (*App, error) {
 	strategyService := strategy.NewService(strategyRepo, opportunityService)
 	strategyHandler := strategy.NewHandler(strategyService)
 
+	// Risk Engine
+	riskRepo := risk.NewRepository(db.Pool())
+	riskService := risk.NewService(riskRepo, risk.DefaultRiskConfig())
+	riskHandler := risk.NewHandler(riskService)
+
+	// Execution Engine
+	executionRepo := execution.NewRepository(db.Pool())
+	executionService := execution.NewService(executionRepo)
+	executionHandler := execution.NewHandler(executionService)
+
+	// Reconciliation Engine
+	reconciliationRepo := reconciliation.NewRepository(db.Pool())
+	reconciliationService := reconciliation.NewService(reconciliationRepo)
+	reconciliationHandler := reconciliation.NewHandler(reconciliationService)
+
 	// Collector (lazy start - will start on first request context)
 	fundingCollector := collector.NewCollector(
 		db.Pool(),
@@ -124,7 +142,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, fundingArbitrageHandler, opportunityHandler, strategyHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler)
 
 	return &App{
 		config:            cfg,
