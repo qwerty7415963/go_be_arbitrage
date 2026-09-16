@@ -13,8 +13,10 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver/middleware"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/opportunity"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 )
@@ -30,6 +32,8 @@ func (s *Server) SetupRoutes(
 	authService *auth.Service,
 	authHandler *auth.Handler,
 	fundingArbitrageHandler *fundingarbitrage.Handler,
+	opportunityHandler *opportunity.Handler,
+	strategyHandler *strategy.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -127,6 +131,12 @@ func (s *Server) SetupRoutes(
 
 		// Funding Arbitrage
 		v1.GET("/funding/arbitrage", fundingArbitrageHandler.GetFundingArbitrage)
+
+		// Opportunity Scanner
+		opportunityHandler.RegisterRoutes(v1)
+
+		// Strategy Engine
+		strategyHandler.RegisterRoutes(v1)
 
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")

@@ -18,8 +18,10 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/opportunity"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 )
@@ -39,6 +41,7 @@ type App struct {
 	storageHandler    *storage.Handler
 	authHandler       *auth.Handler
 	collector         *collector.Collector
+	opportunityService *opportunity.Service
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -102,6 +105,15 @@ func New(cfg *config.Config) (*App, error) {
 	fundingArbitrageService := fundingarbitrage.NewService(fundingArbitrageRepo, fundingArbitrageCache)
 	fundingArbitrageHandler := fundingarbitrage.NewHandler(fundingArbitrageService)
 
+	// Opportunity Scanner
+	opportunityService := opportunity.NewService(unifiedService, opportunity.DefaultScannerConfig())
+	opportunityHandler := opportunity.NewHandler(opportunityService)
+
+	// Strategy Engine
+	strategyRepo := strategy.NewRepository(db.Pool())
+	strategyService := strategy.NewService(strategyRepo, opportunityService)
+	strategyHandler := strategy.NewHandler(strategyService)
+
 	// Collector (lazy start - will start on first request context)
 	fundingCollector := collector.NewCollector(
 		db.Pool(),
@@ -112,7 +124,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, fundingArbitrageHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, fundingArbitrageHandler, opportunityHandler, strategyHandler)
 
 	return &App{
 		config:            cfg,
@@ -129,6 +141,7 @@ func New(cfg *config.Config) (*App, error) {
 		storageHandler:    storageHandler,
 		authHandler:       authHandler,
 		collector:         fundingCollector,
+		opportunityService: opportunityService,
 	}, nil
 }
 
@@ -138,6 +151,9 @@ func (a *App) Run() error {
 
 	// Start collector in background
 	go a.collector.Start(ctx)
+
+	// Start opportunity scanner
+	go a.opportunityService.Start(ctx)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
