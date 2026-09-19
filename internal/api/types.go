@@ -10,9 +10,10 @@ type Response struct {
 
 // Meta contains pagination metadata
 type Meta struct {
-	Cursor  string `json:"cursor,omitempty"`
-	HasMore bool   `json:"has_more"`
+	Offset  int    `json:"offset,omitempty"`
 	Limit   int    `json:"limit,omitempty"`
+	HasMore bool   `json:"has_more"`
+	Cursor  string `json:"cursor,omitempty"`
 }
 
 // ErrorBody contains error details

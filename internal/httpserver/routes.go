@@ -187,7 +187,7 @@ func (s *Server) SetupRoutes(
 // @Description  Simple ping endpoint to test connectivity
 // @Tags         system
 // @Produce      json
-// @Success      200  {object}  api.Response{data=api.PingResponse}
+// @Success      200  {object}  map[string]string
 // @Router       /api/v1/ping [get]
 func pingHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "pong"})

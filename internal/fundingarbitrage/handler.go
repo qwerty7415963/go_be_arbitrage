@@ -53,7 +53,7 @@ func (h *Handler) ListPerpVenues(c *gin.Context) {
 // @Param        venue_id      query     []string  true   "Venue IDs (min 2, max 10)"
 // @Param        sort          query     string    false  "Sort by"  Enums(apr_1h_desc, apr_4h_desc, apy_desc, spread_desc)  Default(apr_4h_desc)
 // @Param        limit         query     int       false  "Items per page"  Default(50)  Minimum(1)  Maximum(200)
-// @Param        cursor        query     string    false  "Pagination cursor (from previous response meta.cursor)"
+// @Param        offset        query     int       false  "Offset"  Default(0)  Minimum(0)
 // @Param        include_stale query     bool      false  "Include stale data"  Default(false)
 // @Param        refresh       query     bool      false  "Force refresh cache"  Default(false)
 // @Success      200           {object}  api.Response{data=FundingArbitrageResponse,meta=api.Meta}
@@ -131,11 +131,15 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		limit = l
 	}
 
-	// Parse cursor
-	cursor, err := DecodeCursor(c.Query("cursor"))
-	if err != nil {
-		respondValidationError(c, "invalid cursor")
-		return
+	// Parse offset
+	offset := 0
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		o, err := strconv.Atoi(offsetStr)
+		if err != nil || o < 0 {
+			respondValidationError(c, "offset must be >= 0")
+			return
+		}
+		offset = o
 	}
 
 	// Parse include_stale
@@ -157,59 +161,33 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		return
 	}
 
-	// Apply pagination to tokens in each pair
-	var lastCursor *PaginationCursor
+	// Apply offset-based pagination to tokens in each pair
 	hasMore := false
 	for i := range result.Pairs {
-		pair := &result.Pairs[i]
-		tokens := pair.Tokens
+		tokens := result.Pairs[i].Tokens
+		total := len(tokens)
 
-		startIdx := 0
-		if cursor != nil {
-			// Find cursor position
-			for idx, t := range tokens {
-				if t.InstrumentID.String() == cursor.InstrumentID {
-					startIdx = idx + 1
-					break
-				}
-			}
+		if offset >= total {
+			result.Pairs[i].Tokens = []ArbitrageToken{}
+			continue
 		}
 
-		// Slice tokens
-		if startIdx > 0 || limit < len(tokens) {
-			endIdx := startIdx + limit
-			if endIdx > len(tokens) {
-				endIdx = len(tokens)
-			}
-			pair.Tokens = tokens[startIdx:endIdx]
+		end := offset + limit
+		if end > total {
+			end = total
+		}
+		result.Pairs[i].Tokens = tokens[offset:end]
 
-			if endIdx < len(tokens) {
-				hasMore = true
-				lastToken := pair.Tokens[len(pair.Tokens)-1]
-				lastCursor = &PaginationCursor{
-					InstrumentID: lastToken.InstrumentID.String(),
-				}
-			}
-		} else {
-			// All tokens fit in one page
-			if len(tokens) > limit {
-				pair.Tokens = tokens[:limit]
-				hasMore = true
-				lastToken := pair.Tokens[len(pair.Tokens)-1]
-				lastCursor = &PaginationCursor{
-					InstrumentID: lastToken.InstrumentID.String(),
-				}
-			}
+		if end < total {
+			hasMore = true
 		}
 	}
 
 	// Build response with meta
 	meta := &api.Meta{
-		HasMore: hasMore,
+		Offset:  offset,
 		Limit:   limit,
-	}
-	if lastCursor != nil {
-		meta.Cursor = EncodeCursor(lastCursor)
+		HasMore: hasMore,
 	}
 
 	c.JSON(http.StatusOK, api.Response{

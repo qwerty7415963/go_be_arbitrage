@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  api.ErrorBody:
+  github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody:
     properties:
       code:
         type: string
@@ -10,7 +10,7 @@ definitions:
       request_id:
         type: string
     type: object
-  api.HealthResponse:
+  github_com_qwerty7415963_go_be_arbitrage_internal_api.HealthResponse:
     properties:
       checks:
         additionalProperties:
@@ -20,7 +20,7 @@ definitions:
         example: healthy
         type: string
     type: object
-  api.Meta:
+  github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta:
     properties:
       cursor:
         type: string
@@ -28,30 +28,32 @@ definitions:
         type: boolean
       limit:
         type: integer
+      offset:
+        type: integer
     type: object
-  api.PingResponse:
+  github_com_qwerty7415963_go_be_arbitrage_internal_api.PingResponse:
     properties:
       message:
         example: pong
         type: string
     type: object
-  api.ReadyResponse:
+  github_com_qwerty7415963_go_be_arbitrage_internal_api.ReadyResponse:
     properties:
       status:
         example: ready
         type: string
     type: object
-  api.Response:
+  github_com_qwerty7415963_go_be_arbitrage_internal_api.Response:
     properties:
       data: {}
       error:
-        $ref: '#/definitions/api.ErrorBody'
+        $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
       meta:
-        $ref: '#/definitions/api.Meta'
+        $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta'
       success:
         type: boolean
     type: object
-  auth.AuthResponse:
+  internal_auth.AuthResponse:
     properties:
       access_token:
         type: string
@@ -60,9 +62,9 @@ definitions:
       refresh_token:
         type: string
       user:
-        $ref: '#/definitions/auth.UserResponse'
+        $ref: '#/definitions/internal_auth.UserResponse'
     type: object
-  auth.ChangePasswordRequest:
+  internal_auth.ChangePasswordRequest:
     properties:
       new_password:
         maxLength: 128
@@ -74,7 +76,7 @@ definitions:
     - new_password
     - old_password
     type: object
-  auth.LoginRequest:
+  internal_auth.LoginRequest:
     properties:
       email:
         type: string
@@ -84,14 +86,14 @@ definitions:
     - email
     - password
     type: object
-  auth.RefreshRequest:
+  internal_auth.RefreshRequest:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
     type: object
-  auth.RegisterRequest:
+  internal_auth.RegisterRequest:
     properties:
       email:
         type: string
@@ -103,7 +105,7 @@ definitions:
     - email
     - password
     type: object
-  auth.UserResponse:
+  internal_auth.UserResponse:
     properties:
       auth_method:
         type: string
@@ -118,7 +120,7 @@ definitions:
       status:
         type: string
     type: object
-  auth.WalletLinkRequest:
+  internal_auth.WalletLinkRequest:
     properties:
       address:
         type: string
@@ -134,7 +136,7 @@ definitions:
     - message
     - signature
     type: object
-  auth.WalletNonce:
+  internal_auth.WalletNonce:
     properties:
       address:
         type: string
@@ -151,7 +153,7 @@ definitions:
       used:
         type: boolean
     type: object
-  auth.WalletNonceRequest:
+  internal_auth.WalletNonceRequest:
     properties:
       address:
         type: string
@@ -161,7 +163,7 @@ definitions:
     - address
     - chain_id
     type: object
-  auth.WalletResponse:
+  internal_auth.WalletResponse:
     properties:
       address:
         type: string
@@ -174,7 +176,7 @@ definitions:
       verified_at:
         type: string
     type: object
-  auth.WalletVerifyRequest:
+  internal_auth.WalletVerifyRequest:
     properties:
       message:
         type: string
@@ -184,7 +186,7 @@ definitions:
     - message
     - signature
     type: object
-  fundingarbitrage.ArbitrageToken:
+  internal_fundingarbitrage.ArbitrageToken:
     properties:
       apr_1h_percent:
         type: number
@@ -227,7 +229,7 @@ definitions:
       venue_b_symbol:
         type: string
     type: object
-  fundingarbitrage.FundingArbitrageResponse:
+  internal_fundingarbitrage.FundingArbitrageResponse:
     properties:
       cache_status:
         type: string
@@ -235,21 +237,21 @@ definitions:
         type: string
       pairs:
         items:
-          $ref: '#/definitions/fundingarbitrage.Pair'
+          $ref: '#/definitions/internal_fundingarbitrage.Pair'
         type: array
     type: object
-  fundingarbitrage.Pair:
+  internal_fundingarbitrage.Pair:
     properties:
       tokens:
         items:
-          $ref: '#/definitions/fundingarbitrage.ArbitrageToken'
+          $ref: '#/definitions/internal_fundingarbitrage.ArbitrageToken'
         type: array
       venue_a:
-        $ref: '#/definitions/fundingarbitrage.VenueInfo'
+        $ref: '#/definitions/internal_fundingarbitrage.VenueInfo'
       venue_b:
-        $ref: '#/definitions/fundingarbitrage.VenueInfo'
+        $ref: '#/definitions/internal_fundingarbitrage.VenueInfo'
     type: object
-  fundingarbitrage.VenueInfo:
+  internal_fundingarbitrage.VenueInfo:
     properties:
       code:
         type: string
@@ -258,7 +260,7 @@ definitions:
       name:
         type: string
     type: object
-  fundingarbitrage.VenuePerp:
+  internal_fundingarbitrage.VenuePerp:
     properties:
       code:
         type: string
@@ -269,7 +271,7 @@ definitions:
       venue_type:
         type: string
     type: object
-  instrument.ContractType:
+  internal_instrument.ContractType:
     enum:
     - LINEAR
     - INVERSE
@@ -281,7 +283,7 @@ definitions:
     - ContractTypeInverse
     - ContractTypeSpot
     - ContractTypeOther
-  instrument.CreateInstrumentRequest:
+  internal_instrument.CreateInstrumentRequest:
     properties:
       base_asset:
         type: string
@@ -291,7 +293,7 @@ definitions:
         type: string
       contract_type:
         allOf:
-        - $ref: '#/definitions/instrument.ContractType'
+        - $ref: '#/definitions/internal_instrument.ContractType'
         enum:
         - LINEAR
         - INVERSE
@@ -299,7 +301,7 @@ definitions:
         - OTHER
       instrument_type:
         allOf:
-        - $ref: '#/definitions/instrument.InstrumentType'
+        - $ref: '#/definitions/internal_instrument.InstrumentType'
         enum:
         - SPOT
         - PERP
@@ -327,7 +329,7 @@ definitions:
     - quantity_step
     - quote_asset
     type: object
-  instrument.CreateVenueInstrumentRequest:
+  internal_instrument.CreateVenueInstrumentRequest:
     properties:
       instrument_id:
         type: string
@@ -340,7 +342,7 @@ definitions:
     - venue_id
     - venue_symbol
     type: object
-  instrument.DiscoveryStatus:
+  internal_instrument.DiscoveryStatus:
     enum:
     - DISCOVERED
     - REVIEWED
@@ -350,12 +352,12 @@ definitions:
     - DiscoveryStatusDiscovered
     - DiscoveryStatusReviewed
     - DiscoveryStatusRejected
-  instrument.EnableTradingRequest:
+  internal_instrument.EnableTradingRequest:
     properties:
       enabled:
         type: boolean
     type: object
-  instrument.Instrument:
+  internal_instrument.Instrument:
     properties:
       base_asset:
         type: string
@@ -364,15 +366,15 @@ definitions:
       contract_size:
         type: string
       contract_type:
-        $ref: '#/definitions/instrument.ContractType'
+        $ref: '#/definitions/internal_instrument.ContractType'
       created_at:
         type: string
       discovery_status:
-        $ref: '#/definitions/instrument.DiscoveryStatus'
+        $ref: '#/definitions/internal_instrument.DiscoveryStatus'
       id:
         type: string
       instrument_type:
-        $ref: '#/definitions/instrument.InstrumentType'
+        $ref: '#/definitions/internal_instrument.InstrumentType'
       margin_asset:
         type: string
       min_notional:
@@ -392,7 +394,7 @@ definitions:
       updated_at:
         type: string
     type: object
-  instrument.InstrumentType:
+  internal_instrument.InstrumentType:
     enum:
     - SPOT
     - PERP
@@ -402,13 +404,13 @@ definitions:
     - InstrumentTypeSpot
     - InstrumentTypePerp
     - InstrumentTypeFuture
-  instrument.UpdateInstrumentRequest:
+  internal_instrument.UpdateInstrumentRequest:
     properties:
       contract_size:
         type: string
       discovery_status:
         allOf:
-        - $ref: '#/definitions/instrument.DiscoveryStatus'
+        - $ref: '#/definitions/internal_instrument.DiscoveryStatus'
         enum:
         - DISCOVERED
         - REVIEWED
@@ -426,7 +428,7 @@ definitions:
       settlement_asset:
         type: string
     type: object
-  instrument.VenueInstrument:
+  internal_instrument.VenueInstrument:
     properties:
       first_seen_at:
         type: string
@@ -444,7 +446,7 @@ definitions:
       venue_symbol:
         type: string
     type: object
-  market.FundingEvent:
+  internal_market.FundingEvent:
     properties:
       funding_rate:
         type: string
@@ -469,7 +471,7 @@ definitions:
       venue_id:
         type: string
     type: object
-  market.Subscription:
+  internal_market.Subscription:
     properties:
       channel:
         type: string
@@ -481,11 +483,11 @@ definitions:
       instrumentID:
         type: string
       status:
-        $ref: '#/definitions/market.SubscriptionStatus'
+        $ref: '#/definitions/internal_market.SubscriptionStatus'
       venueID:
         type: string
     type: object
-  market.SubscriptionStatus:
+  internal_market.SubscriptionStatus:
     enum:
     - PENDING
     - ACTIVE
@@ -497,7 +499,7 @@ definitions:
     - SubscriptionStatusActive
     - SubscriptionStatusFailed
     - SubscriptionStatusUnsubscribed
-  market.TickerEvent:
+  internal_market.TickerEvent:
     properties:
       best_ask_price:
         type: string
@@ -524,7 +526,7 @@ definitions:
       venue_id:
         type: string
     type: object
-  market.TradeEvent:
+  internal_market.TradeEvent:
     properties:
       exchange_timestamp:
         type: string
@@ -549,7 +551,7 @@ definitions:
       venue_id:
         type: string
     type: object
-  orderbook.BookState:
+  internal_orderbook.BookState:
     enum:
     - HEALTHY
     - STALE
@@ -563,7 +565,7 @@ definitions:
     - BookStateDesynced
     - BookStateResyncing
     - BookStateDisconnected
-  orderbook.DepthLevel:
+  internal_orderbook.DepthLevel:
     properties:
       notional:
         type: string
@@ -572,11 +574,11 @@ definitions:
       quantity:
         type: string
     type: object
-  orderbook.OrderBookDepth:
+  internal_orderbook.OrderBookDepth:
     properties:
       ask_depth:
         items:
-          $ref: '#/definitions/orderbook.DepthLevel'
+          $ref: '#/definitions/internal_orderbook.DepthLevel'
         type: array
       best_ask:
         type: string
@@ -584,14 +586,14 @@ definitions:
         type: string
       bid_depth:
         items:
-          $ref: '#/definitions/orderbook.DepthLevel'
+          $ref: '#/definitions/internal_orderbook.DepthLevel'
         type: array
       spread:
         type: string
       timestamp:
         type: string
     type: object
-  orderbook.OrderBookHealth:
+  internal_orderbook.OrderBookHealth:
     properties:
       age_ms:
         type: integer
@@ -610,11 +612,11 @@ definitions:
       sequence:
         type: integer
       state:
-        $ref: '#/definitions/orderbook.BookState'
+        $ref: '#/definitions/internal_orderbook.BookState'
       venue_id:
         type: string
     type: object
-  orderbook.SubscribeRequest:
+  internal_orderbook.SubscribeRequest:
     properties:
       depth:
         maximum: 20
@@ -629,7 +631,7 @@ definitions:
     - instrument_id
     - venue_id
     type: object
-  unifiedstate.DepthLevel:
+  internal_unifiedstate.DepthLevel:
     properties:
       notional:
         type: string
@@ -638,11 +640,11 @@ definitions:
       quantity:
         type: string
     type: object
-  unifiedstate.ExecutableDepth:
+  internal_unifiedstate.ExecutableDepth:
     properties:
       ask_depth:
         items:
-          $ref: '#/definitions/unifiedstate.DepthLevel'
+          $ref: '#/definitions/internal_unifiedstate.DepthLevel'
         type: array
       best_ask:
         type: string
@@ -650,14 +652,14 @@ definitions:
         type: string
       bid_depth:
         items:
-          $ref: '#/definitions/unifiedstate.DepthLevel'
+          $ref: '#/definitions/internal_unifiedstate.DepthLevel'
         type: array
       spread:
         type: string
       timestamp:
         type: string
     type: object
-  unifiedstate.FundingState:
+  internal_unifiedstate.FundingState:
     properties:
       funding_rate:
         type: string
@@ -674,7 +676,7 @@ definitions:
       venue_id:
         type: string
     type: object
-  unifiedstate.HealthOverview:
+  internal_unifiedstate.HealthOverview:
     properties:
       healthy_venues:
         type: integer
@@ -688,14 +690,14 @@ definitions:
         type: integer
       venue_health:
         additionalProperties:
-          $ref: '#/definitions/unifiedstate.VenueHealthStatus'
+          $ref: '#/definitions/internal_unifiedstate.VenueHealthStatus'
         type: object
     type: object
-  unifiedstate.InstrumentState:
+  internal_unifiedstate.InstrumentState:
     properties:
       ask_depth:
         items:
-          $ref: '#/definitions/unifiedstate.DepthLevel'
+          $ref: '#/definitions/internal_unifiedstate.DepthLevel'
         type: array
       base_asset:
         type: string
@@ -709,14 +711,14 @@ definitions:
         type: string
       bid_depth:
         items:
-          $ref: '#/definitions/unifiedstate.DepthLevel'
+          $ref: '#/definitions/internal_unifiedstate.DepthLevel'
         type: array
       canonical_symbol:
         type: string
       created_at:
         type: string
       funding:
-        $ref: '#/definitions/unifiedstate.FundingState'
+        $ref: '#/definitions/internal_unifiedstate.FundingState'
       funding_venue:
         type: string
       healthy_venues:
@@ -745,17 +747,17 @@ definitions:
         type: string
       venue_states:
         additionalProperties:
-          $ref: '#/definitions/unifiedstate.VenueMarketState'
+          $ref: '#/definitions/internal_unifiedstate.VenueMarketState'
         type: object
     type: object
-  unifiedstate.PriceLevel:
+  internal_unifiedstate.PriceLevel:
     properties:
       price:
         type: string
       quantity:
         type: string
     type: object
-  unifiedstate.VenueHealthStatus:
+  internal_unifiedstate.VenueHealthStatus:
     enum:
     - HEALTHY
     - STALE
@@ -767,13 +769,13 @@ definitions:
     - VenueHealthStale
     - VenueHealthUnhealthy
     - VenueHealthUnknown
-  unifiedstate.VenueMarketState:
+  internal_unifiedstate.VenueMarketState:
     properties:
       age_ms:
         type: integer
       ask_depth:
         items:
-          $ref: '#/definitions/unifiedstate.PriceLevel'
+          $ref: '#/definitions/internal_unifiedstate.PriceLevel'
         type: array
       best_ask:
         type: string
@@ -781,12 +783,12 @@ definitions:
         type: string
       bid_depth:
         items:
-          $ref: '#/definitions/unifiedstate.PriceLevel'
+          $ref: '#/definitions/internal_unifiedstate.PriceLevel'
         type: array
       funding:
-        $ref: '#/definitions/unifiedstate.FundingState'
+        $ref: '#/definitions/internal_unifiedstate.FundingState'
       health:
-        $ref: '#/definitions/unifiedstate.VenueHealthStatus'
+        $ref: '#/definitions/internal_unifiedstate.VenueHealthStatus'
       index_price:
         type: string
       instrument_id:
@@ -810,7 +812,7 @@ definitions:
       venue_id:
         type: string
     type: object
-  venue.Capabilities:
+  internal_venue.Capabilities:
     properties:
       has_rest:
         type: boolean
@@ -823,10 +825,10 @@ definitions:
       supports_spot:
         type: boolean
     type: object
-  venue.CreateVenueRequest:
+  internal_venue.CreateVenueRequest:
     properties:
       capabilities:
-        $ref: '#/definitions/venue.Capabilities'
+        $ref: '#/definitions/internal_venue.Capabilities'
       code:
         type: string
       exchange_name:
@@ -841,7 +843,7 @@ definitions:
         type: integer
       venue_type:
         allOf:
-        - $ref: '#/definitions/venue.VenueType'
+        - $ref: '#/definitions/internal_venue.VenueType'
         enum:
         - CEX
         - PERP_DEX
@@ -854,10 +856,10 @@ definitions:
     - rest_base_url
     - venue_type
     type: object
-  venue.UpdateVenueRequest:
+  internal_venue.UpdateVenueRequest:
     properties:
       capabilities:
-        $ref: '#/definitions/venue.Capabilities'
+        $ref: '#/definitions/internal_venue.Capabilities'
       exchange_name:
         type: string
       name:
@@ -868,7 +870,7 @@ definitions:
         type: string
       status:
         allOf:
-        - $ref: '#/definitions/venue.VenueStatus'
+        - $ref: '#/definitions/internal_venue.VenueStatus'
         enum:
         - ACTIVE
         - DISABLED
@@ -877,7 +879,7 @@ definitions:
       ws_url:
         type: string
     type: object
-  venue.Venue:
+  internal_venue.Venue:
     properties:
       capabilities: {}
       code:
@@ -896,17 +898,17 @@ definitions:
       rest_base_url:
         type: string
       status:
-        $ref: '#/definitions/venue.VenueStatus'
+        $ref: '#/definitions/internal_venue.VenueStatus'
       timeout_ms:
         type: integer
       updated_at:
         type: string
       venue_type:
-        $ref: '#/definitions/venue.VenueType'
+        $ref: '#/definitions/internal_venue.VenueType'
       ws_url:
         type: string
     type: object
-  venue.VenueStatus:
+  internal_venue.VenueStatus:
     enum:
     - ACTIVE
     - DISABLED
@@ -914,7 +916,7 @@ definitions:
     x-enum-varnames:
     - VenueStatusActive
     - VenueStatusDisabled
-  venue.VenueType:
+  internal_venue.VenueType:
     enum:
     - CEX
     - PERP_DEX
@@ -945,7 +947,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/auth.ChangePasswordRequest'
+          $ref: '#/definitions/internal_auth.ChangePasswordRequest'
       produces:
       - application/json
       responses:
@@ -954,11 +956,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       security:
       - BearerAuth: []
       summary: Change password
@@ -975,7 +977,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/auth.LoginRequest'
+          $ref: '#/definitions/internal_auth.LoginRequest'
       produces:
       - application/json
       responses:
@@ -983,15 +985,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/auth.AuthResponse'
+                  $ref: '#/definitions/internal_auth.AuthResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Login
       tags:
       - auth
@@ -1006,7 +1008,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       security:
       - BearerAuth: []
       summary: Logout
@@ -1022,15 +1024,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/auth.UserResponse'
+                  $ref: '#/definitions/internal_auth.UserResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       security:
       - BearerAuth: []
       summary: Get current user
@@ -1047,7 +1049,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/auth.RefreshRequest'
+          $ref: '#/definitions/internal_auth.RefreshRequest'
       produces:
       - application/json
       responses:
@@ -1055,15 +1057,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/auth.AuthResponse'
+                  $ref: '#/definitions/internal_auth.AuthResponse'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Refresh token
       tags:
       - auth
@@ -1078,7 +1080,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/auth.RegisterRequest'
+          $ref: '#/definitions/internal_auth.RegisterRequest'
       produces:
       - application/json
       responses:
@@ -1086,19 +1088,19 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/auth.AuthResponse'
+                  $ref: '#/definitions/internal_auth.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Register new user
       tags:
       - auth
@@ -1119,11 +1121,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       security:
       - BearerAuth: []
       summary: Unlink wallet from account
@@ -1141,7 +1143,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/auth.WalletLinkRequest'
+          $ref: '#/definitions/internal_auth.WalletLinkRequest'
       produces:
       - application/json
       responses:
@@ -1150,11 +1152,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       security:
       - BearerAuth: []
       summary: Link wallet to account
@@ -1171,17 +1173,17 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/auth.WalletResponse'
+                    $ref: '#/definitions/internal_auth.WalletResponse'
                   type: array
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       security:
       - BearerAuth: []
       summary: List user's wallets
@@ -1199,7 +1201,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/auth.WalletNonceRequest'
+          $ref: '#/definitions/internal_auth.WalletNonceRequest'
       produces:
       - application/json
       responses:
@@ -1207,15 +1209,15 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/auth.WalletNonce'
+                  $ref: '#/definitions/internal_auth.WalletNonce'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Get SIWE nonce
       tags:
       - auth
@@ -1231,7 +1233,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/auth.WalletVerifyRequest'
+          $ref: '#/definitions/internal_auth.WalletVerifyRequest'
       produces:
       - application/json
       responses:
@@ -1239,19 +1241,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/auth.AuthResponse'
+                  $ref: '#/definitions/internal_auth.AuthResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Verify wallet signature
       tags:
       - auth
@@ -1285,10 +1287,12 @@ paths:
         minimum: 1
         name: limit
         type: integer
-      - description: Pagination cursor (from previous response meta.cursor)
+      - default: 0
+        description: Offset
         in: query
-        name: cursor
-        type: string
+        minimum: 0
+        name: offset
+        type: integer
       - default: false
         description: Include stale data
         in: query
@@ -1306,21 +1310,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/fundingarbitrage.FundingArbitrageResponse'
+                  $ref: '#/definitions/internal_fundingarbitrage.FundingArbitrageResponse'
                 meta:
-                  $ref: '#/definitions/api.Meta'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get funding arbitrage opportunities
       tags:
@@ -1335,21 +1339,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/instrument.Instrument'
+                    $ref: '#/definitions/internal_instrument.Instrument'
                   type: array
               type: object
         "500":
           description: Internal Server Error
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: List instruments
       tags:
@@ -1364,7 +1368,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/instrument.CreateInstrumentRequest'
+          $ref: '#/definitions/internal_instrument.CreateInstrumentRequest'
       produces:
       - application/json
       responses:
@@ -1372,28 +1376,28 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/instrument.Instrument'
+                  $ref: '#/definitions/internal_instrument.Instrument'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "409":
           description: Conflict
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Create instrument
       tags:
@@ -1416,10 +1420,10 @@ paths:
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Delete instrument
       tags:
@@ -1439,19 +1443,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/instrument.Instrument'
+                  $ref: '#/definitions/internal_instrument.Instrument'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get instrument
       tags:
@@ -1471,7 +1475,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/instrument.UpdateInstrumentRequest'
+          $ref: '#/definitions/internal_instrument.UpdateInstrumentRequest'
       produces:
       - application/json
       responses:
@@ -1479,28 +1483,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/instrument.Instrument'
+                  $ref: '#/definitions/internal_instrument.Instrument'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Update instrument
       tags:
@@ -1521,31 +1525,31 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/instrument.EnableTradingRequest'
+          $ref: '#/definitions/internal_instrument.EnableTradingRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Enable/disable trading
       tags:
@@ -1560,21 +1564,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/instrument.Instrument'
+                    $ref: '#/definitions/internal_instrument.Instrument'
                   type: array
               type: object
         "500":
           description: Internal Server Error
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: List tradable instruments
       tags:
@@ -1600,28 +1604,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/market.FundingEvent'
+                  $ref: '#/definitions/internal_market.FundingEvent'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get latest funding rate
       tags:
@@ -1651,15 +1655,15 @@ paths:
         "101":
           description: Switching Protocols
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Subscribe to market data
       tags:
@@ -1674,11 +1678,11 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/market.Subscription'
+                    $ref: '#/definitions/internal_market.Subscription'
                   type: array
               type: object
       summary: Get active subscriptions
@@ -1705,28 +1709,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/market.TickerEvent'
+                  $ref: '#/definitions/internal_market.TickerEvent'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get latest ticker
       tags:
@@ -1756,21 +1760,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/market.TradeEvent'
+                    $ref: '#/definitions/internal_market.TradeEvent'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get recent trades
       tags:
@@ -1800,28 +1804,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/orderbook.OrderBookDepth'
+                  $ref: '#/definitions/internal_orderbook.OrderBookDepth'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get order book
       tags:
@@ -1847,28 +1851,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/orderbook.OrderBookHealth'
+                  $ref: '#/definitions/internal_orderbook.OrderBookHealth'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get order book health
       tags:
@@ -1882,31 +1886,31 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/orderbook.SubscribeRequest'
+          $ref: '#/definitions/internal_orderbook.SubscribeRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Request order book resync
       tags:
@@ -1932,7 +1936,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   additionalProperties:
@@ -1943,10 +1947,10 @@ paths:
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Check if order book is tradable
       tags:
@@ -1978,10 +1982,10 @@ paths:
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Subscribe to order book WebSocket
       tags:
@@ -1996,10 +2000,10 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/api.PingResponse'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.PingResponse'
               type: object
       summary: Ping test
       tags:
@@ -2021,11 +2025,11 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/fundingarbitrage.VenuePerp'
+                    $ref: '#/definitions/internal_fundingarbitrage.VenuePerp'
                   type: array
               type: object
       summary: List perp venues
@@ -2058,11 +2062,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: List audit events
       tags:
       - storage
@@ -2093,11 +2097,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: List risk decisions
       tags:
       - storage
@@ -2128,11 +2132,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: List strategy decisions
       tags:
       - storage
@@ -2163,11 +2167,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: List opportunities
       tags:
       - storage
@@ -2188,11 +2192,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Get opportunity by ID
       tags:
       - storage
@@ -2231,11 +2235,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Replay market events
       tags:
       - storage
@@ -2250,11 +2254,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
       summary: Cleanup old data
       tags:
       - storage
@@ -2268,10 +2272,10 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/unifiedstate.HealthOverview'
+                  $ref: '#/definitions/internal_unifiedstate.HealthOverview'
               type: object
       summary: Get health overview
       tags:
@@ -2286,11 +2290,11 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   additionalProperties:
-                    $ref: '#/definitions/unifiedstate.InstrumentState'
+                    $ref: '#/definitions/internal_unifiedstate.InstrumentState'
                   type: object
               type: object
       summary: Get all unified instrument states
@@ -2312,28 +2316,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/unifiedstate.InstrumentState'
+                  $ref: '#/definitions/internal_unifiedstate.InstrumentState'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get unified instrument state
       tags:
@@ -2358,28 +2362,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/unifiedstate.ExecutableDepth'
+                  $ref: '#/definitions/internal_unifiedstate.ExecutableDepth'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get executable depth
       tags:
@@ -2399,15 +2403,15 @@ paths:
         "101":
           description: Switching Protocols
           schema:
-            $ref: '#/definitions/api.Response'
+            $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Subscribe to unified state updates
       tags:
@@ -2428,21 +2432,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/instrument.VenueInstrument'
+                    $ref: '#/definitions/internal_instrument.VenueInstrument'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: List venue instruments
       tags:
@@ -2457,7 +2461,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/instrument.CreateVenueInstrumentRequest'
+          $ref: '#/definitions/internal_instrument.CreateVenueInstrumentRequest'
       produces:
       - application/json
       responses:
@@ -2465,28 +2469,28 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/instrument.VenueInstrument'
+                  $ref: '#/definitions/internal_instrument.VenueInstrument'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "409":
           description: Conflict
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Create venue instrument mapping
       tags:
@@ -2501,21 +2505,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/venue.Venue'
+                    $ref: '#/definitions/internal_venue.Venue'
                   type: array
               type: object
         "500":
           description: Internal Server Error
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: List venues
       tags:
@@ -2530,7 +2534,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/venue.CreateVenueRequest'
+          $ref: '#/definitions/internal_venue.CreateVenueRequest'
       produces:
       - application/json
       responses:
@@ -2538,28 +2542,28 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/venue.Venue'
+                  $ref: '#/definitions/internal_venue.Venue'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "409":
           description: Conflict
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Create venue
       tags:
@@ -2582,10 +2586,10 @@ paths:
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Delete venue
       tags:
@@ -2605,19 +2609,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/venue.Venue'
+                  $ref: '#/definitions/internal_venue.Venue'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Get venue
       tags:
@@ -2637,7 +2641,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/venue.UpdateVenueRequest'
+          $ref: '#/definitions/internal_venue.UpdateVenueRequest'
       produces:
       - application/json
       responses:
@@ -2645,28 +2649,28 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/venue.Venue'
+                  $ref: '#/definitions/internal_venue.Venue'
               type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
         "404":
           description: Not Found
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Update venue
       tags:
@@ -2681,19 +2685,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/api.HealthResponse'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.HealthResponse'
               type: object
         "503":
           description: Service Unavailable
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Health check
       tags:
@@ -2708,19 +2712,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/api.ReadyResponse'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ReadyResponse'
               type: object
         "503":
           description: Service Unavailable
           schema:
             allOf:
-            - $ref: '#/definitions/api.Response'
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 error:
-                  $ref: '#/definitions/api.ErrorBody'
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Readiness check
       tags:

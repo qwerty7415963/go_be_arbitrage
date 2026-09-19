@@ -142,41 +142,6 @@ func TestCache_GetCacheStatus(t *testing.T) {
 	}
 }
 
-// ─── Model tests ──────────────────────────────────────────────
-
-func TestEncodeDecodeCursor(t *testing.T) {
-	original := &PaginationCursor{InstrumentID: uuid.New().String()}
-	encoded := EncodeCursor(original)
-	if encoded == "" {
-		t.Fatal("expected non-empty encoded cursor")
-	}
-
-	decoded, err := DecodeCursor(encoded)
-	if err != nil {
-		t.Fatalf("decode error: %v", err)
-	}
-	if decoded.InstrumentID != original.InstrumentID {
-		t.Errorf("expected %s, got %s", original.InstrumentID, decoded.InstrumentID)
-	}
-}
-
-func TestDecodeCursor_Empty(t *testing.T) {
-	decoded, err := DecodeCursor("")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if decoded != nil {
-		t.Error("expected nil for empty cursor")
-	}
-}
-
-func TestDecodeCursor_Invalid(t *testing.T) {
-	_, err := DecodeCursor("not-valid-base64!!!")
-	if err == nil {
-		t.Error("expected error for invalid base64")
-	}
-}
-
 // ─── SortTokens tests ────────────────────────────────────────
 
 func ptrFloat64(f float64) *float64 { return &f }

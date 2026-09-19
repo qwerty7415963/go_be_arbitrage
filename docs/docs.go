@@ -47,7 +47,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.ChangePasswordRequest"
+                            "$ref": "#/definitions/internal_auth.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -58,13 +58,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -90,7 +90,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.LoginRequest"
+                            "$ref": "#/definitions/internal_auth.LoginRequest"
                         }
                     }
                 ],
@@ -100,13 +100,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/auth.AuthResponse"
+                                            "$ref": "#/definitions/internal_auth.AuthResponse"
                                         }
                                     }
                                 }
@@ -116,7 +116,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -144,7 +144,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -171,13 +171,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/auth.UserResponse"
+                                            "$ref": "#/definitions/internal_auth.UserResponse"
                                         }
                                     }
                                 }
@@ -187,7 +187,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -213,7 +213,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.RefreshRequest"
+                            "$ref": "#/definitions/internal_auth.RefreshRequest"
                         }
                     }
                 ],
@@ -223,13 +223,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/auth.AuthResponse"
+                                            "$ref": "#/definitions/internal_auth.AuthResponse"
                                         }
                                     }
                                 }
@@ -239,7 +239,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -265,7 +265,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.RegisterRequest"
+                            "$ref": "#/definitions/internal_auth.RegisterRequest"
                         }
                     }
                 ],
@@ -275,13 +275,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/auth.AuthResponse"
+                                            "$ref": "#/definitions/internal_auth.AuthResponse"
                                         }
                                     }
                                 }
@@ -291,13 +291,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -329,7 +329,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.WalletLinkRequest"
+                            "$ref": "#/definitions/internal_auth.WalletLinkRequest"
                         }
                     }
                 ],
@@ -340,13 +340,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -374,7 +374,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -382,7 +382,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/auth.WalletResponse"
+                                                "$ref": "#/definitions/internal_auth.WalletResponse"
                                             }
                                         }
                                     }
@@ -393,7 +393,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -420,7 +420,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.WalletNonceRequest"
+                            "$ref": "#/definitions/internal_auth.WalletNonceRequest"
                         }
                     }
                 ],
@@ -430,13 +430,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/auth.WalletNonce"
+                                            "$ref": "#/definitions/internal_auth.WalletNonce"
                                         }
                                     }
                                 }
@@ -446,7 +446,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -473,7 +473,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/auth.WalletVerifyRequest"
+                            "$ref": "#/definitions/internal_auth.WalletVerifyRequest"
                         }
                     }
                 ],
@@ -483,13 +483,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/auth.AuthResponse"
+                                            "$ref": "#/definitions/internal_auth.AuthResponse"
                                         }
                                     }
                                 }
@@ -499,13 +499,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -543,13 +543,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -600,9 +600,11 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Pagination cursor (from previous response meta.cursor)",
-                        "name": "cursor",
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
                         "in": "query"
                     },
                     {
@@ -626,16 +628,16 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/fundingarbitrage.FundingArbitrageResponse"
+                                            "$ref": "#/definitions/internal_fundingarbitrage.FundingArbitrageResponse"
                                         },
                                         "meta": {
-                                            "$ref": "#/definitions/api.Meta"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta"
                                         }
                                     }
                                 }
@@ -647,13 +649,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -679,7 +681,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -687,7 +689,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/instrument.Instrument"
+                                                "$ref": "#/definitions/internal_instrument.Instrument"
                                             }
                                         }
                                     }
@@ -700,13 +702,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -734,7 +736,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/instrument.CreateInstrumentRequest"
+                            "$ref": "#/definitions/internal_instrument.CreateInstrumentRequest"
                         }
                     }
                 ],
@@ -744,13 +746,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/instrument.Instrument"
+                                            "$ref": "#/definitions/internal_instrument.Instrument"
                                         }
                                     }
                                 }
@@ -762,13 +764,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -780,13 +782,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -812,7 +814,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -820,7 +822,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/instrument.Instrument"
+                                                "$ref": "#/definitions/internal_instrument.Instrument"
                                             }
                                         }
                                     }
@@ -833,13 +835,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -874,13 +876,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/instrument.Instrument"
+                                            "$ref": "#/definitions/internal_instrument.Instrument"
                                         }
                                     }
                                 }
@@ -892,13 +894,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -933,7 +935,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/instrument.UpdateInstrumentRequest"
+                            "$ref": "#/definitions/internal_instrument.UpdateInstrumentRequest"
                         }
                     }
                 ],
@@ -943,13 +945,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/instrument.Instrument"
+                                            "$ref": "#/definitions/internal_instrument.Instrument"
                                         }
                                     }
                                 }
@@ -961,13 +963,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -979,13 +981,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1021,13 +1023,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1064,7 +1066,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/instrument.EnableTradingRequest"
+                            "$ref": "#/definitions/internal_instrument.EnableTradingRequest"
                         }
                     }
                 ],
@@ -1072,7 +1074,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "400": {
@@ -1080,13 +1082,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1098,13 +1100,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1146,13 +1148,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/market.FundingEvent"
+                                            "$ref": "#/definitions/internal_market.FundingEvent"
                                         }
                                     }
                                 }
@@ -1164,13 +1166,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1182,13 +1184,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1235,7 +1237,7 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "400": {
@@ -1243,13 +1245,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1275,7 +1277,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -1283,7 +1285,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/market.Subscription"
+                                                "$ref": "#/definitions/internal_market.Subscription"
                                             }
                                         }
                                     }
@@ -1326,13 +1328,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/market.TickerEvent"
+                                            "$ref": "#/definitions/internal_market.TickerEvent"
                                         }
                                     }
                                 }
@@ -1344,13 +1346,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1362,13 +1364,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1416,7 +1418,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -1424,7 +1426,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/market.TradeEvent"
+                                                "$ref": "#/definitions/internal_market.TradeEvent"
                                             }
                                         }
                                     }
@@ -1437,13 +1439,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1491,13 +1493,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/orderbook.OrderBookDepth"
+                                            "$ref": "#/definitions/internal_orderbook.OrderBookDepth"
                                         }
                                     }
                                 }
@@ -1509,13 +1511,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1527,13 +1529,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1575,13 +1577,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/orderbook.OrderBookHealth"
+                                            "$ref": "#/definitions/internal_orderbook.OrderBookHealth"
                                         }
                                     }
                                 }
@@ -1593,13 +1595,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1611,13 +1613,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1644,7 +1646,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/orderbook.SubscribeRequest"
+                            "$ref": "#/definitions/internal_orderbook.SubscribeRequest"
                         }
                     }
                 ],
@@ -1652,7 +1654,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "400": {
@@ -1660,13 +1662,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1678,13 +1680,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1726,7 +1728,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -1747,13 +1749,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1804,13 +1806,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -1836,13 +1838,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/api.PingResponse"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.PingResponse"
                                         }
                                     }
                                 }
@@ -1879,7 +1881,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -1887,7 +1889,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/fundingarbitrage.VenuePerp"
+                                                "$ref": "#/definitions/internal_fundingarbitrage.VenuePerp"
                                             }
                                         }
                                     }
@@ -1938,13 +1940,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -1990,13 +1992,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -2042,13 +2044,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -2094,13 +2096,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -2132,13 +2134,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -2196,13 +2198,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -2225,13 +2227,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     }
                 }
@@ -2253,13 +2255,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/unifiedstate.HealthOverview"
+                                            "$ref": "#/definitions/internal_unifiedstate.HealthOverview"
                                         }
                                     }
                                 }
@@ -2285,7 +2287,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -2293,7 +2295,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "object",
                                             "additionalProperties": {
-                                                "$ref": "#/definitions/unifiedstate.InstrumentState"
+                                                "$ref": "#/definitions/internal_unifiedstate.InstrumentState"
                                             }
                                         }
                                     }
@@ -2329,13 +2331,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/unifiedstate.InstrumentState"
+                                            "$ref": "#/definitions/internal_unifiedstate.InstrumentState"
                                         }
                                     }
                                 }
@@ -2347,13 +2349,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2365,13 +2367,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2412,13 +2414,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/unifiedstate.ExecutableDepth"
+                                            "$ref": "#/definitions/internal_unifiedstate.ExecutableDepth"
                                         }
                                     }
                                 }
@@ -2430,13 +2432,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2448,13 +2450,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2487,7 +2489,7 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols",
                         "schema": {
-                            "$ref": "#/definitions/api.Response"
+                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                         }
                     },
                     "400": {
@@ -2495,13 +2497,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2536,7 +2538,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -2544,7 +2546,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/instrument.VenueInstrument"
+                                                "$ref": "#/definitions/internal_instrument.VenueInstrument"
                                             }
                                         }
                                     }
@@ -2557,13 +2559,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2591,7 +2593,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/instrument.CreateVenueInstrumentRequest"
+                            "$ref": "#/definitions/internal_instrument.CreateVenueInstrumentRequest"
                         }
                     }
                 ],
@@ -2601,13 +2603,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/instrument.VenueInstrument"
+                                            "$ref": "#/definitions/internal_instrument.VenueInstrument"
                                         }
                                     }
                                 }
@@ -2619,13 +2621,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2637,13 +2639,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2669,7 +2671,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
@@ -2677,7 +2679,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/venue.Venue"
+                                                "$ref": "#/definitions/internal_venue.Venue"
                                             }
                                         }
                                     }
@@ -2690,13 +2692,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2724,7 +2726,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/venue.CreateVenueRequest"
+                            "$ref": "#/definitions/internal_venue.CreateVenueRequest"
                         }
                     }
                 ],
@@ -2734,13 +2736,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/venue.Venue"
+                                            "$ref": "#/definitions/internal_venue.Venue"
                                         }
                                     }
                                 }
@@ -2752,13 +2754,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2770,13 +2772,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2811,13 +2813,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/venue.Venue"
+                                            "$ref": "#/definitions/internal_venue.Venue"
                                         }
                                     }
                                 }
@@ -2829,13 +2831,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2870,7 +2872,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/venue.UpdateVenueRequest"
+                            "$ref": "#/definitions/internal_venue.UpdateVenueRequest"
                         }
                     }
                 ],
@@ -2880,13 +2882,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/venue.Venue"
+                                            "$ref": "#/definitions/internal_venue.Venue"
                                         }
                                     }
                                 }
@@ -2898,13 +2900,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2916,13 +2918,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2958,13 +2960,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -2990,13 +2992,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/api.HealthResponse"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.HealthResponse"
                                         }
                                     }
                                 }
@@ -3008,13 +3010,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -3040,13 +3042,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/api.ReadyResponse"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ReadyResponse"
                                         }
                                     }
                                 }
@@ -3058,13 +3060,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/api.Response"
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                                         }
                                     }
                                 }
@@ -3076,7 +3078,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "api.ErrorBody": {
+        "github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody": {
             "type": "object",
             "properties": {
                 "code": {
@@ -3091,7 +3093,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.HealthResponse": {
+        "github_com_qwerty7415963_go_be_arbitrage_internal_api.HealthResponse": {
             "type": "object",
             "properties": {
                 "checks": {
@@ -3106,7 +3108,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.Meta": {
+        "github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta": {
             "type": "object",
             "properties": {
                 "cursor": {
@@ -3117,10 +3119,13 @@ const docTemplate = `{
                 },
                 "limit": {
                     "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
                 }
             }
         },
-        "api.PingResponse": {
+        "github_com_qwerty7415963_go_be_arbitrage_internal_api.PingResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -3129,7 +3134,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.ReadyResponse": {
+        "github_com_qwerty7415963_go_be_arbitrage_internal_api.ReadyResponse": {
             "type": "object",
             "properties": {
                 "status": {
@@ -3138,22 +3143,22 @@ const docTemplate = `{
                 }
             }
         },
-        "api.Response": {
+        "github_com_qwerty7415963_go_be_arbitrage_internal_api.Response": {
             "type": "object",
             "properties": {
                 "data": {},
                 "error": {
-                    "$ref": "#/definitions/api.ErrorBody"
+                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
                 },
                 "meta": {
-                    "$ref": "#/definitions/api.Meta"
+                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta"
                 },
                 "success": {
                     "type": "boolean"
                 }
             }
         },
-        "auth.AuthResponse": {
+        "internal_auth.AuthResponse": {
             "type": "object",
             "properties": {
                 "access_token": {
@@ -3166,11 +3171,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user": {
-                    "$ref": "#/definitions/auth.UserResponse"
+                    "$ref": "#/definitions/internal_auth.UserResponse"
                 }
             }
         },
-        "auth.ChangePasswordRequest": {
+        "internal_auth.ChangePasswordRequest": {
             "type": "object",
             "required": [
                 "new_password",
@@ -3187,7 +3192,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.LoginRequest": {
+        "internal_auth.LoginRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -3202,7 +3207,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.RefreshRequest": {
+        "internal_auth.RefreshRequest": {
             "type": "object",
             "required": [
                 "refresh_token"
@@ -3213,7 +3218,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.RegisterRequest": {
+        "internal_auth.RegisterRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -3230,7 +3235,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.UserResponse": {
+        "internal_auth.UserResponse": {
             "type": "object",
             "properties": {
                 "auth_method": {
@@ -3253,7 +3258,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.WalletLinkRequest": {
+        "internal_auth.WalletLinkRequest": {
             "type": "object",
             "required": [
                 "address",
@@ -3276,7 +3281,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.WalletNonce": {
+        "internal_auth.WalletNonce": {
             "type": "object",
             "properties": {
                 "address": {
@@ -3302,7 +3307,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.WalletNonceRequest": {
+        "internal_auth.WalletNonceRequest": {
             "type": "object",
             "required": [
                 "address",
@@ -3317,7 +3322,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.WalletResponse": {
+        "internal_auth.WalletResponse": {
             "type": "object",
             "properties": {
                 "address": {
@@ -3337,7 +3342,7 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.WalletVerifyRequest": {
+        "internal_auth.WalletVerifyRequest": {
             "type": "object",
             "required": [
                 "message",
@@ -3352,7 +3357,7 @@ const docTemplate = `{
                 }
             }
         },
-        "fundingarbitrage.ArbitrageToken": {
+        "internal_fundingarbitrage.ArbitrageToken": {
             "type": "object",
             "properties": {
                 "apr_1h_percent": {
@@ -3417,7 +3422,7 @@ const docTemplate = `{
                 }
             }
         },
-        "fundingarbitrage.FundingArbitrageResponse": {
+        "internal_fundingarbitrage.FundingArbitrageResponse": {
             "type": "object",
             "properties": {
                 "cache_status": {
@@ -3429,29 +3434,29 @@ const docTemplate = `{
                 "pairs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/fundingarbitrage.Pair"
+                        "$ref": "#/definitions/internal_fundingarbitrage.Pair"
                     }
                 }
             }
         },
-        "fundingarbitrage.Pair": {
+        "internal_fundingarbitrage.Pair": {
             "type": "object",
             "properties": {
                 "tokens": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/fundingarbitrage.ArbitrageToken"
+                        "$ref": "#/definitions/internal_fundingarbitrage.ArbitrageToken"
                     }
                 },
                 "venue_a": {
-                    "$ref": "#/definitions/fundingarbitrage.VenueInfo"
+                    "$ref": "#/definitions/internal_fundingarbitrage.VenueInfo"
                 },
                 "venue_b": {
-                    "$ref": "#/definitions/fundingarbitrage.VenueInfo"
+                    "$ref": "#/definitions/internal_fundingarbitrage.VenueInfo"
                 }
             }
         },
-        "fundingarbitrage.VenueInfo": {
+        "internal_fundingarbitrage.VenueInfo": {
             "type": "object",
             "properties": {
                 "code": {
@@ -3465,7 +3470,7 @@ const docTemplate = `{
                 }
             }
         },
-        "fundingarbitrage.VenuePerp": {
+        "internal_fundingarbitrage.VenuePerp": {
             "type": "object",
             "properties": {
                 "code": {
@@ -3482,7 +3487,7 @@ const docTemplate = `{
                 }
             }
         },
-        "instrument.ContractType": {
+        "internal_instrument.ContractType": {
             "type": "string",
             "enum": [
                 "LINEAR",
@@ -3497,7 +3502,7 @@ const docTemplate = `{
                 "ContractTypeOther"
             ]
         },
-        "instrument.CreateInstrumentRequest": {
+        "internal_instrument.CreateInstrumentRequest": {
             "type": "object",
             "required": [
                 "base_asset",
@@ -3527,7 +3532,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/instrument.ContractType"
+                            "$ref": "#/definitions/internal_instrument.ContractType"
                         }
                     ]
                 },
@@ -3539,7 +3544,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/instrument.InstrumentType"
+                            "$ref": "#/definitions/internal_instrument.InstrumentType"
                         }
                     ]
                 },
@@ -3566,7 +3571,7 @@ const docTemplate = `{
                 }
             }
         },
-        "instrument.CreateVenueInstrumentRequest": {
+        "internal_instrument.CreateVenueInstrumentRequest": {
             "type": "object",
             "required": [
                 "instrument_id",
@@ -3585,7 +3590,7 @@ const docTemplate = `{
                 }
             }
         },
-        "instrument.DiscoveryStatus": {
+        "internal_instrument.DiscoveryStatus": {
             "type": "string",
             "enum": [
                 "DISCOVERED",
@@ -3598,7 +3603,7 @@ const docTemplate = `{
                 "DiscoveryStatusRejected"
             ]
         },
-        "instrument.EnableTradingRequest": {
+        "internal_instrument.EnableTradingRequest": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -3606,7 +3611,7 @@ const docTemplate = `{
                 }
             }
         },
-        "instrument.Instrument": {
+        "internal_instrument.Instrument": {
             "type": "object",
             "properties": {
                 "base_asset": {
@@ -3619,19 +3624,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "contract_type": {
-                    "$ref": "#/definitions/instrument.ContractType"
+                    "$ref": "#/definitions/internal_instrument.ContractType"
                 },
                 "created_at": {
                     "type": "string"
                 },
                 "discovery_status": {
-                    "$ref": "#/definitions/instrument.DiscoveryStatus"
+                    "$ref": "#/definitions/internal_instrument.DiscoveryStatus"
                 },
                 "id": {
                     "type": "string"
                 },
                 "instrument_type": {
-                    "$ref": "#/definitions/instrument.InstrumentType"
+                    "$ref": "#/definitions/internal_instrument.InstrumentType"
                 },
                 "margin_asset": {
                     "type": "string"
@@ -3662,7 +3667,7 @@ const docTemplate = `{
                 }
             }
         },
-        "instrument.InstrumentType": {
+        "internal_instrument.InstrumentType": {
             "type": "string",
             "enum": [
                 "SPOT",
@@ -3675,7 +3680,7 @@ const docTemplate = `{
                 "InstrumentTypeFuture"
             ]
         },
-        "instrument.UpdateInstrumentRequest": {
+        "internal_instrument.UpdateInstrumentRequest": {
             "type": "object",
             "properties": {
                 "contract_size": {
@@ -3689,7 +3694,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/instrument.DiscoveryStatus"
+                            "$ref": "#/definitions/internal_instrument.DiscoveryStatus"
                         }
                     ]
                 },
@@ -3713,7 +3718,7 @@ const docTemplate = `{
                 }
             }
         },
-        "instrument.VenueInstrument": {
+        "internal_instrument.VenueInstrument": {
             "type": "object",
             "properties": {
                 "first_seen_at": {
@@ -3740,7 +3745,7 @@ const docTemplate = `{
                 }
             }
         },
-        "market.FundingEvent": {
+        "internal_market.FundingEvent": {
             "type": "object",
             "properties": {
                 "funding_rate": {
@@ -3778,7 +3783,7 @@ const docTemplate = `{
                 }
             }
         },
-        "market.Subscription": {
+        "internal_market.Subscription": {
             "type": "object",
             "properties": {
                 "channel": {
@@ -3795,14 +3800,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "$ref": "#/definitions/market.SubscriptionStatus"
+                    "$ref": "#/definitions/internal_market.SubscriptionStatus"
                 },
                 "venueID": {
                     "type": "string"
                 }
             }
         },
-        "market.SubscriptionStatus": {
+        "internal_market.SubscriptionStatus": {
             "type": "string",
             "enum": [
                 "PENDING",
@@ -3817,7 +3822,7 @@ const docTemplate = `{
                 "SubscriptionStatusUnsubscribed"
             ]
         },
-        "market.TickerEvent": {
+        "internal_market.TickerEvent": {
             "type": "object",
             "properties": {
                 "best_ask_price": {
@@ -3858,7 +3863,7 @@ const docTemplate = `{
                 }
             }
         },
-        "market.TradeEvent": {
+        "internal_market.TradeEvent": {
             "type": "object",
             "properties": {
                 "exchange_timestamp": {
@@ -3896,7 +3901,7 @@ const docTemplate = `{
                 }
             }
         },
-        "orderbook.BookState": {
+        "internal_orderbook.BookState": {
             "type": "string",
             "enum": [
                 "HEALTHY",
@@ -3913,7 +3918,7 @@ const docTemplate = `{
                 "BookStateDisconnected"
             ]
         },
-        "orderbook.DepthLevel": {
+        "internal_orderbook.DepthLevel": {
             "type": "object",
             "properties": {
                 "notional": {
@@ -3927,13 +3932,13 @@ const docTemplate = `{
                 }
             }
         },
-        "orderbook.OrderBookDepth": {
+        "internal_orderbook.OrderBookDepth": {
             "type": "object",
             "properties": {
                 "ask_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/orderbook.DepthLevel"
+                        "$ref": "#/definitions/internal_orderbook.DepthLevel"
                     }
                 },
                 "best_ask": {
@@ -3945,7 +3950,7 @@ const docTemplate = `{
                 "bid_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/orderbook.DepthLevel"
+                        "$ref": "#/definitions/internal_orderbook.DepthLevel"
                     }
                 },
                 "spread": {
@@ -3956,7 +3961,7 @@ const docTemplate = `{
                 }
             }
         },
-        "orderbook.OrderBookHealth": {
+        "internal_orderbook.OrderBookHealth": {
             "type": "object",
             "properties": {
                 "age_ms": {
@@ -3984,14 +3989,14 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "state": {
-                    "$ref": "#/definitions/orderbook.BookState"
+                    "$ref": "#/definitions/internal_orderbook.BookState"
                 },
                 "venue_id": {
                     "type": "string"
                 }
             }
         },
-        "orderbook.SubscribeRequest": {
+        "internal_orderbook.SubscribeRequest": {
             "type": "object",
             "required": [
                 "depth",
@@ -4012,7 +4017,7 @@ const docTemplate = `{
                 }
             }
         },
-        "unifiedstate.DepthLevel": {
+        "internal_unifiedstate.DepthLevel": {
             "type": "object",
             "properties": {
                 "notional": {
@@ -4026,13 +4031,13 @@ const docTemplate = `{
                 }
             }
         },
-        "unifiedstate.ExecutableDepth": {
+        "internal_unifiedstate.ExecutableDepth": {
             "type": "object",
             "properties": {
                 "ask_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                        "$ref": "#/definitions/internal_unifiedstate.DepthLevel"
                     }
                 },
                 "best_ask": {
@@ -4044,7 +4049,7 @@ const docTemplate = `{
                 "bid_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                        "$ref": "#/definitions/internal_unifiedstate.DepthLevel"
                     }
                 },
                 "spread": {
@@ -4055,7 +4060,7 @@ const docTemplate = `{
                 }
             }
         },
-        "unifiedstate.FundingState": {
+        "internal_unifiedstate.FundingState": {
             "type": "object",
             "properties": {
                 "funding_rate": {
@@ -4081,7 +4086,7 @@ const docTemplate = `{
                 }
             }
         },
-        "unifiedstate.HealthOverview": {
+        "internal_unifiedstate.HealthOverview": {
             "type": "object",
             "properties": {
                 "healthy_venues": {
@@ -4102,18 +4107,18 @@ const docTemplate = `{
                 "venue_health": {
                     "type": "object",
                     "additionalProperties": {
-                        "$ref": "#/definitions/unifiedstate.VenueHealthStatus"
+                        "$ref": "#/definitions/internal_unifiedstate.VenueHealthStatus"
                     }
                 }
             }
         },
-        "unifiedstate.InstrumentState": {
+        "internal_unifiedstate.InstrumentState": {
             "type": "object",
             "properties": {
                 "ask_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                        "$ref": "#/definitions/internal_unifiedstate.DepthLevel"
                     }
                 },
                 "base_asset": {
@@ -4134,7 +4139,7 @@ const docTemplate = `{
                 "bid_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/unifiedstate.DepthLevel"
+                        "$ref": "#/definitions/internal_unifiedstate.DepthLevel"
                     }
                 },
                 "canonical_symbol": {
@@ -4144,7 +4149,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "funding": {
-                    "$ref": "#/definitions/unifiedstate.FundingState"
+                    "$ref": "#/definitions/internal_unifiedstate.FundingState"
                 },
                 "funding_venue": {
                     "type": "string"
@@ -4188,12 +4193,12 @@ const docTemplate = `{
                 "venue_states": {
                     "type": "object",
                     "additionalProperties": {
-                        "$ref": "#/definitions/unifiedstate.VenueMarketState"
+                        "$ref": "#/definitions/internal_unifiedstate.VenueMarketState"
                     }
                 }
             }
         },
-        "unifiedstate.PriceLevel": {
+        "internal_unifiedstate.PriceLevel": {
             "type": "object",
             "properties": {
                 "price": {
@@ -4204,7 +4209,7 @@ const docTemplate = `{
                 }
             }
         },
-        "unifiedstate.VenueHealthStatus": {
+        "internal_unifiedstate.VenueHealthStatus": {
             "type": "string",
             "enum": [
                 "HEALTHY",
@@ -4219,7 +4224,7 @@ const docTemplate = `{
                 "VenueHealthUnknown"
             ]
         },
-        "unifiedstate.VenueMarketState": {
+        "internal_unifiedstate.VenueMarketState": {
             "type": "object",
             "properties": {
                 "age_ms": {
@@ -4228,7 +4233,7 @@ const docTemplate = `{
                 "ask_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/unifiedstate.PriceLevel"
+                        "$ref": "#/definitions/internal_unifiedstate.PriceLevel"
                     }
                 },
                 "best_ask": {
@@ -4240,14 +4245,14 @@ const docTemplate = `{
                 "bid_depth": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/unifiedstate.PriceLevel"
+                        "$ref": "#/definitions/internal_unifiedstate.PriceLevel"
                     }
                 },
                 "funding": {
-                    "$ref": "#/definitions/unifiedstate.FundingState"
+                    "$ref": "#/definitions/internal_unifiedstate.FundingState"
                 },
                 "health": {
-                    "$ref": "#/definitions/unifiedstate.VenueHealthStatus"
+                    "$ref": "#/definitions/internal_unifiedstate.VenueHealthStatus"
                 },
                 "index_price": {
                     "type": "string"
@@ -4284,7 +4289,7 @@ const docTemplate = `{
                 }
             }
         },
-        "venue.Capabilities": {
+        "internal_venue.Capabilities": {
             "type": "object",
             "properties": {
                 "has_rest": {
@@ -4304,7 +4309,7 @@ const docTemplate = `{
                 }
             }
         },
-        "venue.CreateVenueRequest": {
+        "internal_venue.CreateVenueRequest": {
             "type": "object",
             "required": [
                 "code",
@@ -4315,7 +4320,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "capabilities": {
-                    "$ref": "#/definitions/venue.Capabilities"
+                    "$ref": "#/definitions/internal_venue.Capabilities"
                 },
                 "code": {
                     "type": "string"
@@ -4342,7 +4347,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/venue.VenueType"
+                            "$ref": "#/definitions/internal_venue.VenueType"
                         }
                     ]
                 },
@@ -4351,11 +4356,11 @@ const docTemplate = `{
                 }
             }
         },
-        "venue.UpdateVenueRequest": {
+        "internal_venue.UpdateVenueRequest": {
             "type": "object",
             "properties": {
                 "capabilities": {
-                    "$ref": "#/definitions/venue.Capabilities"
+                    "$ref": "#/definitions/internal_venue.Capabilities"
                 },
                 "exchange_name": {
                     "type": "string"
@@ -4376,7 +4381,7 @@ const docTemplate = `{
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/venue.VenueStatus"
+                            "$ref": "#/definitions/internal_venue.VenueStatus"
                         }
                     ]
                 },
@@ -4388,7 +4393,7 @@ const docTemplate = `{
                 }
             }
         },
-        "venue.Venue": {
+        "internal_venue.Venue": {
             "type": "object",
             "properties": {
                 "capabilities": {},
@@ -4415,7 +4420,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "$ref": "#/definitions/venue.VenueStatus"
+                    "$ref": "#/definitions/internal_venue.VenueStatus"
                 },
                 "timeout_ms": {
                     "type": "integer"
@@ -4424,14 +4429,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "venue_type": {
-                    "$ref": "#/definitions/venue.VenueType"
+                    "$ref": "#/definitions/internal_venue.VenueType"
                 },
                 "ws_url": {
                     "type": "string"
                 }
             }
         },
-        "venue.VenueStatus": {
+        "internal_venue.VenueStatus": {
             "type": "string",
             "enum": [
                 "ACTIVE",
@@ -4442,7 +4447,7 @@ const docTemplate = `{
                 "VenueStatusDisabled"
             ]
         },
-        "venue.VenueType": {
+        "internal_venue.VenueType": {
             "type": "string",
             "enum": [
                 "CEX",
