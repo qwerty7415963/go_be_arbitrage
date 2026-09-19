@@ -303,6 +303,258 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/auth/wallet/link": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Link a wallet address to the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth",
+                    "web3"
+                ],
+                "summary": "Link wallet to account",
+                "parameters": [
+                    {
+                        "description": "Wallet data with signature",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.WalletLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/wallet/list": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all wallet addresses linked to the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth",
+                    "web3"
+                ],
+                "summary": "List user's wallets",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/auth.WalletResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/wallet/nonce": {
+            "post": {
+                "description": "Generate a nonce for wallet signature verification",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth",
+                    "web3"
+                ],
+                "summary": "Get SIWE nonce",
+                "parameters": [
+                    {
+                        "description": "Wallet address and chain ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.WalletNonceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.WalletNonce"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/wallet/verify": {
+            "post": {
+                "description": "Verify SIWE message + signature, returns JWT for new/existing user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth",
+                    "web3"
+                ],
+                "summary": "Verify wallet signature",
+                "parameters": [
+                    {
+                        "description": "SIWE message and signature",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.WalletVerifyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.AuthResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/wallet/{wallet_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Remove a wallet from the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth",
+                    "web3"
+                ],
+                "summary": "Unlink wallet from account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet ID",
+                        "name": "wallet_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/funding/arbitrage": {
             "get": {
                 "description": "Get funding arbitrage table for selected venues",
@@ -2981,6 +3233,9 @@ const docTemplate = `{
         "auth.UserResponse": {
             "type": "object",
             "properties": {
+                "auth_method": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -2994,6 +3249,105 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.WalletLinkRequest": {
+            "type": "object",
+            "required": [
+                "address",
+                "chain_id",
+                "message",
+                "signature"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chain_id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.WalletNonce": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chain_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nonce": {
+                    "type": "string"
+                },
+                "used": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "auth.WalletNonceRequest": {
+            "type": "object",
+            "required": [
+                "address",
+                "chain_id"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chain_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "auth.WalletResponse": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chain_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_primary": {
+                    "type": "boolean"
+                },
+                "verified_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.WalletVerifyRequest": {
+            "type": "object",
+            "required": [
+                "message",
+                "signature"
+            ],
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "signature": {
                     "type": "string"
                 }
             }

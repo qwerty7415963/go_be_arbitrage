@@ -65,6 +65,10 @@ func New(cfg *config.Config) (*App, error) {
 		log.Error("failed to ensure admin user", "error", err)
 	}
 
+	web3Repo := auth.NewWeb3Repository(db.Pool())
+	web3Service := auth.NewWeb3Service(&cfg.Auth, web3Repo, authService)
+	web3Handler := auth.NewWeb3Handler(web3Service)
+
 	healthHandler := health.NewHandler()
 	healthHandler.Register("database", db)
 
@@ -142,7 +146,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler)
 
 	return &App{
 		config:            cfg,
@@ -172,6 +176,9 @@ func (a *App) Run() error {
 
 	// Start opportunity scanner
 	go a.opportunityService.Start(ctx)
+
+	// Start refresh token cleanup worker (every 1 hour)
+	go a.auth.StartCleanupWorker(ctx, 1*time.Hour)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

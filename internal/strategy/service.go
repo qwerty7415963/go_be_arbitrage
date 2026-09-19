@@ -9,13 +9,24 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/opportunity"
 )
 
+type RepositoryInterface interface {
+	Create(ctx context.Context, instance *StrategyInstance) error
+	GetByID(ctx context.Context, id uuid.UUID) (*StrategyInstance, error)
+	List(ctx context.Context, tenantID uuid.UUID) ([]*StrategyInstance, error)
+	Update(ctx context.Context, instance *StrategyInstance) error
+	Delete(ctx context.Context, id uuid.UUID) error
+	CreateDecision(ctx context.Context, decision *StrategyDecision) error
+	ListDecisions(ctx context.Context, strategyID uuid.UUID, limit int) ([]*StrategyDecision, error)
+	GetStrategyTypeByCode(ctx context.Context, code string) (uuid.UUID, error)
+}
+
 type Service struct {
-	repo   *Repository
+	repo   RepositoryInterface
 	engine *Engine
 	oppSvc *opportunity.Service
 }
 
-func NewService(repo *Repository, oppSvc *opportunity.Service) *Service {
+func NewService(repo RepositoryInterface, oppSvc *opportunity.Service) *Service {
 	return &Service{
 		repo:   repo,
 		engine: NewEngine(),

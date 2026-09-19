@@ -119,6 +119,12 @@ func (r *Repository) RevokeAllUserRefreshTokens(ctx context.Context, userID uuid
 	return err
 }
 
+func (r *Repository) UpdateAuthMethod(ctx context.Context, userID uuid.UUID, authMethod string) error {
+	query := `UPDATE users SET auth_method = $2, updated_at = NOW() WHERE id = $1`
+	_, err := r.db.Exec(ctx, query, userID, authMethod)
+	return err
+}
+
 func (r *Repository) DeleteExpiredRefreshTokens(ctx context.Context) (int64, error) {
 	query := `DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = TRUE`
 	result, err := r.db.Exec(ctx, query)

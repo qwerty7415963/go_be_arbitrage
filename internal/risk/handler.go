@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver/middleware"
 )
 
 type Handler struct {
@@ -18,9 +17,31 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
+func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.HandlerFunc) {
 	risk := router.Group("/risk")
-	risk.Use(middleware.RequireRole("admin"))
+	if len(jwtMiddleware) > 0 {
+		risk.Use(jwtMiddleware[0])
+	}
+	risk.Use(func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists {
+			api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "role not found in token"))
+			c.Abort()
+			return
+		}
+		roleStr, ok := role.(string)
+		if !ok {
+			api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "invalid role type"))
+			c.Abort()
+			return
+		}
+		if roleStr != "admin" {
+			api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "insufficient permissions"))
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
 	{
 		risk.GET("/policies", h.ListPolicies)
 		risk.POST("/policies", h.CreatePolicy)
@@ -40,8 +61,13 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "tenant not found"))
 		return uuid.Nil, false
 	}
-	tenantID, ok := tenantIDStr.(uuid.UUID)
+	s, ok := tenantIDStr.(string)
 	if !ok {
+		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "invalid tenant"))
+		return uuid.Nil, false
+	}
+	tenantID, err := uuid.Parse(s)
+	if err != nil {
 		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "invalid tenant"))
 		return uuid.Nil, false
 	}

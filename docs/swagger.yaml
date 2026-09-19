@@ -105,6 +105,8 @@ definitions:
     type: object
   auth.UserResponse:
     properties:
+      auth_method:
+        type: string
       created_at:
         type: string
       email:
@@ -115,6 +117,72 @@ definitions:
         type: string
       status:
         type: string
+    type: object
+  auth.WalletLinkRequest:
+    properties:
+      address:
+        type: string
+      chain_id:
+        type: integer
+      message:
+        type: string
+      signature:
+        type: string
+    required:
+    - address
+    - chain_id
+    - message
+    - signature
+    type: object
+  auth.WalletNonce:
+    properties:
+      address:
+        type: string
+      chain_id:
+        type: integer
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      nonce:
+        type: string
+      used:
+        type: boolean
+    type: object
+  auth.WalletNonceRequest:
+    properties:
+      address:
+        type: string
+      chain_id:
+        type: integer
+    required:
+    - address
+    - chain_id
+    type: object
+  auth.WalletResponse:
+    properties:
+      address:
+        type: string
+      chain_id:
+        type: integer
+      id:
+        type: string
+      is_primary:
+        type: boolean
+      verified_at:
+        type: string
+    type: object
+  auth.WalletVerifyRequest:
+    properties:
+      message:
+        type: string
+      signature:
+        type: string
+    required:
+    - message
+    - signature
     type: object
   fundingarbitrage.ArbitrageToken:
     properties:
@@ -1034,6 +1102,160 @@ paths:
       summary: Register new user
       tags:
       - auth
+  /api/v1/auth/wallet/{wallet_id}:
+    delete:
+      description: Remove a wallet from the authenticated user
+      parameters:
+      - description: Wallet ID
+        in: path
+        name: wallet_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Response'
+      security:
+      - BearerAuth: []
+      summary: Unlink wallet from account
+      tags:
+      - auth
+      - web3
+  /api/v1/auth/wallet/link:
+    post:
+      consumes:
+      - application/json
+      description: Link a wallet address to the authenticated user
+      parameters:
+      - description: Wallet data with signature
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.WalletLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Response'
+      security:
+      - BearerAuth: []
+      summary: Link wallet to account
+      tags:
+      - auth
+      - web3
+  /api/v1/auth/wallet/list:
+    get:
+      description: Get all wallet addresses linked to the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/auth.WalletResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Response'
+      security:
+      - BearerAuth: []
+      summary: List user's wallets
+      tags:
+      - auth
+      - web3
+  /api/v1/auth/wallet/nonce:
+    post:
+      consumes:
+      - application/json
+      description: Generate a nonce for wallet signature verification
+      parameters:
+      - description: Wallet address and chain ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.WalletNonceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.WalletNonce'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: Get SIWE nonce
+      tags:
+      - auth
+      - web3
+  /api/v1/auth/wallet/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verify SIWE message + signature, returns JWT for new/existing user
+      parameters:
+      - description: SIWE message and signature
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.WalletVerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.AuthResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: Verify wallet signature
+      tags:
+      - auth
+      - web3
   /api/v1/funding/arbitrage:
     get:
       description: Get funding arbitrage table for selected venues

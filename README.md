@@ -28,6 +28,15 @@ Server runs on `http://localhost:8080` by default.
 | POST | `/api/v1/auth/logout` | Logout (requires JWT) |
 | GET | `/api/v1/auth/me` | Get current user (requires JWT) |
 
+### Auth — Web3 Wallet (EIP-4361)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/auth/wallet/nonce` | Public | Generate nonce for wallet signing |
+| POST | `/api/v1/auth/wallet/verify` | Public | Verify SIWE signature → JWT (auto-create user) |
+| POST | `/api/v1/auth/wallet/link` | JWT | Link wallet to existing account |
+| DELETE | `/api/v1/auth/wallet/:wallet_id` | JWT | Unlink wallet from account |
+| GET | `/api/v1/auth/wallet/list` | JWT | List user's linked wallets |
+
 ### Venues (Admin only)
 | Method | Path | Description |
 |--------|------|-------------|
@@ -157,6 +166,45 @@ Exchange WS Feeds → Adapters → Bridge → Engine → Service → WS Handler 
 - **Engine**: L2 order book state management (snapshot/delta, sequence validation)
 - **Service**: Business logic layer with pub/sub
 - **WS Handler**: WebSocket endpoint for real-time client streaming
+
+## Web3 Wallet Auth (EIP-4361)
+
+### Flow
+
+```
+Frontend                          Backend                         DB
+  │                                 │                               │
+  ├──POST /wallet/nonce────────────►│──generate nonce──────────────►│
+  │  {address, chain_id}            │──store with TTL───────────────►│
+  │◄──{nonce, message}─────────────│                               │
+  │                                 │                               │
+  │  [user signs in wallet]         │                               │
+  │                                 │                               │
+  ├──POST /wallet/verify───────────►│──parse SIWE message───────────│
+  │  {message, signature}           │──verify EIP-191 signature─────│
+  │                                 │──validate nonce───────────────│
+  │                                 │──find or create user──────────►│
+  │                                 │──issue JWT────────────────────│
+  │◄──{access_token,refresh,user}───│                               │
+```
+
+### Supported Chains
+
+| Chain ID | Network |
+|----------|---------|
+| 1 | Ethereum |
+| 42161 | Arbitrum One |
+| 10 | Optimism |
+| 137 | Polygon |
+| 8453 | Base |
+
+### Environment Variables
+
+```bash
+ARBITRAGE_SIWE_DOMAIN=localhost        # SIWE domain validation
+ARBITRAGE_SIWE_NONCE_TTL=5m            # Nonce expiry (default 5m)
+ARBITRAGE_SIWE_CHAINS=1,42161,10,137,8453  # Supported chain IDs
+```
 
 ## Development
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type Config struct {
 	Auth     AuthConfig     `yaml:"auth"`
 	Log      LogConfig      `yaml:"log"`
 	WS       WSConfig       `yaml:"ws"`
+	CORS     CORSConfig     `yaml:"cors"`
 }
 
 type ServerConfig struct {
@@ -39,6 +41,9 @@ type AuthConfig struct {
 	RefreshExpiration time.Duration `yaml:"refresh_expiration"`
 	AdminEmail        string        `yaml:"admin_email"`
 	AdminPassword     string        `yaml:"admin_password"`
+	SIWEDomain        string        `yaml:"siwe_domain"`
+	SIWENonceTTL      time.Duration `yaml:"siwe_nonce_ttl"`
+	SupportedChains   []int64       `yaml:"supported_chains"`
 }
 
 type LogConfig struct {
@@ -49,6 +54,10 @@ type LogConfig struct {
 type WSConfig struct {
 	ReadBufferSize  int `yaml:"read_buffer_size"`
 	WriteBufferSize int `yaml:"write_buffer_size"`
+}
+
+type CORSConfig struct {
+	AllowOrigins []string `yaml:"allow_origins"`
 }
 
 func Load() (*Config, error) {
@@ -75,6 +84,9 @@ func Load() (*Config, error) {
 			RefreshExpiration: getEnvDuration("ARBITRAGE_REFRESH_EXPIRATION", 7*24*time.Hour),
 			AdminEmail:        getEnv("ARBITRAGE_ADMIN_EMAIL", ""),
 			AdminPassword:     getEnv("ARBITRAGE_ADMIN_PASSWORD", ""),
+			SIWEDomain:        getEnv("ARBITRAGE_SIWE_DOMAIN", "localhost"),
+			SIWENonceTTL:      getEnvDuration("ARBITRAGE_SIWE_NONCE_TTL", 5*time.Minute),
+			SupportedChains:   getEnvInt64Slice("ARBITRAGE_SIWE_CHAINS", []int64{1, 42161, 10, 137, 8453}),
 		},
 		Log: LogConfig{
 			Level:  getEnv("ARBITRAGE_LOG_LEVEL", "info"),
@@ -83,6 +95,9 @@ func Load() (*Config, error) {
 		WS: WSConfig{
 			ReadBufferSize:  getEnvInt("ARBITRAGE_WS_READ_BUFFER", 1024),
 			WriteBufferSize: getEnvInt("ARBITRAGE_WS_WRITE_BUFFER", 1024),
+		},
+		CORS: CORSConfig{
+			AllowOrigins: getEnvStringSlice("ARBITRAGE_CORS_ORIGINS", []string{"*"}),
 		},
 	}
 
@@ -145,6 +160,40 @@ func getEnvDuration(key string, defaultVal time.Duration) time.Duration {
 	if val := os.Getenv(key); val != "" {
 		if dur, err := time.ParseDuration(val); err == nil {
 			return dur
+		}
+	}
+	return defaultVal
+}
+
+func getEnvInt64Slice(key string, defaultVal []int64) []int64 {
+	if val := os.Getenv(key); val != "" {
+		parts := strings.Split(val, ",")
+		result := make([]int64, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if id, err := strconv.ParseInt(p, 10, 64); err == nil {
+				result = append(result, id)
+			}
+		}
+		if len(result) > 0 {
+			return result
+		}
+	}
+	return defaultVal
+}
+
+func getEnvStringSlice(key string, defaultVal []string) []string {
+	if val := os.Getenv(key); val != "" {
+		parts := strings.Split(val, ",")
+		result := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				result = append(result, p)
+			}
+		}
+		if len(result) > 0 {
+			return result
 		}
 	}
 	return defaultVal

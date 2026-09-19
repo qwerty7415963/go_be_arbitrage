@@ -1,26 +1,55 @@
 package reconciliation
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver/middleware"
 )
 
-type Handler struct {
-	service *Service
+type ServiceInterface interface {
+	StartReconciliation(ctx context.Context, tenantID, venueAccountID uuid.UUID, trigger TriggerSource) (*ReconciliationRun, error)
+	GetRun(ctx context.Context, id uuid.UUID) (*ReconciliationRun, error)
+	ListRuns(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]*ReconciliationRun, error)
+	ListItems(ctx context.Context, runID uuid.UUID) ([]*ReconciliationItem, error)
 }
 
-func NewHandler(service *Service) *Handler {
+type Handler struct {
+	service ServiceInterface
+}
+
+func NewHandler(service ServiceInterface) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
+func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.HandlerFunc) {
 	recon := router.Group("/reconciliation")
-	recon.Use(middleware.RequireRole("admin"))
+	if len(jwtMiddleware) > 0 {
+		recon.Use(jwtMiddleware[0])
+	}
+	recon.Use(func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists {
+			api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "role not found in token"))
+			c.Abort()
+			return
+		}
+		roleStr, ok := role.(string)
+		if !ok {
+			api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "invalid role type"))
+			c.Abort()
+			return
+		}
+		if roleStr != "admin" {
+			api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "insufficient permissions"))
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
 	{
 		recon.POST("/runs", h.CreateRun)
 		recon.GET("/runs", h.ListRuns)
@@ -35,8 +64,13 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "tenant not found"))
 		return uuid.Nil, false
 	}
-	tenantID, ok := tenantIDStr.(uuid.UUID)
+	s, ok := tenantIDStr.(string)
 	if !ok {
+		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "invalid tenant"))
+		return uuid.Nil, false
+	}
+	tenantID, err := uuid.Parse(s)
+	if err != nil {
 		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "invalid tenant"))
 		return uuid.Nil, false
 	}

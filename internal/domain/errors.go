@@ -21,6 +21,14 @@ const (
 	ErrCodeAuthAPIKeyExpired      ErrorCode = "AUTH-009"
 	ErrCodeAuthSessionLimit       ErrorCode = "AUTH-010"
 
+	// AUTH — Web3 Wallet (011-020)
+	ErrCodeAuthInvalidSignature    ErrorCode = "AUTH-011"
+	ErrCodeAuthNonceExpired        ErrorCode = "AUTH-012"
+	ErrCodeAuthNonceAlreadyUsed    ErrorCode = "AUTH-013"
+	ErrCodeAuthWalletAlreadyLinked ErrorCode = "AUTH-014"
+	ErrCodeAuthWalletNotFound      ErrorCode = "AUTH-015"
+	ErrCodeAuthUnsupportedChain    ErrorCode = "AUTH-016"
+
 	// EXCHANGE — Exchange Adapter (101-199)
 	ErrCodeExchangeConnectionFailed  ErrorCode = "EXCHANGE-101"
 	ErrCodeExchangeAuthFailed        ErrorCode = "EXCHANGE-102"
@@ -179,6 +187,13 @@ var errorStatusMap = map[ErrorCode]int{
 	ErrCodeAuthInvalidAPIKey:      http.StatusUnauthorized,
 	ErrCodeAuthAPIKeyExpired:      http.StatusUnauthorized,
 	ErrCodeAuthSessionLimit:       http.StatusForbidden,
+
+	ErrCodeAuthInvalidSignature:    http.StatusBadRequest,
+	ErrCodeAuthNonceExpired:        http.StatusBadRequest,
+	ErrCodeAuthNonceAlreadyUsed:    http.StatusBadRequest,
+	ErrCodeAuthWalletAlreadyLinked: http.StatusConflict,
+	ErrCodeAuthWalletNotFound:      http.StatusNotFound,
+	ErrCodeAuthUnsupportedChain:    http.StatusBadRequest,
 
 	ErrCodeExchangeConnectionFailed:  http.StatusBadGateway,
 	ErrCodeExchangeAuthFailed:        http.StatusBadGateway,

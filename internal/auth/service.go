@@ -181,7 +181,11 @@ func (s *Service) EnsureAdmin(ctx context.Context, email, password string) error
 }
 
 func (s *Service) generateAuthResponse(ctx context.Context, user *User) (*AuthResponse, error) {
-	accessToken, err := s.generateToken(user.ID.String(), "", user.Role, s.config.JWTExpiration)
+	tenantID := ""
+	if user.TenantID != nil {
+		tenantID = user.TenantID.String()
+	}
+	accessToken, err := s.generateToken(user.ID.String(), tenantID, user.Role, s.config.JWTExpiration)
 	if err != nil {
 		return nil, domain.WrapError(domain.ErrCodeInternal, "failed to generate access token", err)
 	}
@@ -208,11 +212,12 @@ func (s *Service) generateAuthResponse(ctx context.Context, user *User) (*AuthRe
 		RefreshToken: refreshTokenStr,
 		ExpiresAt:    time.Now().Add(s.config.JWTExpiration).Unix(),
 		User: &UserResponse{
-			ID:        user.ID.String(),
-			Email:     user.Email,
-			Role:      user.Role,
-			Status:    user.Status,
-			CreatedAt: user.CreatedAt.Format(time.RFC3339),
+			ID:         user.ID.String(),
+			Email:      user.Email,
+			Role:       user.Role,
+			Status:     user.Status,
+			AuthMethod: user.AuthMethod,
+			CreatedAt:  user.CreatedAt.Format(time.RFC3339),
 		},
 	}, nil
 }
@@ -274,6 +279,31 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+func (s *Service) DeleteExpiredRefreshTokens(ctx context.Context) (int64, error) {
+	return s.repo.DeleteExpiredRefreshTokens(ctx)
+}
+
+// StartCleanupWorker runs DeleteExpiredRefreshTokens periodically.
+// Call with a cancellable context; it blocks until ctx is done.
+func (s *Service) StartCleanupWorker(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := s.DeleteExpiredRefreshTokens(ctx)
+			if err != nil {
+				fmt.Printf("[auth] cleanup refresh tokens: %v\n", err)
+			} else if n > 0 {
+				fmt.Printf("[auth] cleaned %d expired/revoked refresh tokens\n", n)
+			}
+		}
+	}
 }
 
 func hashToken(token string) string {

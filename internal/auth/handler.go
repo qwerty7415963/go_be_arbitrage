@@ -221,10 +221,11 @@ func (h *Handler) Me(c *gin.Context) {
 	}
 
 	api.RespondSuccess(c, &UserResponse{
-		ID:        user.ID.String(),
-		Email:     user.Email,
-		Role:      user.Role,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:         user.ID.String(),
+		Email:      user.Email,
+		Role:       user.Role,
+		Status:     user.Status,
+		AuthMethod: user.AuthMethod,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	})
 }

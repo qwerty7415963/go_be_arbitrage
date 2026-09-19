@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -34,6 +35,7 @@ func (s *Server) SetupRoutes(
 	storageHandler *storage.Handler,
 	authService *auth.Service,
 	authHandler *auth.Handler,
+	web3Handler *auth.Web3Handler,
 	fundingArbitrageHandler *fundingarbitrage.Handler,
 	opportunityHandler *opportunity.Handler,
 	strategyHandler *strategy.Handler,
@@ -43,6 +45,7 @@ func (s *Server) SetupRoutes(
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
+	s.engine.Use(middleware.CORS(s.config.CORS.AllowOrigins))
 
 	s.engine.GET("/health", healthHandler.Health)
 	s.engine.GET("/ready", healthHandler.Ready)
@@ -55,8 +58,12 @@ func (s *Server) SetupRoutes(
 		authRoutes := v1.Group("/auth")
 		{
 			authRoutes.POST("/register", authHandler.Register)
-			authRoutes.POST("/login", authHandler.Login)
+			authRoutes.POST("/login", middleware.LoginRateLimit(5, 1*time.Minute), authHandler.Login)
 			authRoutes.POST("/refresh", authHandler.Refresh)
+
+			// Web3 wallet auth
+			authRoutes.POST("/wallet/nonce", middleware.LoginRateLimit(10, 1*time.Minute), web3Handler.GetNonce)
+			authRoutes.POST("/wallet/verify", middleware.LoginRateLimit(10, 1*time.Minute), web3Handler.Verify)
 
 			// Protected auth routes
 			authProtected := authRoutes.Group("")
@@ -65,6 +72,11 @@ func (s *Server) SetupRoutes(
 				authProtected.POST("/logout", authHandler.Logout)
 				authProtected.POST("/change-password", authHandler.ChangePassword)
 				authProtected.GET("/me", authHandler.Me)
+
+				// Web3 wallet management
+				authProtected.POST("/wallet/link", web3Handler.LinkWallet)
+				authProtected.DELETE("/wallet/:wallet_id", web3Handler.UnlinkWallet)
+				authProtected.GET("/wallet/list", web3Handler.ListWallets)
 			}
 		}
 
@@ -142,16 +154,16 @@ func (s *Server) SetupRoutes(
 		opportunityHandler.RegisterRoutes(v1)
 
 		// Strategy Engine
-		strategyHandler.RegisterRoutes(v1)
+		strategyHandler.RegisterRoutes(v1, middleware.JWT(authService))
 
 		// Risk Engine
-		riskHandler.RegisterRoutes(v1)
+		riskHandler.RegisterRoutes(v1, middleware.JWT(authService))
 
 		// Execution Engine
-		executionHandler.RegisterRoutes(v1)
+		executionHandler.RegisterRoutes(v1, middleware.JWT(authService))
 
 		// Reconciliation Engine
-		reconciliationHandler.RegisterRoutes(v1)
+		reconciliationHandler.RegisterRoutes(v1, middleware.JWT(authService))
 
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")
