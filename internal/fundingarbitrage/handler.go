@@ -163,9 +163,13 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 
 	// Apply offset-based pagination to tokens in each pair
 	hasMore := false
+	maxTotal := 0
 	for i := range result.Pairs {
 		tokens := result.Pairs[i].Tokens
 		total := len(tokens)
+		if total > maxTotal {
+			maxTotal = total
+		}
 
 		if offset >= total {
 			result.Pairs[i].Tokens = []ArbitrageToken{}
@@ -183,11 +187,20 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		}
 	}
 
+	// Compute page and total_pages
+	page := offset/limit + 1
+	totalPages := 0
+	if limit > 0 && maxTotal > 0 {
+		totalPages = (maxTotal + limit - 1) / limit
+	}
+
 	// Build response with meta
 	meta := &api.Meta{
-		Offset:  offset,
-		Limit:   limit,
-		HasMore: hasMore,
+		Page:       page,
+		TotalPages: totalPages,
+		Limit:      limit,
+		Offset:     offset,
+		HasMore:    hasMore,
 	}
 
 	c.JSON(http.StatusOK, api.Response{

@@ -180,6 +180,39 @@ func TestPagination_HasMore(t *testing.T) {
 	}
 }
 
+func TestPagination_PageAndTotalPages(t *testing.T) {
+	tests := []struct {
+		total       int
+		offset      int
+		limit       int
+		wantPage    int
+		wantTotal   int
+	}{
+		{25, 0, 10, 1, 3},
+		{25, 10, 10, 2, 3},
+		{25, 20, 10, 3, 3},
+		{10, 0, 10, 1, 1},
+		{10, 0, 5, 1, 2},
+		{10, 5, 5, 2, 2},
+		{0, 0, 10, 1, 0},
+		{1, 0, 50, 1, 1},
+		{100, 0, 20, 1, 5},
+	}
+
+	for _, tt := range tests {
+		page := computePage(tt.offset, tt.limit)
+		totalPages := computeTotalPages(tt.total, tt.limit)
+		if page != tt.wantPage {
+			t.Errorf("total=%d offset=%d limit=%d: expected page=%d, got %d",
+				tt.total, tt.offset, tt.limit, tt.wantPage, page)
+		}
+		if totalPages != tt.wantTotal {
+			t.Errorf("total=%d offset=%d limit=%d: expected totalPages=%d, got %d",
+				tt.total, tt.offset, tt.limit, tt.wantTotal, totalPages)
+		}
+	}
+}
+
 func TestPagination_MetaResponse(t *testing.T) {
 	pairs := []Pair{
 		{
@@ -253,4 +286,18 @@ func applyPagination(tokens []ArbitrageToken, offset, limit int) []ArbitrageToke
 
 func computeHasMore(total, offset, limit int) bool {
 	return offset+limit < total
+}
+
+func computePage(offset, limit int) int {
+	if limit <= 0 {
+		return 1
+	}
+	return offset/limit + 1
+}
+
+func computeTotalPages(total, limit int) int {
+	if limit <= 0 || total <= 0 {
+		return 0
+	}
+	return (total + limit - 1) / limit
 }

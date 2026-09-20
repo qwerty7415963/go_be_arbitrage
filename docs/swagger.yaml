@@ -30,12 +30,10 @@ definitions:
         type: integer
       offset:
         type: integer
-    type: object
-  github_com_qwerty7415963_go_be_arbitrage_internal_api.PingResponse:
-    properties:
-      message:
-        example: pong
-        type: string
+      page:
+        type: integer
+      total_pages:
+        type: integer
     type: object
   github_com_qwerty7415963_go_be_arbitrage_internal_api.ReadyResponse:
     properties:
@@ -1999,12 +1997,9 @@ paths:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.PingResponse'
-              type: object
+            additionalProperties:
+              type: string
+            type: object
       summary: Ping test
       tags:
       - system
