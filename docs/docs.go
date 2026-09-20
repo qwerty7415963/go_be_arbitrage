@@ -591,6 +591,14 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
                         "maximum": 200,
                         "minimum": 1,
                         "type": "integer",
@@ -603,7 +611,7 @@ const docTemplate = `{
                         "minimum": 0,
                         "type": "integer",
                         "default": 0,
-                        "description": "Offset",
+                        "description": "Offset (alternative to page)",
                         "name": "offset",
                         "in": "query"
                     },

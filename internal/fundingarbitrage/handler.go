@@ -52,8 +52,9 @@ func (h *Handler) ListPerpVenues(c *gin.Context) {
 // @Produce      json
 // @Param        venue_id      query     []string  true   "Venue IDs (min 2, max 10)"
 // @Param        sort          query     string    false  "Sort by"  Enums(apr_1h_desc, apr_4h_desc, apy_desc, spread_desc)  Default(apr_4h_desc)
+// @Param        page          query     int       false  "Page number"  Default(1)  Minimum(1)
 // @Param        limit         query     int       false  "Items per page"  Default(50)  Minimum(1)  Maximum(200)
-// @Param        offset        query     int       false  "Offset"  Default(0)  Minimum(0)
+// @Param        offset        query     int       false  "Offset (alternative to page)"  Default(0)  Minimum(0)
 // @Param        include_stale query     bool      false  "Include stale data"  Default(false)
 // @Param        refresh       query     bool      false  "Force refresh cache"  Default(false)
 // @Success      200           {object}  api.Response{data=FundingArbitrageResponse,meta=api.Meta}
@@ -131,15 +132,25 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		limit = l
 	}
 
-	// Parse offset
+	// Parse offset and page (page takes priority)
 	offset := 0
-	if offsetStr := c.Query("offset"); offsetStr != "" {
+	page := 1
+	if pageStr := c.Query("page"); pageStr != "" {
+		p, err := strconv.Atoi(pageStr)
+		if err != nil || p < 1 {
+			respondValidationError(c, "page must be >= 1")
+			return
+		}
+		page = p
+		offset = (page - 1) * limit
+	} else if offsetStr := c.Query("offset"); offsetStr != "" {
 		o, err := strconv.Atoi(offsetStr)
 		if err != nil || o < 0 {
 			respondValidationError(c, "offset must be >= 0")
 			return
 		}
 		offset = o
+		page = offset/limit + 1
 	}
 
 	// Parse include_stale
@@ -187,8 +198,7 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		}
 	}
 
-	// Compute page and total_pages
-	page := offset/limit + 1
+	// Compute total_pages
 	totalPages := 0
 	if limit > 0 && maxTotal > 0 {
 		totalPages = (maxTotal + limit - 1) / limit

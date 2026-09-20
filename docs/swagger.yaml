@@ -1278,6 +1278,12 @@ paths:
         in: query
         name: sort
         type: string
+      - default: 1
+        description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
       - default: 50
         description: Items per page
         in: query
@@ -1286,7 +1292,7 @@ paths:
         name: limit
         type: integer
       - default: 0
-        description: Offset
+        description: Offset (alternative to page)
         in: query
         minimum: 0
         name: offset
