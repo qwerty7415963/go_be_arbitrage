@@ -223,7 +223,7 @@ func TestPagination_MetaResponse(t *testing.T) {
 	}
 
 	offset, limit := 0, 10
-	flattened := flattenTokens(pairs)
+	flattened := flattenTokens(pairs, "rate_8h_desc")
 	paginated, hasMore := applyGlobalPagination(flattened, offset, limit)
 	result := redistributeTokens(pairs, paginated)
 
@@ -264,8 +264,32 @@ func makeTokenWithSymbol(symbol string) ArbitrageToken {
 	}
 }
 
+func makeTokenWithRate8h(symbol string, rate8h float64) ArbitrageToken {
+	return ArbitrageToken{
+		InstrumentID: uuid.New(),
+		Symbol:       symbol,
+		Rate8hPercent: &rate8h,
+	}
+}
+
+func makeTokenWithRate1h(symbol string, rate1h float64) ArbitrageToken {
+	return ArbitrageToken{
+		InstrumentID: uuid.New(),
+		Symbol:       symbol,
+		Rate1hPercent: &rate1h,
+	}
+}
+
+func makeTokenWithSpread(symbol string, spread float64) ArbitrageToken {
+	return ArbitrageToken{
+		InstrumentID: uuid.New(),
+		Symbol:       symbol,
+		PriceSpreadPercent: &spread,
+	}
+}
+
 func TestFlattenTokens_EmptyPairs(t *testing.T) {
-	result := flattenTokens(nil)
+	result := flattenTokens(nil, "rate_8h_desc")
 	if len(result) != 0 {
 		t.Fatalf("expected 0, got %d", len(result))
 	}
@@ -276,7 +300,7 @@ func TestFlattenTokens_NoOverlap(t *testing.T) {
 		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH")}},
 		{Tokens: []ArbitrageToken{makeTokenWithSymbol("SOL"), makeTokenWithSymbol("XRP")}},
 	}
-	result := flattenTokens(pairs)
+	result := flattenTokens(pairs, "rate_8h_desc")
 	if len(result) != 4 {
 		t.Fatalf("expected 4, got %d", len(result))
 	}
@@ -284,17 +308,17 @@ func TestFlattenTokens_NoOverlap(t *testing.T) {
 
 func TestFlattenTokens_WithOverlap(t *testing.T) {
 	pairs := []Pair{
-		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH")}},
-		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("SOL")}},
-		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("DOGE")}},
+		{Tokens: []ArbitrageToken{makeTokenWithRate8h("BTC", 15), makeTokenWithRate8h("ETH", 10)}},
+		{Tokens: []ArbitrageToken{makeTokenWithRate8h("BTC", 12), makeTokenWithRate8h("SOL", 5)}},
+		{Tokens: []ArbitrageToken{makeTokenWithRate8h("BTC", 10), makeTokenWithRate8h("DOGE", 8)}},
 	}
-	result := flattenTokens(pairs)
+	result := flattenTokens(pairs, "rate_8h_desc")
 	if len(result) != 4 {
 		t.Fatalf("expected 4 unique, got %d", len(result))
 	}
 	symbols := map[string]bool{}
-	for _, t := range result {
-		symbols[t.Symbol] = true
+	for _, tok := range result {
+		symbols[tok.Symbol] = true
 	}
 	for _, s := range []string{"BTC", "ETH", "SOL", "DOGE"} {
 		if !symbols[s] {
@@ -308,9 +332,137 @@ func TestFlattenTokens_NilTokens(t *testing.T) {
 		{Tokens: nil},
 		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC")}},
 	}
-	result := flattenTokens(pairs)
+	result := flattenTokens(pairs, "rate_8h_desc")
 	if len(result) != 1 {
 		t.Fatalf("expected 1, got %d", len(result))
+	}
+}
+
+func TestFlattenTokens_KeepsMaxValue(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{makeTokenWithRate8h("BTC", 10)}},
+		{Tokens: []ArbitrageToken{makeTokenWithRate8h("BTC", 15)}},
+		{Tokens: []ArbitrageToken{makeTokenWithRate8h("BTC", 12)}},
+	}
+	result := flattenTokens(pairs, "rate_8h_desc")
+	if len(result) != 1 {
+		t.Fatalf("expected 1, got %d", len(result))
+	}
+	if *result[0].Rate8hPercent != 15 {
+		t.Errorf("expected max rate 15, got %v", *result[0].Rate8hPercent)
+	}
+}
+
+func TestFlattenTokens_SortByRate1h(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{makeTokenWithRate1h("BTC", 5), makeTokenWithRate1h("ETH", 15)}},
+		{Tokens: []ArbitrageToken{makeTokenWithRate1h("BTC", 10), makeTokenWithRate1h("SOL", 8)}},
+	}
+	result := flattenTokens(pairs, "rate_1h_desc")
+	// BTC should keep max (10), ETH=15, SOL=8
+	if len(result) != 3 {
+		t.Fatalf("expected 3, got %d", len(result))
+	}
+	for _, tok := range result {
+		if tok.Symbol == "BTC" && *tok.Rate1hPercent != 10 {
+			t.Errorf("BTC: expected max rate1h=10, got %v", *tok.Rate1hPercent)
+		}
+	}
+}
+
+func TestFlattenTokens_SortBySpread(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{makeTokenWithSpread("BTC", 1.0)}},
+		{Tokens: []ArbitrageToken{makeTokenWithSpread("BTC", 3.0)}},
+	}
+	result := flattenTokens(pairs, "spread_desc")
+	if len(result) != 1 {
+		t.Fatalf("expected 1, got %d", len(result))
+	}
+	if *result[0].PriceSpreadPercent != 3.0 {
+		t.Errorf("expected max spread 3.0, got %v", *result[0].PriceSpreadPercent)
+	}
+}
+
+func TestSortFlattenedByParam_CorrectOrder(t *testing.T) {
+	five := 5.0
+	ten := 10.0
+	fifteen := 15.0
+	eight := 8.0
+	twelve := 12.0
+
+	tokens := []ArbitrageToken{
+		{Symbol: "A", Rate8hPercent: &five},
+		{Symbol: "B", Rate8hPercent: &fifteen},
+		{Symbol: "C", Rate8hPercent: &ten},
+		{Symbol: "D", Rate8hPercent: &twelve},
+		{Symbol: "E", Rate8hPercent: &eight},
+	}
+	sortFlattenedByParam(tokens, "rate_8h_desc")
+	expected := []string{"B", "D", "C", "E", "A"}
+	for i, tok := range tokens {
+		if tok.Symbol != expected[i] {
+			t.Errorf("position %d: expected %s, got %s", i, expected[i], tok.Symbol)
+		}
+	}
+}
+
+func TestFlattenSortPaginate_FullFlow(t *testing.T) {
+	// 3 pairs with overlapping BTC at different rates
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{
+			makeTokenWithRate8h("BTC", 15), makeTokenWithRate8h("ETH", 10),
+			makeTokenWithRate8h("SOL", 5), makeTokenWithRate8h("XRP", 3),
+		}},
+		{Tokens: []ArbitrageToken{
+			makeTokenWithRate8h("BTC", 12), makeTokenWithRate8h("DOGE", 8),
+			makeTokenWithRate8h("ADA", 2),
+		}},
+		{Tokens: []ArbitrageToken{
+			makeTokenWithRate8h("BTC", 10), makeTokenWithRate8h("DOT", 7),
+		}},
+	}
+
+	flattened := flattenTokens(pairs, "rate_8h_desc")
+	if len(flattened) != 7 {
+		t.Fatalf("expected 7 unique, got %d", len(flattened))
+	}
+
+	// BTC should have max value (15)
+	for _, tok := range flattened {
+		if tok.Symbol == "BTC" && *tok.Rate8hPercent != 15 {
+			t.Errorf("BTC should have max rate8h=15, got %v", *tok.Rate8hPercent)
+		}
+	}
+
+	sortFlattenedByParam(flattened, "rate_8h_desc")
+
+	// First token should be BTC (highest rate)
+	if flattened[0].Symbol != "BTC" {
+		t.Errorf("first token should be BTC, got %s", flattened[0].Symbol)
+	}
+
+	paginated, _ := applyGlobalPagination(flattened, 0, 3)
+	if len(paginated) != 3 {
+		t.Fatalf("expected 3 paginated, got %d", len(paginated))
+	}
+
+	// Paginated should be [BTC(15%), ETH(10%), DOGE(8%)]
+	expectedSymbols := []string{"BTC", "ETH", "DOGE"}
+	for i, tok := range paginated {
+		if tok.Symbol != expectedSymbols[i] {
+			t.Errorf("paginated[%d]: expected %s, got %s", i, expectedSymbols[i], tok.Symbol)
+		}
+	}
+
+	result := redistributeTokens(pairs, paginated)
+	// BTC should appear in all 3 pairs, ETH in pair 0, DOGE in pair 1
+	totalTokens := 0
+	for _, p := range result {
+		totalTokens += len(p.Tokens)
+	}
+	if totalTokens != 5 {
+		t.Errorf("expected 5 tokens across pairs, got %d", totalTokens)
 	}
 }
 
@@ -400,7 +552,7 @@ func TestGlobalPagination_DistributedCorrectly(t *testing.T) {
 		}},
 	}
 
-	flattened := flattenTokens(pairs)
+	flattened := flattenTokens(pairs, "rate_8h_desc")
 	if len(flattened) != 9 {
 		t.Fatalf("expected 9 unique tokens, got %d", len(flattened))
 	}

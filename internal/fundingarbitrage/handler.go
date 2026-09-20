@@ -172,8 +172,9 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		return
 	}
 
-	// Global flatten → paginate → redistribute
-	flattened := flattenTokens(result.Pairs)
+	// Global flatten → sort → paginate → redistribute
+	flattened := flattenTokens(result.Pairs, sortBy)
+	sortFlattenedByParam(flattened, sortBy)
 	totalUnique := len(flattened)
 
 	paginated, hasMore := applyGlobalPagination(flattened, offset, limit)
@@ -233,19 +234,54 @@ func computeTotalPages(total, limit int) int {
 	return (total + limit - 1) / limit
 }
 
-// flattenTokens deduplicates tokens across all pairs by symbol, keeping the first occurrence.
-func flattenTokens(pairs []Pair) []ArbitrageToken {
-	seen := make(map[string]bool)
-	var result []ArbitrageToken
+// getSortValue returns the sort field value for a token based on sortBy param.
+func getSortValue(t *ArbitrageToken, sortBy string) float64 {
+	var ptr *float64
+	switch sortBy {
+	case "rate_1h_desc":
+		ptr = t.Rate1hPercent
+	case "rate_8h_desc":
+		ptr = t.Rate8hPercent
+	case "apr_desc":
+		ptr = t.APRPercent
+	case "spread_desc":
+		ptr = t.PriceSpreadPercent
+	default:
+		ptr = t.Rate8hPercent
+	}
+	if ptr == nil {
+		return -1
+	}
+	return *ptr
+}
+
+// isBetter returns true if token a has a higher sort value than b.
+func isBetter(a, b *ArbitrageToken, sortBy string) bool {
+	return getSortValue(a, sortBy) > getSortValue(b, sortBy)
+}
+
+// flattenTokens deduplicates tokens across all pairs by symbol, keeping the token with the highest sort value.
+func flattenTokens(pairs []Pair, sortBy string) []ArbitrageToken {
+	best := make(map[string]*ArbitrageToken)
 	for _, p := range pairs {
-		for _, t := range p.Tokens {
-			if !seen[t.Symbol] {
-				seen[t.Symbol] = true
-				result = append(result, t)
+		for i := range p.Tokens {
+			t := &p.Tokens[i]
+			existing, ok := best[t.Symbol]
+			if !ok || isBetter(t, existing, sortBy) {
+				best[t.Symbol] = t
 			}
 		}
 	}
+	result := make([]ArbitrageToken, 0, len(best))
+	for _, t := range best {
+		result = append(result, *t)
+	}
 	return result
+}
+
+// sortFlattenedByParam sorts the flattened token list by the sort param (descending).
+func sortFlattenedByParam(tokens []ArbitrageToken, sortBy string) {
+	SortTokens(tokens, sortBy)
 }
 
 // applyGlobalPagination slices the flattened token list and returns hasMore.
