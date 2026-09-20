@@ -172,37 +172,15 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 		return
 	}
 
-	// Apply offset-based pagination to tokens in each pair
-	hasMore := false
-	maxTotal := 0
-	for i := range result.Pairs {
-		tokens := result.Pairs[i].Tokens
-		total := len(tokens)
-		if total > maxTotal {
-			maxTotal = total
-		}
+	// Global flatten → paginate → redistribute
+	flattened := flattenTokens(result.Pairs)
+	totalUnique := len(flattened)
 
-		if offset >= total {
-			result.Pairs[i].Tokens = []ArbitrageToken{}
-			continue
-		}
-
-		end := offset + limit
-		if end > total {
-			end = total
-		}
-		result.Pairs[i].Tokens = tokens[offset:end]
-
-		if end < total {
-			hasMore = true
-		}
-	}
+	paginated, hasMore := applyGlobalPagination(flattened, offset, limit)
+	result.Pairs = redistributeTokens(result.Pairs, paginated)
 
 	// Compute total_pages
-	totalPages := 0
-	if limit > 0 && maxTotal > 0 {
-		totalPages = (maxTotal + limit - 1) / limit
-	}
+	totalPages := computeTotalPages(totalUnique, limit)
 
 	// Build response with meta
 	meta := &api.Meta{
@@ -244,4 +222,64 @@ func respondError(c *gin.Context, err error) {
 			Details: appErr.Details,
 		},
 	})
+}
+
+// ─── Global pagination helpers ────────────────────────────────
+
+func computeTotalPages(total, limit int) int {
+	if limit <= 0 || total <= 0 {
+		return 0
+	}
+	return (total + limit - 1) / limit
+}
+
+// flattenTokens deduplicates tokens across all pairs by symbol, keeping the first occurrence.
+func flattenTokens(pairs []Pair) []ArbitrageToken {
+	seen := make(map[string]bool)
+	var result []ArbitrageToken
+	for _, p := range pairs {
+		for _, t := range p.Tokens {
+			if !seen[t.Symbol] {
+				seen[t.Symbol] = true
+				result = append(result, t)
+			}
+		}
+	}
+	return result
+}
+
+// applyGlobalPagination slices the flattened token list and returns hasMore.
+func applyGlobalPagination(flattened []ArbitrageToken, offset, limit int) ([]ArbitrageToken, bool) {
+	if flattened == nil {
+		flattened = []ArbitrageToken{}
+	}
+	total := len(flattened)
+	if offset >= total {
+		return []ArbitrageToken{}, false
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return flattened[offset:end], end < total
+}
+
+// redistributeTokens filters each pair to keep only tokens present in the paginated list.
+func redistributeTokens(pairs []Pair, paginated []ArbitrageToken) []Pair {
+	allowed := make(map[string]bool, len(paginated))
+	for _, t := range paginated {
+		allowed[t.Symbol] = true
+	}
+
+	result := make([]Pair, len(pairs))
+	for i, p := range pairs {
+		result[i] = p
+		result[i].Tokens = nil
+		for _, t := range p.Tokens {
+			if allowed[t.Symbol] {
+				result[i].Tokens = append(result[i].Tokens, t)
+			}
+		}
+	}
+	return result
 }

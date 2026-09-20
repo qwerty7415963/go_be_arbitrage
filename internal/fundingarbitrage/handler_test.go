@@ -222,38 +222,26 @@ func TestPagination_MetaResponse(t *testing.T) {
 		},
 	}
 
-	// Apply pagination: page 1
 	offset, limit := 0, 10
-	hasMore := false
-	for i := range pairs {
-		tokens := pairs[i].Tokens
-		total := len(tokens)
-		if offset >= total {
-			pairs[i].Tokens = []ArbitrageToken{}
-			continue
-		}
-		end := offset + limit
-		if end > total {
-			end = total
-		}
-		pairs[i].Tokens = tokens[offset:end]
-		if end < total {
-			hasMore = true
-		}
-	}
+	flattened := flattenTokens(pairs)
+	paginated, hasMore := applyGlobalPagination(flattened, offset, limit)
+	result := redistributeTokens(pairs, paginated)
 
-	if len(pairs[0].Tokens) != 10 {
-		t.Fatalf("expected 10 tokens, got %d", len(pairs[0].Tokens))
+	totalTokens := 0
+	for _, p := range result {
+		totalTokens += len(p.Tokens)
+	}
+	if totalTokens != 10 {
+		t.Fatalf("expected 10 tokens total, got %d", totalTokens)
 	}
 	if !hasMore {
 		t.Error("expected hasMore=true")
 	}
 
-	// Verify JSON response shape
 	resp := map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
-			"pairs": pairs,
+			"pairs": result,
 		},
 		"meta": map[string]interface{}{
 			"offset":   offset,
@@ -264,6 +252,213 @@ func TestPagination_MetaResponse(t *testing.T) {
 	data, _ := json.Marshal(resp)
 	if len(data) == 0 {
 		t.Error("expected non-empty JSON")
+	}
+}
+
+// ─── Global pagination unit tests ─────────────────────────────
+
+func makeTokenWithSymbol(symbol string) ArbitrageToken {
+	return ArbitrageToken{
+		InstrumentID: uuid.New(),
+		Symbol:       symbol,
+	}
+}
+
+func TestFlattenTokens_EmptyPairs(t *testing.T) {
+	result := flattenTokens(nil)
+	if len(result) != 0 {
+		t.Fatalf("expected 0, got %d", len(result))
+	}
+}
+
+func TestFlattenTokens_NoOverlap(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH")}},
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("SOL"), makeTokenWithSymbol("XRP")}},
+	}
+	result := flattenTokens(pairs)
+	if len(result) != 4 {
+		t.Fatalf("expected 4, got %d", len(result))
+	}
+}
+
+func TestFlattenTokens_WithOverlap(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH")}},
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("SOL")}},
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("DOGE")}},
+	}
+	result := flattenTokens(pairs)
+	if len(result) != 4 {
+		t.Fatalf("expected 4 unique, got %d", len(result))
+	}
+	symbols := map[string]bool{}
+	for _, t := range result {
+		symbols[t.Symbol] = true
+	}
+	for _, s := range []string{"BTC", "ETH", "SOL", "DOGE"} {
+		if !symbols[s] {
+			t.Errorf("missing symbol %s", s)
+		}
+	}
+}
+
+func TestFlattenTokens_NilTokens(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: nil},
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC")}},
+	}
+	result := flattenTokens(pairs)
+	if len(result) != 1 {
+		t.Fatalf("expected 1, got %d", len(result))
+	}
+}
+
+func TestApplyGlobalPagination_Basic(t *testing.T) {
+	tokens := makeTokens(25)
+	result, hasMore := applyGlobalPagination(tokens, 0, 10)
+	if len(result) != 10 {
+		t.Fatalf("expected 10, got %d", len(result))
+	}
+	if !hasMore {
+		t.Error("expected hasMore=true")
+	}
+}
+
+func TestApplyGlobalPagination_PartialPage(t *testing.T) {
+	tokens := makeTokens(7)
+	result, hasMore := applyGlobalPagination(tokens, 0, 10)
+	if len(result) != 7 {
+		t.Fatalf("expected 7, got %d", len(result))
+	}
+	if hasMore {
+		t.Error("expected hasMore=false")
+	}
+}
+
+func TestApplyGlobalPagination_OffsetExceedsTotal(t *testing.T) {
+	tokens := makeTokens(5)
+	result, hasMore := applyGlobalPagination(tokens, 50, 10)
+	if len(result) != 0 {
+		t.Fatalf("expected 0, got %d", len(result))
+	}
+	if hasMore {
+		t.Error("expected hasMore=false")
+	}
+}
+
+func TestApplyGlobalPagination_EmptyTokens(t *testing.T) {
+	result, hasMore := applyGlobalPagination(nil, 0, 10)
+	if len(result) != 0 {
+		t.Fatalf("expected 0, got %d", len(result))
+	}
+	if hasMore {
+		t.Error("expected hasMore=false")
+	}
+}
+
+func TestRedistributeTokens_Basic(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH"), makeTokenWithSymbol("SOL")}},
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("XRP")}},
+	}
+	paginated := []ArbitrageToken{makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH")}
+	result := redistributeTokens(pairs, paginated)
+
+	if len(result[0].Tokens) != 2 {
+		t.Errorf("pair 0: expected 2, got %d", len(result[0].Tokens))
+	}
+	if len(result[1].Tokens) != 1 {
+		t.Errorf("pair 1: expected 1, got %d", len(result[1].Tokens))
+	}
+}
+
+func TestRedistributeTokens_EmptyPaginated(t *testing.T) {
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{makeTokenWithSymbol("BTC")}},
+	}
+	result := redistributeTokens(pairs, []ArbitrageToken{})
+	if len(result[0].Tokens) != 0 {
+		t.Fatalf("expected 0, got %d", len(result[0].Tokens))
+	}
+}
+
+func TestGlobalPagination_DistributedCorrectly(t *testing.T) {
+	// 3 pairs with overlapping tokens
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{
+			makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH"),
+			makeTokenWithSymbol("SOL"), makeTokenWithSymbol("XRP"),
+		}},
+		{Tokens: []ArbitrageToken{
+			makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ADA"),
+			makeTokenWithSymbol("DOGE"), makeTokenWithSymbol("AVAX"),
+		}},
+		{Tokens: []ArbitrageToken{
+			makeTokenWithSymbol("BTC"), makeTokenWithSymbol("ETH"),
+			makeTokenWithSymbol("DOT"), makeTokenWithSymbol("LINK"),
+		}},
+	}
+
+	flattened := flattenTokens(pairs)
+	if len(flattened) != 9 {
+		t.Fatalf("expected 9 unique tokens, got %d", len(flattened))
+	}
+
+	paginated, _ := applyGlobalPagination(flattened, 0, 5)
+	if len(paginated) != 5 {
+		t.Fatalf("expected 5 paginated, got %d", len(paginated))
+	}
+
+	result := redistributeTokens(pairs, paginated)
+
+	// No pair should have tokens not in paginated list
+	allowed := map[string]bool{}
+	for _, tok := range paginated {
+		allowed[tok.Symbol] = true
+	}
+	for i, p := range result {
+		for _, tok := range p.Tokens {
+			if !allowed[tok.Symbol] {
+				t.Errorf("pair %d has token %s not in paginated list", i, tok.Symbol)
+			}
+		}
+	}
+
+	// Each paginated token should appear in at least one pair
+	present := map[string]bool{}
+	for _, p := range result {
+		for _, tok := range p.Tokens {
+			present[tok.Symbol] = true
+		}
+	}
+	for _, tok := range paginated {
+		if !present[tok.Symbol] {
+			t.Errorf("paginated token %s not found in any pair", tok.Symbol)
+		}
+	}
+}
+
+func TestGlobalPagination_MetaCalculation(t *testing.T) {
+	tests := []struct {
+		total       int
+		limit       int
+		wantTotal   int
+		wantHasMore bool
+	}{
+		{25, 10, 3, true},
+		{7, 10, 1, false},
+		{10, 10, 1, false},
+		{20, 5, 4, false},
+		{0, 10, 0, false},
+	}
+
+	for _, tt := range tests {
+		totalPages := computeTotalPages(tt.total, tt.limit)
+		if totalPages != tt.wantTotal {
+			t.Errorf("total=%d limit=%d: expected totalPages=%d, got %d",
+				tt.total, tt.limit, tt.wantTotal, totalPages)
+		}
 	}
 }
 
@@ -293,11 +488,4 @@ func computePage(offset, limit int) int {
 		return 1
 	}
 	return offset/limit + 1
-}
-
-func computeTotalPages(total, limit int) int {
-	if limit <= 0 || total <= 0 {
-		return 0
-	}
-	return (total + limit - 1) / limit
 }
