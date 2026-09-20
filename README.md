@@ -74,6 +74,30 @@ Server runs on `http://localhost:8080` by default.
 |--------|------|-------------|
 | GET | `/api/v1/funding/arbitrage` | Funding arbitrage table |
 
+#### Query Parameters
+
+| Param | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `venue_id` | UUID | Yes | — | Venue IDs (min 2, max 10), repeated or comma-separated |
+| `sort` | string | No | `apr_4h_desc` | Sort by: `apr_1h_desc`, `apr_4h_desc`, `apy_desc`, `spread_desc` |
+| `page` | int | No | 1 | Page number (takes priority over offset) |
+| `limit` | int | No | 50 | Items per page (1-200) |
+| `offset` | int | No | 0 | Offset (alternative to page) |
+| `include_stale` | bool | No | false | Include stale funding data |
+| `refresh` | bool | No | false | Force cache refresh |
+
+#### Response Meta
+
+```json
+{
+  "page": 1,
+  "total_pages": 3,
+  "limit": 50,
+  "offset": 0,
+  "has_more": true
+}
+```
+
 ### Unified State
 | Method | Path | Description |
 |--------|------|-------------|
