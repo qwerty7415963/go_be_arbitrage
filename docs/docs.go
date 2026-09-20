@@ -579,13 +579,13 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "apr_1h_desc",
-                            "apr_4h_desc",
-                            "apy_desc",
+                            "rate_1h_desc",
+                            "rate_8h_desc",
+                            "apr_desc",
                             "spread_desc"
                         ],
                         "type": "string",
-                        "default": "apr_4h_desc",
+                        "default": "rate_8h_desc",
                         "description": "Sort by",
                         "name": "sort",
                         "in": "query"
@@ -3356,13 +3356,7 @@ const docTemplate = `{
         "internal_fundingarbitrage.ArbitrageToken": {
             "type": "object",
             "properties": {
-                "apr_1h_percent": {
-                    "type": "number"
-                },
-                "apr_4h_percent": {
-                    "type": "number"
-                },
-                "apy_percent": {
+                "apr_percent": {
                     "type": "number"
                 },
                 "funding_available": {
@@ -3378,6 +3372,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "price_spread_percent": {
+                    "type": "number"
+                },
+                "rate_1h_percent": {
+                    "type": "number"
+                },
+                "rate_8h_percent": {
                     "type": "number"
                 },
                 "short_venue_id": {

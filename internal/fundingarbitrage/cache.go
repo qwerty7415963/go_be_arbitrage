@@ -154,35 +154,35 @@ func (c *Cache) GetCacheStatus(venueAID, venueBID uuid.UUID) string {
 // SortTokens sorts arbitrage tokens by the given sort field
 func SortTokens(tokens []ArbitrageToken, sortBy string) {
 	switch sortBy {
-	case "apr_1h_desc":
+	case "rate_1h_desc":
 		sort.Slice(tokens, func(i, j int) bool {
-			if tokens[i].APR1hPercent == nil {
+			if tokens[i].Rate1hPercent == nil {
 				return false
 			}
-			if tokens[j].APR1hPercent == nil {
+			if tokens[j].Rate1hPercent == nil {
 				return true
 			}
-			return *tokens[i].APR1hPercent > *tokens[j].APR1hPercent
+			return *tokens[i].Rate1hPercent > *tokens[j].Rate1hPercent
 		})
-	case "apr_4h_desc":
+	case "rate_8h_desc":
 		sort.Slice(tokens, func(i, j int) bool {
-			if tokens[i].APR4hPercent == nil {
+			if tokens[i].Rate8hPercent == nil {
 				return false
 			}
-			if tokens[j].APR4hPercent == nil {
+			if tokens[j].Rate8hPercent == nil {
 				return true
 			}
-			return *tokens[i].APR4hPercent > *tokens[j].APR4hPercent
+			return *tokens[i].Rate8hPercent > *tokens[j].Rate8hPercent
 		})
-	case "apy_desc":
+	case "apr_desc":
 		sort.Slice(tokens, func(i, j int) bool {
-			if tokens[i].APYPercent == nil {
+			if tokens[i].APRPercent == nil {
 				return false
 			}
-			if tokens[j].APYPercent == nil {
+			if tokens[j].APRPercent == nil {
 				return true
 			}
-			return *tokens[i].APYPercent > *tokens[j].APYPercent
+			return *tokens[i].APRPercent > *tokens[j].APRPercent
 		})
 	case "spread_desc":
 		sort.Slice(tokens, func(i, j int) bool {
@@ -194,15 +194,15 @@ func SortTokens(tokens []ArbitrageToken, sortBy string) {
 			}
 			return *tokens[i].PriceSpreadPercent > *tokens[j].PriceSpreadPercent
 		})
-	default: // apr_24h_desc or default
+	default: // rate_8h_desc or default
 		sort.Slice(tokens, func(i, j int) bool {
-			if tokens[i].APR4hPercent == nil {
+			if tokens[i].Rate8hPercent == nil {
 				return false
 			}
-			if tokens[j].APR4hPercent == nil {
+			if tokens[j].Rate8hPercent == nil {
 				return true
 			}
-			return *tokens[i].APR4hPercent > *tokens[j].APR4hPercent
+			return *tokens[i].Rate8hPercent > *tokens[j].Rate8hPercent
 		})
 	}
 }

@@ -186,11 +186,7 @@ definitions:
     type: object
   internal_fundingarbitrage.ArbitrageToken:
     properties:
-      apr_1h_percent:
-        type: number
-      apr_4h_percent:
-        type: number
-      apy_percent:
+      apr_percent:
         type: number
       funding_available:
         type: boolean
@@ -201,6 +197,10 @@ definitions:
       long_venue_id:
         type: string
       price_spread_percent:
+        type: number
+      rate_1h_percent:
+        type: number
+      rate_8h_percent:
         type: number
       short_venue_id:
         type: string
@@ -1268,12 +1268,12 @@ paths:
         name: venue_id
         required: true
         type: array
-      - default: apr_4h_desc
+      - default: rate_8h_desc
         description: Sort by
         enum:
-        - apr_1h_desc
-        - apr_4h_desc
-        - apy_desc
+        - rate_1h_desc
+        - rate_8h_desc
+        - apr_desc
         - spread_desc
         in: query
         name: sort

@@ -43,9 +43,9 @@ type ArbitrageToken struct {
 	VenueBOI              string    `json:"venue_b_oi"`
 	LongVenueID           uuid.UUID `json:"long_venue_id"`
 	ShortVenueID          uuid.UUID `json:"short_venue_id"`
-	APR1hPercent          *float64  `json:"apr_1h_percent"`
-	APR4hPercent          *float64  `json:"apr_4h_percent"`
-	APYPercent            *float64  `json:"apy_percent"`
+	Rate1hPercent         *float64  `json:"rate_1h_percent"`
+	Rate8hPercent         *float64  `json:"rate_8h_percent"`
+	APRPercent            *float64  `json:"apr_percent"`
 	PriceSpreadPercent    *float64  `json:"price_spread_percent"`
 	FundingAvailable      bool      `json:"funding_available"`
 	IsStale               bool      `json:"is_stale"`

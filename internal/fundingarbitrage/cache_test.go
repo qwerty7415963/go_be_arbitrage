@@ -146,13 +146,13 @@ func TestCache_GetCacheStatus(t *testing.T) {
 
 func ptrFloat64(f float64) *float64 { return &f }
 
-func TestSortTokens_ByAPR1h(t *testing.T) {
+func TestSortTokens_ByRate1h(t *testing.T) {
 	tokens := []ArbitrageToken{
-		{Symbol: "A", APR1hPercent: ptrFloat64(5.0)},
-		{Symbol: "B", APR1hPercent: ptrFloat64(15.0)},
-		{Symbol: "C", APR1hPercent: ptrFloat64(10.0)},
+		{Symbol: "A", Rate1hPercent: ptrFloat64(5.0)},
+		{Symbol: "B", Rate1hPercent: ptrFloat64(15.0)},
+		{Symbol: "C", Rate1hPercent: ptrFloat64(10.0)},
 	}
-	SortTokens(tokens, "apr_1h_desc")
+	SortTokens(tokens, "rate_1h_desc")
 	if tokens[0].Symbol != "B" || tokens[1].Symbol != "C" || tokens[2].Symbol != "A" {
 		t.Errorf("unexpected sort order: %v", tokens)
 	}
@@ -172,11 +172,11 @@ func TestSortTokens_BySpread(t *testing.T) {
 
 func TestSortTokens_NilValues(t *testing.T) {
 	tokens := []ArbitrageToken{
-		{Symbol: "A", APR1hPercent: nil},
-		{Symbol: "B", APR1hPercent: ptrFloat64(10.0)},
-		{Symbol: "C", APR1hPercent: nil},
+		{Symbol: "A", Rate1hPercent: nil},
+		{Symbol: "B", Rate1hPercent: ptrFloat64(10.0)},
+		{Symbol: "C", Rate1hPercent: nil},
 	}
-	SortTokens(tokens, "apr_1h_desc")
+	SortTokens(tokens, "rate_1h_desc")
 	if tokens[0].Symbol != "B" {
 		t.Errorf("expected B first, got %s", tokens[0].Symbol)
 	}

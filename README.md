@@ -79,7 +79,7 @@ Server runs on `http://localhost:8080` by default.
 | Param | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `venue_id` | UUID | Yes | — | Venue IDs (min 2, max 10), repeated or comma-separated |
-| `sort` | string | No | `apr_4h_desc` | Sort by: `apr_1h_desc`, `apr_4h_desc`, `apy_desc`, `spread_desc` |
+| `sort` | string | No | `rate_8h_desc` | Sort by: `rate_1h_desc`, `rate_8h_desc`, `apr_desc`, `spread_desc` |
 | `page` | int | No | 1 | Page number (takes priority over offset) |
 | `limit` | int | No | 50 | Items per page (1-200) |
 | `offset` | int | No | 0 | Offset (alternative to page) |

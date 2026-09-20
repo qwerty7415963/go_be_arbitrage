@@ -51,7 +51,7 @@ func (h *Handler) ListPerpVenues(c *gin.Context) {
 // @Tags         funding-arbitrage
 // @Produce      json
 // @Param        venue_id      query     []string  true   "Venue IDs (min 2, max 10)"
-// @Param        sort          query     string    false  "Sort by"  Enums(apr_1h_desc, apr_4h_desc, apy_desc, spread_desc)  Default(apr_4h_desc)
+// @Param        sort          query     string    false  "Sort by"  Enums(rate_1h_desc, rate_8h_desc, apr_desc, spread_desc)  Default(rate_8h_desc)
 // @Param        page          query     int       false  "Page number"  Default(1)  Minimum(1)
 // @Param        limit         query     int       false  "Items per page"  Default(50)  Minimum(1)  Maximum(200)
 // @Param        offset        query     int       false  "Offset (alternative to page)"  Default(0)  Minimum(0)
@@ -109,12 +109,12 @@ func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 	}
 
 	// Parse sort
-	sortBy := c.DefaultQuery("sort", "apr_4h_desc")
+	sortBy := c.DefaultQuery("sort", "rate_8h_desc")
 	validSorts := map[string]bool{
-		"apr_1h_desc": true,
-		"apr_4h_desc": true,
-		"apy_desc":    true,
-		"spread_desc": true,
+		"rate_1h_desc": true,
+		"rate_8h_desc": true,
+		"apr_desc":     true,
+		"spread_desc":  true,
 	}
 	if !validSorts[sortBy] {
 		respondValidationError(c, "invalid sort value")

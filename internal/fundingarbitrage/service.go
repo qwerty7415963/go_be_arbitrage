@@ -197,12 +197,13 @@ func (s *Service) buildArbitrageToken(
 		token.PriceSpreadPercent = &spread
 	}
 
-	// Calculate APR and APY from net hourly rate
-	// APR = net_hourly * 24 * 365 * 100 (annualized percentage)
-	apr := netHourly * 24 * 365 * 100
-	token.APR1hPercent = &apr
-	token.APR4hPercent = &apr // Same calculation, just different window of observation
-	token.APYPercent = &apr   // Simplified APY for MVP
+	// Calculate Rate 1h, Rate 8h, and APR from net hourly rate
+	rate1h := netHourly * 100                     // % per hour
+	rate8h := netHourly * 8 * 100                 // % per 8 hours
+	apr := netHourly * 24 * 365 * 100             // annualized %
+	token.Rate1hPercent = &rate1h
+	token.Rate8hPercent = &rate8h
+	token.APRPercent = &apr
 
 	return token
 }
