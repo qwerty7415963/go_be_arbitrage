@@ -105,6 +105,18 @@ Server runs on `http://localhost:8080` by default.
 | GET | `/api/v1/unified/instruments/:id` | Unified state for instrument |
 | WS | `/api/v1/unified/ws` | Real-time unified state updates |
 
+### Wallet Groups (JWT required; per-user ownership)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/groups` | Create group (201; blank name → 400, duplicate → 409 `GROUP-002`) |
+| GET | `/api/v1/groups` | List current user's groups (with `wallet_count`) |
+| GET | `/api/v1/groups/:id` | Get group with `wallet_count` |
+| PATCH | `/api/v1/groups/:id` | Update name/description/color |
+| DELETE | `/api/v1/groups/:id` | Delete group (memberships removed, wallets kept) |
+| POST | `/api/v1/groups/:id/wallets` | Add wallets — IDs or addresses, idempotent (`WALLET-001` unknown) |
+| DELETE | `/api/v1/groups/:id/wallets` | Remove wallets — idempotent no-op |
+| GET | `/api/v1/groups/:id/wallets` | List wallets (`search`, `page`, `limit` → meta) |
+
 ## WebSocket: Order Book Real-time
 
 ### Connect

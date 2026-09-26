@@ -117,6 +117,16 @@ const (
 	ErrCodeExchangeConfigDuplicate ErrorCode = "ADMIN-803"
 	ErrCodeVenueHasStrategy        ErrorCode = "ADMIN-804"
 
+	// WALLET — Wallet identity (001-099)
+	ErrCodeWalletNotFound         ErrorCode = "WALLET-001"
+	ErrCodeWalletInvalidAddress   ErrorCode = "WALLET-002"
+	ErrCodeWalletUnsupportedChain ErrorCode = "WALLET-003"
+
+	// GROUP — User wallet groups (001-099)
+	ErrCodeGroupNotFound  ErrorCode = "GROUP-001"
+	ErrCodeGroupDuplicate ErrorCode = "GROUP-002"
+	ErrCodeGroupForbidden ErrorCode = "GROUP-003"
+
 	// COMMON — Cross-cutting (901-999)
 	ErrCodeInternal         ErrorCode = "COMMON-901"
 	ErrCodeValidation       ErrorCode = "COMMON-902"
@@ -274,6 +284,14 @@ var errorStatusMap = map[ErrorCode]int{
 	ErrCodeExchangeConfigNotFound:  http.StatusNotFound,
 	ErrCodeExchangeConfigDuplicate: http.StatusConflict,
 	ErrCodeVenueHasStrategy:        http.StatusConflict,
+
+	ErrCodeWalletNotFound:         http.StatusNotFound,
+	ErrCodeWalletInvalidAddress:   http.StatusBadRequest,
+	ErrCodeWalletUnsupportedChain: http.StatusBadRequest,
+
+	ErrCodeGroupNotFound:  http.StatusNotFound,
+	ErrCodeGroupDuplicate: http.StatusConflict,
+	ErrCodeGroupForbidden: http.StatusForbidden,
 
 	ErrCodeInternal:         http.StatusInternalServerError,
 	ErrCodeValidation:       http.StatusBadRequest,

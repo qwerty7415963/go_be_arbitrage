@@ -23,6 +23,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/walletgroup"
 )
 
 func (s *Server) SetupRoutes(
@@ -42,6 +43,7 @@ func (s *Server) SetupRoutes(
 	riskHandler *risk.Handler,
 	executionHandler *execution.Handler,
 	reconciliationHandler *reconciliation.Handler,
+	walletGroupHandler *walletgroup.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -164,6 +166,9 @@ func (s *Server) SetupRoutes(
 
 		// Reconciliation Engine
 		reconciliationHandler.RegisterRoutes(v1, middleware.JWT(authService))
+
+		// Wallet Groups (Wallet Dashboard)
+		walletGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
 
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")

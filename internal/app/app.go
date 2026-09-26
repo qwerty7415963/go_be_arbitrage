@@ -27,6 +27,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/walletgroup"
 )
 
 type App struct {
@@ -136,6 +137,11 @@ func New(cfg *config.Config) (*App, error) {
 	reconciliationService := reconciliation.NewService(reconciliationRepo)
 	reconciliationHandler := reconciliation.NewHandler(reconciliationService)
 
+	// Wallet Groups (Wallet Dashboard Phase 1)
+	walletGroupRepo := walletgroup.NewRepository(db.Pool())
+	walletGroupService := walletgroup.NewService(walletGroupRepo)
+	walletGroupHandler := walletgroup.NewHandler(walletGroupService)
+
 	// Collector (lazy start - will start on first request context)
 	fundingCollector := collector.NewCollector(
 		db.Pool(),
@@ -146,7 +152,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, walletGroupHandler)
 
 	return &App{
 		config:            cfg,

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
