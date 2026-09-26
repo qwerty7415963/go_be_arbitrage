@@ -246,6 +246,23 @@ go build ./...
 golangci-lint run
 ```
 
+## Database Migrations
+
+Migrations live in `migrations/` (embedded, `NNNNNN_name.up.sql` / `.down.sql`) and run via golang-migrate through the server binary:
+
+```bash
+make db-migrate-up                 # apply all pending migrations
+make db-migrate-down STEPS=1       # roll back last migration (or STEPS=all)
+make db-migrate-version            # show current version
+make db-migrate-create name=add_x  # new migration pair (requires migrate CLI)
+```
+
+Direct usage: `go run ./cmd/server migrate <up|down [N|all]|version|force <V>|goto <V>>`.
+The `DB_URL`/config Postgres URL is used as target. Existing databases without a
+`schema_migrations` table must be baselined once: `go run ./cmd/server migrate force <latest>`.
+
+Integration tests for migrations: `go test -tags=integration -run TestMigrate ./internal/database/...` (uses a dedicated `arbitrage_migrate_test` database).
+
 ## Swagger
 
 Swagger UI available at `http://localhost:8080/swagger/index.html`

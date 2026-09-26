@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/app"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/database"
 
 	_ "github.com/qwerty7415963/go_be_arbitrage/docs"
 )
@@ -35,6 +37,19 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		panic(err)
+	}
+
+	// Subcommand: migrate (see internal/database/migrate.go for usage)
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		msg, err := database.RunMigrate(cfg.PostgresURL(), os.Args[2:])
+		if msg != "" {
+			fmt.Println(msg)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "migrate:", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	application, err := app.New(cfg)

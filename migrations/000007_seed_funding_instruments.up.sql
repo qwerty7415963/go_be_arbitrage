@@ -1,3 +1,12 @@
+-- Seed canonical venues required below (idempotent: some environments
+-- already have these rows created manually)
+INSERT INTO venues (code, name, venue_type, status)
+VALUES
+  ('binance', 'Binance', 'CEX', 'ACTIVE'),
+  ('extended', 'Extended', 'PERP_DEX', 'ACTIVE'),
+  ('variational', 'Variational', 'PERP_DEX', 'ACTIVE')
+ON CONFLICT (code) DO NOTHING;
+
 -- Seed canonical instruments for funding arbitrage (BTC and ETH perps)
 INSERT INTO instruments (canonical_symbol, base_asset, quote_asset, instrument_type, contract_type, price_tick, quantity_step, trading_enabled)
 VALUES
@@ -21,23 +30,29 @@ BEGIN
   SELECT id INTO variational_id FROM venues WHERE code = 'variational';
 
   -- Binance venue_instruments
-  INSERT INTO venue_instruments (venue_id, instrument_id, venue_symbol, status)
-  VALUES
-    (binance_id, btc_id, 'BTCUSDT', 'ACTIVE'),
-    (binance_id, eth_id, 'ETHUSDT', 'ACTIVE')
-  ON CONFLICT DO NOTHING;
+  IF binance_id IS NOT NULL AND btc_id IS NOT NULL AND eth_id IS NOT NULL THEN
+    INSERT INTO venue_instruments (venue_id, instrument_id, venue_symbol, status)
+    VALUES
+      (binance_id, btc_id, 'BTCUSDT', 'ACTIVE'),
+      (binance_id, eth_id, 'ETHUSDT', 'ACTIVE')
+    ON CONFLICT DO NOTHING;
+  END IF;
 
   -- Extended venue_instruments
-  INSERT INTO venue_instruments (venue_id, instrument_id, venue_symbol, status)
-  VALUES
-    (extended_id, btc_id, 'BTC-USD', 'ACTIVE'),
-    (extended_id, eth_id, 'ETH-USD', 'ACTIVE')
-  ON CONFLICT DO NOTHING;
+  IF extended_id IS NOT NULL AND btc_id IS NOT NULL AND eth_id IS NOT NULL THEN
+    INSERT INTO venue_instruments (venue_id, instrument_id, venue_symbol, status)
+    VALUES
+      (extended_id, btc_id, 'BTC-USD', 'ACTIVE'),
+      (extended_id, eth_id, 'ETH-USD', 'ACTIVE')
+    ON CONFLICT DO NOTHING;
+  END IF;
 
   -- Variational venue_instruments
-  INSERT INTO venue_instruments (venue_id, instrument_id, venue_symbol, status)
-  VALUES
-    (variational_id, btc_id, 'BTCUSDT', 'ACTIVE'),
-    (variational_id, eth_id, 'ETHUSDT', 'ACTIVE')
-  ON CONFLICT DO NOTHING;
+  IF variational_id IS NOT NULL AND btc_id IS NOT NULL AND eth_id IS NOT NULL THEN
+    INSERT INTO venue_instruments (venue_id, instrument_id, venue_symbol, status)
+    VALUES
+      (variational_id, btc_id, 'BTCUSDT', 'ACTIVE'),
+      (variational_id, eth_id, 'ETHUSDT', 'ACTIVE')
+    ON CONFLICT DO NOTHING;
+  END IF;
 END $$;

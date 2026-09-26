@@ -121,13 +121,16 @@ clean: ## Remove build artifacts
 # Database
 # ═══════════════════════════════════════════════════════════════
 
-.PHONY: db-migrate-up db-migrate-down db-migrate-create
+.PHONY: db-migrate-up db-migrate-down db-migrate-version db-migrate-create
 
 db-migrate-up: ## Run migrations up
 	@go run ./cmd/server migrate up
 
-db-migrate-down: ## Rollback migrations
-	@go run ./cmd/server migrate down
+db-migrate-down: ## Roll back last migration (usage: make db-migrate-down STEPS=2)
+	@go run ./cmd/server migrate down $(STEPS)
+
+db-migrate-version: ## Show current migration version
+	@go run ./cmd/server migrate version
 
 db-migrate-create: ## Create new migration (usage: make db-migrate-create name=add_users)
 	@read -p "Migration name: " name; \

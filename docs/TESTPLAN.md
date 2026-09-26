@@ -569,6 +569,188 @@
 
 ---
 
+## 17. Wallet Dashboard Feature (`internal/walletgroup/`, `internal/wallet/`)
+
+> Plan reference: `arbitrage-platform-docs/WALLET_DASHBOARD_PLAN.md`
+> Source doc: `arbitrage-platform-docs/Perp_Wallet_Dashboard_Backend_Tasks_v1.0.docx`
+> Cases written BEFORE implementation (AGENTS.md workflow). BR-xx = business rules, BE-xx = docx tasks.
+
+### 17.0 Phase 0 — Migration Runner (golang-migrate)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| MIG-01 | `cmd/server migrate up` | Empty DB | All 000001..0000NN apply, version = latest |
+| MIG-02 | `cmd/server migrate down` | After up | Rollback last migration, no error |
+| MIG-03 | `cmd/server migrate version` | Applied DB | Prints current version |
+| MIG-04 | `migrate up` | Already up-to-date | No-op, exit 0 |
+| MIG-05 | Integration | Test DB (`:5433`) applies all migrations cleanly | Tables exist, down works |
+
+### 17.1 Phase 1 — WalletGroup Unit Tests
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| GRP-U-01 | Address normalization | `" 0xABC..def "` | Trimmed, EVM checksum/canonical form (BE-01) |
+| GRP-U-02 | Address normalization | Non-hex / short string | `WALLET-002` validation error |
+| GRP-U-03 | Chain normalization | `"1"`, `"1"` (same chain, different input) | Same canonical chain id → same identity (BR-01) |
+| GRP-U-04 | Group name validation | `""` / `"   "` | `COMMON-902` field error on `name` (BE-07) |
+| GRP-U-05 | CreateGroup service | Valid name, unique | Group created, returns id + metadata |
+| GRP-U-06 | CreateGroup service | Duplicate name, same user | `GROUP-002` conflict (BE-07) |
+| GRP-U-07 | CreateGroup service | Duplicate name, different user | Allowed (unique per user only) |
+| GRP-U-08 | IsGroupOwnedBy | Owner vs non-owner | true / false (BE-10, service layer) |
+| GRP-U-09 | DeleteGroup service | Existing group | Group + membership rows deleted; wallet rows untouched (BR-10) |
+| GRP-U-10 | AddWallet bulk | Valid wallet ids | All memberships created |
+| GRP-U-11 | AddWallet duplicate | Same wallet added twice | Idempotent success, exactly 1 row (BR-09, BR-03) |
+| GRP-U-12 | AddWallet unknown wallet | Random uuid | `WALLET-001` (BE-08) |
+| GRP-U-13 | RemoveWallet absent | Wallet not in group | Idempotent success (no-op), 204 |
+| GRP-U-14 | Wallet multi-group | Add same wallet to 2 groups | Both memberships exist (BR-02) |
+| GRP-U-15 | Membership count | Group with N wallets | `wallet_count = N`, no N+1 (BE-12) |
+
+### 17.2 Phase 1 — WalletGroup Handler Tests
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| GRP-H-01 | POST /groups | Valid body | 201 + group id |
+| GRP-H-02 | POST /groups | Blank name | 400 `COMMON-902` |
+| GRP-H-03 | POST /groups | Duplicate name | 409 `GROUP-002` |
+| GRP-H-04 | POST /groups | No JWT | 401/403 |
+| GRP-H-05 | GET /groups | User A has 2 groups | Only A's groups in list |
+| GRP-H-06 | GET /groups/:id | Own group | 200 + wallet_count |
+| GRP-H-07 | GET /groups/:id | User B's group | 403 `GROUP-003` or 404 (no existence leak, BE-10) |
+| GRP-H-08 | GET /groups/:id | Unknown id | 404 `GROUP-001` |
+| GRP-H-09 | PATCH /groups/:id | Own group, new name | 200 |
+| GRP-H-10 | PATCH /groups/:id | Cross-user | 403/404 |
+| GRP-H-11 | DELETE /groups/:id | Own group | 204; membership gone, wallet rows remain |
+| GRP-H-12 | DELETE /groups/:id | Delete twice | 404 on second (or idempotent 204 — consistent per convention) |
+| GRP-H-13 | POST /groups/:id/wallets | Single valid wallet | 200 + membership |
+| GRP-H-14 | POST /groups/:id/wallets | Bulk 10 wallets | 200, 10 memberships |
+| GRP-H-15 | POST /groups/:id/wallets | Duplicate wallet in body + existing | Idempotent 200, no dup rows |
+| GRP-H-16 | POST /groups/:id/wallets | Unknown wallet id | 404 `WALLET-001` |
+| GRP-H-17 | POST /groups/:id/wallets | Cross-user group | 403/404 |
+| GRP-H-18 | DELETE /groups/:id/wallets | Remove 1 of 3 | 204, 2 remain |
+| GRP-H-19 | GET /groups/:id/wallets | `search=0xabc` partial | Matched wallets only |
+| GRP-H-20 | GET /groups/:id/wallets | `page=2&limit=5` | Stable offset pagination |
+
+### 17.3 Phase 1 — WalletGroup Integration Tests (`//go:build integration`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| GRP-I-01 | CreateGroup | Success | Row in DB, unique constraint active |
+| GRP-I-02 | CreateGroup | Duplicate `(user_id, name)` | UNIQUE violation → `GROUP-002` |
+| GRP-I-03 | ListGroups | Multiple users | Only caller's groups returned |
+| GRP-I-04 | DeleteGroup | Group + members exist | Both tables cleaned; tracked_wallets intact |
+| GRP-I-05 | AddMember | Idempotent insert | ON CONFLICT DO NOTHING, 1 row |
+| GRP-I-06 | AddMember | PK `(group_id, wallet_id)` | Second insert rejected by constraint |
+| GRP-I-07 | Wallet in 2 groups | Cross-join check | Both rows exist, remove from one keeps other (BR-02) |
+| GRP-I-08 | RemoveMembers | Bulk remove | Correct rows removed, others untouched |
+| GRP-I-09 | GetGroup | Foreign group id | Not-found/forbidden per ownership query |
+| GRP-I-10 | Bulk add tx | Partial failure | Transaction rollback, no partial membership (TEST-05) |
+
+### 17.4 Phase 1 — E2E (docx §6 scenarios)
+
+| Case | Flow | Steps | Expected |
+|------|------|-------|----------|
+| E2E-06 | List isolation | A lists groups | Only A's groups |
+| E2E-07 | Create + duplicate | A creates "Smart Money" ×2 | First 201, second 409 `GROUP-002` |
+| E2E-08 | Idempotent add | A adds Wallet X twice | Second success, no duplicate row |
+| E2E-09 | Multi-group | X in "Smart Money" + "Whale" | Both memberships exist |
+| E2E-10 | Isolated remove | Remove X from "Smart Money" | X still in "Whale" |
+| E2E-11 | Delete cleanup | Delete "Smart Money" | Memberships gone; X + "Whale" intact (BR-10) |
+| E2E-12 | Cross-user attack | B patches/deletes A's group | Blocked 403/404 (TEST-06) |
+| E2E-13 | Wallet identity | Same address+chain added twice (normalize) | Same `tracked_wallets` row reused (BR-01) |
+
+### 17.5 Phase 2 — Scanner Unit Tests (filter parser & validation — TEST-01)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SCAN-U-01 | ParseFilters | Valid enum: dex, chain, timeframe | Parsed |
+| SCAN-U-02 | ParseFilters | Unknown DEX / chain / timeframe | `COMMON-902` error |
+| SCAN-U-03 | ParseFilters | Numeric ops: gt/gte/lt/lte | Parsed, correct operator |
+| SCAN-U-04 | ParseFilters | `between=10,5` reversed | Reject (BE-03) |
+| SCAN-U-05 | ParseFilters | `between=abc,5` / negative where disallowed | Reject, no silent coerce |
+| SCAN-U-06 | ParseFilters | Decimal + boundary values | Parsed exactly |
+| SCAN-U-07 | ParseFilters | Empty / whitespace search | Treated as no search (no error, no full-table term) |
+| SCAN-U-08 | ParseFilters | Custom range `start >= end` | Reject (BE-04) |
+| SCAN-U-09 | ParseSort | Valid field + order asc/desc | Parsed |
+| SCAN-U-10 | ParseSort | Invalid field | `COMMON-902` (BE-05) |
+| SCAN-U-11 | Multi-select | `dex=a&dex=b` + comma form | OR semantics (BR-11) |
+| SCAN-U-12 | AND combination | 2+ metric filters | AND semantics (BR-11) |
+
+### 17.6 Phase 2 — Metric Semantics Unit Tests (TEST-02)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SCAN-U-13 | ComputeMetrics | Normal win/loss fixture set | Expected PnL/ROI/win_rate deterministic |
+| SCAN-U-14 | ComputeMetrics | Breakeven trade (PnL=0) | Not counted as win |
+| SCAN-U-15 | ComputeMetrics | Partial closes, one logical position | Counted as 1 trade |
+| SCAN-U-16 | ComputeMetrics | No data for timeframe | All metrics `null`, **never 0** (BR-07) |
+| SCAN-U-17 | ComputeMetrics | Long vs short fills | long/short ratio correct |
+| SCAN-U-18 | ComputeMetrics | Last Active | max(fill timestamp) UTC (BR-08) |
+| SCAN-U-19 | Timeframe isolation | Request 24H vs 7D | Metrics computed only in requested window (BE-04) |
+
+### 17.7 Phase 2 — Scanner Handler Tests
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| SCAN-H-01 | GET /wallets | No filters | 200, default sort `pnl desc` (BR-12) |
+| SCAN-H-02 | GET /wallets | `search` exact + partial address | Matched only |
+| SCAN-H-03 | GET /wallets | Single metric filter `pnl_gt=100000` | Only matching wallets |
+| SCAN-H-04 | GET /wallets | AND: `pnl_gt` + `win_rate_gt` | Only wallets satisfying both |
+| SCAN-H-05 | GET /wallets | OR: `dex=hyperliquid,gmx` | Either DEX (BR-11) |
+| SCAN-H-06 | GET /wallets | NULL-metric wallet + numeric filter | Excluded (BR-07) |
+| SCAN-H-07 | GET /wallets | `sort=volume&order=asc` | Correct order |
+| SCAN-H-08 | GET /wallets | Ties on sort metric | Deterministic `(chain, address)` tiebreak (BE-05) |
+| SCAN-H-09 | GET /wallets | `page=2&limit=10` | No dup/skip across pages |
+| SCAN-H-10 | GET /wallets | `timeframe=24H` vs `ALL` | Metrics consistent with timeframe |
+| SCAN-H-11 | GET /wallets | Invalid sort/operator/timeframe | 400 `COMMON-902` |
+| SCAN-H-12 | GET /wallets/:id | Existing wallet | 200 + identity + metrics |
+| SCAN-H-13 | GET /wallets/:id | Unknown | 404 `WALLET-001` (BE-06) |
+| SCAN-H-14 | GET /wallets/:id | Wallet in user B's group | No group membership of B leaked (BE-06) |
+| SCAN-H-15 | GET /groups/:id/wallets | Filtered query on group | Only current group's wallets filtered (BE-09) |
+| SCAN-H-16 | GET /groups/:id/wallets | Filter matches nothing | Empty list, no membership change (BE-09) |
+
+### 17.8 Phase 2 — Scanner Integration Tests (TEST-03, `//go:build integration`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SCAN-I-01 | ScanWallets | Fixture: 50 wallets, filters | Only match rows |
+| SCAN-I-02 | ScanWallets | AND combination SQL | Correct intersection |
+| SCAN-I-03 | ScanWallets | Multi-select OR SQL | Correct union |
+| SCAN-I-04 | ScanWallets | Search normalize (casing/whitespace) | Canonical match |
+| SCAN-I-05 | ScanWallets | Sort ASC/DESC + page walk | Deterministic, no dup/skip (BE-05) |
+| SCAN-I-06 | ScanWallets | Timeframe filter | Rows scoped to timeframe |
+| SCAN-I-07 | GetWalletDetail | Matches scanner data same timeframe | Consistent metrics (BE-06) |
+| SCAN-I-08 | GroupWallets filter | Group of 10, filter 3 match | 3 rows, others untouched (BE-09) |
+| SCAN-I-09 | NULL metric | Snapshot row all-null | Excluded by any numeric filter (BR-07) |
+
+### 17.9 Phase 3 — Ingestion & Metrics Engine
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| ING-U-01 | Extended adapter fixture | Valid trader-history payload | Normalized fills persisted |
+| ING-U-02 | Extended adapter fixture | Unknown/missing fields | Graceful skip + log, no crash |
+| ING-U-03 | Variational adapter fixture | Valid payload | Normalized fills persisted |
+| ING-U-04 | Ingestion idempotency | Same fill delivered twice | 1 row (unique venue fill id) |
+| ING-I-01 | Backfill worker | Wallet with history | Snapshots computed for all timeframes |
+| ING-I-02 | Engine vs fixture | Known fill sequence | PnL/ROI/win-rate match expected fixture values |
+| ING-I-03 | Spike gate | No usable venue feed | STOP: documented, no guessed data (not a test — process gate) |
+
+### 17.10 Phase 4 — Hardening (TEST-07/08/09/10)
+
+| Case | Type | Scenario | Expected |
+|------|------|----------|----------|
+| HARD-01 | Race (`-race`) | 2+ concurrent POST same wallet → same group | No duplicate membership (TEST-07) |
+| HARD-02 | Race | Concurrent add + remove | No inconsistent state |
+| HARD-03 | Race | Concurrent PATCH/DELETE same group | One wins, one clean conflict |
+| HARD-04 | Perf | Scanner common filters @ large dataset | No full scan (EXPLAIN), no N+1 (TEST-08) |
+| HARD-05 | Perf | Group detail with many wallets | wallet_count via single aggregate query |
+| HARD-06 | Regression | Full existing suite + migrations | All pass (TEST-09) |
+| HARD-07 | Contract | Swagger/README examples vs actual response | Schema match (TEST-10) |
+| HARD-08 | Observability | Group mutations | Structured log with actor + request id; no secrets (BE-13) |
+| HARD-09 | Security | SQL injection via `search`/filters | Parameterized only, no effect |
+| HARD-10 | Security | XSS in group name/color | Stored/rendered safely |
+
+---
+
 ## Summary
 
 | Module | Unit | Handler | Integration | E2E | Total |
@@ -587,6 +769,7 @@
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
+| Wallet Dashboard (planned) | 34 | 36 | 19 | 8+ | **97** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~271** | **~84** | **~40** | **~24** | **~419** |
+| **TOTAL** | **~305** | **~120** | **~59** | **~32** | **~516** |
