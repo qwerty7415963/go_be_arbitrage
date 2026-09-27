@@ -674,6 +674,7 @@
 | SCAN-U-10 | ParseSort | Invalid field | `COMMON-902` (BE-05) |
 | SCAN-U-11 | Multi-select | `dex=a&dex=b` + comma form | OR semantics (BR-11) |
 | SCAN-U-12 | AND combination | 2+ metric filters | AND semantics (BR-11) |
+| SCAN-U-20 | ParseFilters | Known metric, invalid operator suffix (`pnl_approx=1`) | `COMMON-902`, never silently ignored (BE-03) |
 
 ### 17.6 Phase 2 — Metric Semantics Unit Tests (TEST-02)
 
@@ -721,6 +722,14 @@
 | SCAN-I-07 | GetWalletDetail | Matches scanner data same timeframe | Consistent metrics (BE-06) |
 | SCAN-I-08 | GroupWallets filter | Group of 10, filter 3 match | 3 rows, others untouched (BE-09) |
 | SCAN-I-09 | NULL metric | Snapshot row all-null | Excluded by any numeric filter (BR-07) |
+
+### 17.8b Phase 2 — E2E (docx scanner scenarios)
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| E2E-14 | GET /wallets | Seed wallets + snapshots → filter/sort/paginate across HTTP | Matching rows, deterministic order, meta present |
+| E2E-15 | GET /groups/:id/wallets | A filters own group (BE-09); B tries same group | A gets filtered group rows + metrics; B gets 403/404 |
+| E2E-16 | GET /wallets/:id | Wallet exists only in B's group → A queries detail (BE-06) | 200, wallet identity + metrics, zero memberships of B leaked |
 
 ### 17.9 Phase 3 — Ingestion & Metrics Engine
 

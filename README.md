@@ -115,7 +115,35 @@ Server runs on `http://localhost:8080` by default.
 | DELETE | `/api/v1/groups/:id` | Delete group (memberships removed, wallets kept) |
 | POST | `/api/v1/groups/:id/wallets` | Add wallets — IDs or addresses, idempotent (`WALLET-001` unknown) |
 | DELETE | `/api/v1/groups/:id/wallets` | Remove wallets — idempotent no-op |
-| GET | `/api/v1/groups/:id/wallets` | List wallets (`search`, `page`, `limit` → meta) |
+| GET | `/api/v1/groups/:id/wallets` | List wallets (`search`, `page`, `limit`; scanner filters → metric rows, BE-09) |
+
+### Wallet Scanner (JWT required; TEST-01 grammar)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/wallets` | Offset-paginated scanner: filters, timeframe, metric operators, sort |
+| GET | `/api/v1/wallets/:id` | Wallet detail: identity + timeframe metrics + own group memberships only |
+
+Scanner query grammar (shared by both endpoints):
+
+```
+search=0xabc                    # partial address (case-insensitive)
+dex=hyperliquid,gmx             # multi-select OR: repeat key or comma form
+chain=evm&chain=starknet        # same for chain / market
+timeframe=24H|7D|30D|90D|ALL    # default 30D; unavailable metrics = null, never 0 (BR-07)
+start=2026-01-01T00:00:00Z&end=2026-02-01T00:00:00Z   # custom range (RFC3339, start<end)
+pnl_gt=1000                     # metric operators: _gt _gte _lt _lte _between (lo,hi)
+win_rate_gte=60                 # metrics: pnl roi win_rate volume trade_count
+long_short_ratio_gt=1.5         #          avg_position avg_leverage long_short_ratio
+last_active_within=24h          # or last_active_from / last_active_to (RFC3339)
+sort=pnl&order=desc             # sort: pnl roi win_rate volume trade_count
+                                #       avg_position avg_leverage last_active (default pnl desc)
+page=1&limit=50                 # offset pagination, limit max 200
+```
+
+Invalid enum/operator/sort/timeframe → 400 `COMMON-902`. Numeric filters AND
+across metrics; multi-select OR within a key (BR-11). Null metrics never match
+numeric filters (BR-07). Ordering is metric-first with a deterministic
+`(chain, address)` tiebreak (BR-12).
 
 ## WebSocket: Order Book Real-time
 

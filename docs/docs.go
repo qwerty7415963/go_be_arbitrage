@@ -1122,7 +1122,7 @@ const docTemplate = `{
         },
         "/api/v1/groups/{id}/wallets": {
             "get": {
-                "description": "Paginated wallets of a group with partial address search",
+                "description": "Paginated wallets of a group with partial address search.",
                 "produces": [
                     "application/json"
                 ],
@@ -3740,6 +3740,345 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/wallets": {
+            "get": {
+                "description": "Offset-paginated wallet scanner with multi-select and metric",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallets"
+                ],
+                "summary": "Scan wallets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Partial address match",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "DEX filter (repeat or comma-separated)",
+                        "name": "dex",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Chain filter (repeat or comma-separated)",
+                        "name": "chain",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Market filter (repeat or comma-separated)",
+                        "name": "market",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "24H|7D|30D|90D|ALL (default 30D)",
+                        "name": "timeframe",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Custom range start (RFC3339, requires end)",
+                        "name": "start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Custom range end (RFC3339)",
+                        "name": "end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003e value",
+                        "name": "pnl_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003e= value",
+                        "name": "pnl_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003c value",
+                        "name": "pnl_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003c= value",
+                        "name": "pnl_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "realized_pnl between lo,hi",
+                        "name": "pnl_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "roi \u003e value",
+                        "name": "roi_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "roi between lo,hi",
+                        "name": "roi_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003e= value",
+                        "name": "win_rate_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "volume \u003e value",
+                        "name": "volume_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003e= value",
+                        "name": "trade_count_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_position \u003e value",
+                        "name": "avg_position_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003c= value",
+                        "name": "avg_leverage_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003e value",
+                        "name": "long_short_ratio_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Active within duration, e.g. 24h",
+                        "name": "last_active_within",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Active from (RFC3339)",
+                        "name": "last_active_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Active to (RFC3339)",
+                        "name": "last_active_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "pnl|roi|win_rate|volume|trade_count|avg_position|avg_leverage|last_active",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc|desc (default desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_wallet.Wallet"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/wallets/{id}": {
+            "get": {
+                "description": "One wallet with timeframe metrics and the caller's own group",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallets"
+                ],
+                "summary": "Wallet detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "24H|7D|30D|90D|ALL (default 30D)",
+                        "name": "timeframe",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_wallet.WalletDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Check service health status including all registered checkers",
@@ -5218,6 +5557,110 @@ const docTemplate = `{
                 "VenueTypeCEX",
                 "VenueTypePerpDEX"
             ]
+        },
+        "internal_wallet.GroupRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_wallet.Metrics": {
+            "type": "object",
+            "properties": {
+                "avg_leverage": {
+                    "type": "number"
+                },
+                "avg_position": {
+                    "type": "number"
+                },
+                "last_active_at": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "realized_pnl": {
+                    "type": "number"
+                },
+                "roi": {
+                    "type": "number"
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "trade_count": {
+                    "type": "integer"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "win_rate": {
+                    "type": "number"
+                }
+            }
+        },
+        "internal_wallet.Wallet": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chain": {
+                    "type": "string"
+                },
+                "dex": {
+                    "type": "string"
+                },
+                "first_seen_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string"
+                },
+                "metrics": {
+                    "$ref": "#/definitions/internal_wallet.Metrics"
+                }
+            }
+        },
+        "internal_wallet.WalletDetail": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chain": {
+                    "type": "string"
+                },
+                "dex": {
+                    "type": "string"
+                },
+                "first_seen_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string"
+                },
+                "memberships": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_wallet.GroupRef"
+                    }
+                },
+                "metrics": {
+                    "$ref": "#/definitions/internal_wallet.Metrics"
+                }
+            }
         },
         "internal_walletgroup.CreateGroupRequest": {
             "type": "object",

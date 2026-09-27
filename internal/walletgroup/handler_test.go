@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
 )
 
 const (
@@ -557,3 +560,78 @@ func TestHandler_ListWallets_Pagination(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// --- SCAN-H-15: scanner filter on group wallets ? only group rows --
+
+type fakeScanner struct {
+	ScanGroupWalletsFn func(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.Wallet, *api.Meta, error)
+	calls              int
+	lastQuery          url.Values
+	lastUserID         uuid.UUID
+	lastGroupID        uuid.UUID
+}
+
+func (f *fakeScanner) ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.Wallet, *api.Meta, error) {
+	f.calls++
+	f.lastQuery, f.lastUserID, f.lastGroupID = query, userID, groupID
+	return f.ScanGroupWalletsFn(ctx, userID, groupID, query)
+}
+
+func TestHandler_ListWallets_ScannerFilter_OnlyGroupRows(t *testing.T) {
+	groupID := uuid.New()
+	pnl := 1234.0
+	scanner := &fakeScanner{
+		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.Wallet, *api.Meta, error) {
+			return []*wallet.Wallet{{
+				ID: uuid.New(), Chain: "evm", Address: "0xgrouponly",
+				Metrics: &wallet.Metrics{RealizedPnl: &pnl},
+			}}, &api.Meta{Page: 1, Limit: 50, TotalPages: 1, HasMore: false}, nil
+		},
+	}
+	repo := &mockRepo{}
+	handler := NewHandler(NewService(repo))
+	handler.SetScanner(scanner)
+	router := setupTestRouter(handler)
+
+	w := doJSON(t, router, "GET", fmt.Sprintf("/api/v1/groups/%s/wallets?pnl_gt=1000", groupID), userA, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if scanner.calls != 1 {
+		t.Fatalf("expected scanner delegation, got %d calls", scanner.calls)
+	}
+	if scanner.lastGroupID != groupID || scanner.lastUserID.String() != userA {
+		t.Errorf("wrong scope: group=%s user=%s", scanner.lastGroupID, scanner.lastUserID)
+	}
+	if scanner.lastQuery.Get("pnl_gt") != "1000" {
+		t.Errorf("filter not forwarded: %v", scanner.lastQuery)
+	}
+	items := decodeBody(t, w)["data"].([]interface{})
+	if len(items) != 1 || items[0].(map[string]interface{})["address"] != "0xgrouponly" {
+		t.Errorf("expected only group scanner rows, got %v", items)
+	}
+}
+
+// --- SCAN-H-16: scanner filter matches nothing ? empty list -------
+
+func TestHandler_ListWallets_ScannerEmptyFilter_ReturnsEmptyList(t *testing.T) {
+	groupID := uuid.New()
+	scanner := &fakeScanner{
+		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.Wallet, *api.Meta, error) {
+			return []*wallet.Wallet{}, &api.Meta{Page: 1, Limit: 50, TotalPages: 0, HasMore: false}, nil
+		},
+	}
+	handler := NewHandler(NewService(&mockRepo{}))
+	handler.SetScanner(scanner)
+	router := setupTestRouter(handler)
+
+	w := doJSON(t, router, "GET", fmt.Sprintf("/api/v1/groups/%s/wallets?dex=gmx", groupID), userA, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	resp := decodeBody(t, w)
+	data, ok := resp["data"].([]interface{})
+	if !ok || len(data) != 0 {
+		t.Errorf("expected empty array, got %v", resp["data"])
+	}
+}

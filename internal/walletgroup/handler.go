@@ -1,8 +1,10 @@
 package walletgroup
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -10,14 +12,29 @@ import (
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
 )
+
+// Scanner is the group-scoped wallet scanner (BE-09); satisfied by
+// *wallet.Service. Declared as an interface to keep both packages free of
+// import cycles.
+type Scanner interface {
+	ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.Wallet, *api.Meta, error)
+}
 
 type Handler struct {
 	service *Service
+	scanner Scanner
 }
 
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
+}
+
+// SetScanner enables the scanner filter path on GET /groups/:id/wallets;
+// without it the endpoint keeps the Phase 1 search/page/limit behavior.
+func (h *Handler) SetScanner(s Scanner) {
+	h.scanner = s
 }
 
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.HandlerFunc) {
@@ -327,7 +344,10 @@ func (h *Handler) RemoveWallets(c *gin.Context) {
 
 // ListWallets godoc
 // @Summary      List group wallets
-// @Description  Paginated wallets of a group with partial address search
+// @Description  Paginated wallets of a group with partial address search.
+//                Scanner filter params (dex/chain/market/timeframe/metric
+//                operators/sort — TEST-01 grammar) route to the group
+//                scanner and return metric-enriched rows (BE-09)
 // @Tags         groups
 // @Produce      json
 // @Param        id      path   string  true   "Group ID"
@@ -346,6 +366,18 @@ func (h *Handler) ListWallets(c *gin.Context) {
 	}
 	groupID, ok := parseGroupID(c)
 	if !ok {
+		return
+	}
+
+	// Scanner path (BE-09): any non-Phase-1 query param triggers the
+	// metric-enriched group scanner; otherwise keep Phase 1 behavior.
+	if h.scanner != nil && wallet.HasScannerParams(c.Request.URL.Query()) {
+		wallets, meta, err := h.scanner.ScanGroupWallets(c.Request.Context(), userID, groupID, c.Request.URL.Query())
+		if err != nil {
+			respondServiceError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, api.Response{Success: true, Data: wallets, Meta: meta})
 		return
 	}
 

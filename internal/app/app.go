@@ -27,24 +27,25 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/walletgroup"
 )
 
 type App struct {
-	config            *config.Config
-	logger            *logger.Logger
-	database          *database.Database
-	httpServer        *httpserver.Server
-	auth              *auth.Service
-	health            *health.Handler
-	venueService      *venue.Service
-	instrumentService *instrument.Service
-	marketService     *market.Service
-	orderbookService  *orderbook.Service
-	unifiedService    *unifiedstate.Service
-	storageHandler    *storage.Handler
-	authHandler       *auth.Handler
-	collector         *collector.Collector
+	config             *config.Config
+	logger             *logger.Logger
+	database           *database.Database
+	httpServer         *httpserver.Server
+	auth               *auth.Service
+	health             *health.Handler
+	venueService       *venue.Service
+	instrumentService  *instrument.Service
+	marketService      *market.Service
+	orderbookService   *orderbook.Service
+	unifiedService     *unifiedstate.Service
+	storageHandler     *storage.Handler
+	authHandler        *auth.Handler
+	collector          *collector.Collector
 	opportunityService *opportunity.Service
 }
 
@@ -142,6 +143,17 @@ func New(cfg *config.Config) (*App, error) {
 	walletGroupService := walletgroup.NewService(walletGroupRepo)
 	walletGroupHandler := walletgroup.NewHandler(walletGroupService)
 
+	// Wallet Scanner (Wallet Dashboard Phase 2)
+	walletRepo := wallet.NewRepository(db.Pool())
+	filterCfg, err := walletRepo.LoadFilterConfig(ctx)
+	if err != nil {
+		log.Warn("failed to load wallet filter enums; scanning without enum validation", "error", err)
+		filterCfg = &wallet.FilterConfig{}
+	}
+	walletService := wallet.NewService(walletRepo, *filterCfg)
+	walletHandler := wallet.NewHandler(walletService)
+	walletGroupHandler.SetScanner(walletService)
+
 	// Collector (lazy start - will start on first request context)
 	fundingCollector := collector.NewCollector(
 		db.Pool(),
@@ -152,23 +164,23 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, walletGroupHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, walletGroupHandler, walletHandler)
 
 	return &App{
-		config:            cfg,
-		logger:            log,
-		database:          db,
-		httpServer:        httpServer,
-		auth:              authService,
-		health:            healthHandler,
-		venueService:      venueService,
-		instrumentService: instrumentService,
-		marketService:     marketService,
-		orderbookService:  orderbookService,
-		unifiedService:    unifiedService,
-		storageHandler:    storageHandler,
-		authHandler:       authHandler,
-		collector:         fundingCollector,
+		config:             cfg,
+		logger:             log,
+		database:           db,
+		httpServer:         httpServer,
+		auth:               authService,
+		health:             healthHandler,
+		venueService:       venueService,
+		instrumentService:  instrumentService,
+		marketService:      marketService,
+		orderbookService:   orderbookService,
+		unifiedService:     unifiedService,
+		storageHandler:     storageHandler,
+		authHandler:        authHandler,
+		collector:          fundingCollector,
 		opportunityService: opportunityService,
 	}, nil
 }

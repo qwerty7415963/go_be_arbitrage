@@ -922,6 +922,74 @@ definitions:
     x-enum-varnames:
     - VenueTypeCEX
     - VenueTypePerpDEX
+  internal_wallet.GroupRef:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  internal_wallet.Metrics:
+    properties:
+      avg_leverage:
+        type: number
+      avg_position:
+        type: number
+      last_active_at:
+        type: string
+      long_count:
+        type: integer
+      realized_pnl:
+        type: number
+      roi:
+        type: number
+      short_count:
+        type: integer
+      trade_count:
+        type: integer
+      volume:
+        type: number
+      win_rate:
+        type: number
+    type: object
+  internal_wallet.Wallet:
+    properties:
+      address:
+        type: string
+      chain:
+        type: string
+      dex:
+        type: string
+      first_seen_at:
+        type: string
+      id:
+        type: string
+      last_seen_at:
+        type: string
+      metrics:
+        $ref: '#/definitions/internal_wallet.Metrics'
+    type: object
+  internal_wallet.WalletDetail:
+    properties:
+      address:
+        type: string
+      chain:
+        type: string
+      dex:
+        type: string
+      first_seen_at:
+        type: string
+      id:
+        type: string
+      last_seen_at:
+        type: string
+      memberships:
+        items:
+          $ref: '#/definitions/internal_wallet.GroupRef'
+        type: array
+      metrics:
+        $ref: '#/definitions/internal_wallet.Metrics'
+    type: object
   internal_walletgroup.CreateGroupRequest:
     properties:
       color:
@@ -1689,7 +1757,7 @@ paths:
       tags:
       - groups
     get:
-      description: Paginated wallets of a group with partial address search
+      description: Paginated wallets of a group with partial address search.
       parameters:
       - description: Group ID
         in: path
@@ -3158,6 +3226,210 @@ paths:
       summary: Update venue
       tags:
       - venues
+  /api/v1/wallets:
+    get:
+      description: Offset-paginated wallet scanner with multi-select and metric
+      parameters:
+      - description: Partial address match
+        in: query
+        name: search
+        type: string
+      - description: DEX filter (repeat or comma-separated)
+        in: query
+        name: dex
+        type: string
+      - description: Chain filter (repeat or comma-separated)
+        in: query
+        name: chain
+        type: string
+      - description: Market filter (repeat or comma-separated)
+        in: query
+        name: market
+        type: string
+      - description: 24H|7D|30D|90D|ALL (default 30D)
+        in: query
+        name: timeframe
+        type: string
+      - description: Custom range start (RFC3339, requires end)
+        in: query
+        name: start
+        type: string
+      - description: Custom range end (RFC3339)
+        in: query
+        name: end
+        type: string
+      - description: realized_pnl > value
+        in: query
+        name: pnl_gt
+        type: number
+      - description: realized_pnl >= value
+        in: query
+        name: pnl_gte
+        type: number
+      - description: realized_pnl < value
+        in: query
+        name: pnl_lt
+        type: number
+      - description: realized_pnl <= value
+        in: query
+        name: pnl_lte
+        type: number
+      - description: realized_pnl between lo,hi
+        in: query
+        name: pnl_between
+        type: string
+      - description: roi > value
+        in: query
+        name: roi_gt
+        type: number
+      - description: roi between lo,hi
+        in: query
+        name: roi_between
+        type: string
+      - description: win_rate >= value
+        in: query
+        name: win_rate_gte
+        type: number
+      - description: volume > value
+        in: query
+        name: volume_gt
+        type: number
+      - description: trade_count >= value
+        in: query
+        name: trade_count_gte
+        type: number
+      - description: avg_position > value
+        in: query
+        name: avg_position_gt
+        type: number
+      - description: avg_leverage <= value
+        in: query
+        name: avg_leverage_lte
+        type: number
+      - description: long/short ratio > value
+        in: query
+        name: long_short_ratio_gt
+        type: number
+      - description: Active within duration, e.g. 24h
+        in: query
+        name: last_active_within
+        type: string
+      - description: Active from (RFC3339)
+        in: query
+        name: last_active_from
+        type: string
+      - description: Active to (RFC3339)
+        in: query
+        name: last_active_to
+        type: string
+      - description: pnl|roi|win_rate|volume|trade_count|avg_position|avg_leverage|last_active
+        in: query
+        name: sort
+        type: string
+      - description: asc|desc (default desc)
+        in: query
+        name: order
+        type: string
+      - description: Page (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_wallet.Wallet'
+                  type: array
+                meta:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Scan wallets
+      tags:
+      - wallets
+  /api/v1/wallets/{id}:
+    get:
+      description: One wallet with timeframe metrics and the caller's own group
+      parameters:
+      - description: Wallet ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 24H|7D|30D|90D|ALL (default 30D)
+        in: query
+        name: timeframe
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_wallet.WalletDetail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Wallet detail
+      tags:
+      - wallets
   /health:
     get:
       description: Check service health status including all registered checkers
