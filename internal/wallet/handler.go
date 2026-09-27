@@ -28,6 +28,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	{
 		wallets.GET("", h.Scan)
 		wallets.GET("/:id", h.Detail)
+		wallets.PATCH("/:id", h.UpdateTag)
 	}
 }
 
@@ -99,11 +100,12 @@ func respondError(c *gin.Context, err error) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/wallets [get]
 func (h *Handler) Scan(c *gin.Context) {
-	if _, ok := h.getUserID(c); !ok {
+	userID, ok := h.getUserID(c)
+	if !ok {
 		return
 	}
 
-	wallets, meta, err := h.service.Scan(c.Request.Context(), c.Request.URL.Query())
+	wallets, meta, err := h.service.Scan(c.Request.Context(), userID, c.Request.URL.Query())
 	if err != nil {
 		respondError(c, err)
 		return
@@ -142,6 +144,61 @@ func (h *Handler) Detail(c *gin.Context) {
 	}
 
 	detail, err := h.service.Detail(c.Request.Context(), userID, id, url.Values{"timeframe": c.QueryArray("timeframe")})
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, api.Response{Success: true, Data: detail})
+}
+
+// UpdateTagRequest is the body for PATCH /wallets/:id. A nil tag means the
+// field was absent (400); an empty/blank tag clears the label.
+type UpdateTagRequest struct {
+	Tag *string `json:"tag"`
+}
+
+// UpdateTag godoc
+// @Summary      Set wallet tag
+// @Description  Set (or clear, with an empty string) the caller's private
+//
+//	label for a wallet; returns the refreshed detail
+//
+// @Tags         wallets
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string            true  "Wallet ID"
+// @Param        request  body      UpdateTagRequest  true  "Tag (empty clears)"
+// @Success      200  {object}  api.Response{data=WalletDetail}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}
+// @Router       /api/v1/wallets/{id} [patch]
+func (h *Handler) UpdateTag(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		api.RespondValidationError(c, []api.FieldError{{
+			Field:   "id",
+			Code:    string(domain.ErrCodeValidation),
+			Message: "invalid wallet ID",
+		}})
+		return
+	}
+
+	var req UpdateTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		api.RespondValidationError(c, []api.FieldError{{
+			Field:   "tag",
+			Code:    string(domain.ErrCodeValidation),
+			Message: "tag must be a string",
+		}})
+		return
+	}
+
+	detail, err := h.service.UpdateTag(c.Request.Context(), userID, id, req.Tag)
 	if err != nil {
 		respondError(c, err)
 		return

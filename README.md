@@ -125,11 +125,12 @@ with `actor` (user id) + `request_id` (BE-13); IDs and counts only, never secret
 |--------|------|-------------|
 | GET | `/api/v1/wallets` | Offset-paginated scanner: filters, timeframe, metric operators, sort |
 | GET | `/api/v1/wallets/:id` | Wallet detail: identity + timeframe metrics + own group memberships only |
+| PATCH | `/api/v1/wallets/:id` | Set/clear caller's private tag (`{"tag": "..."}`; empty clears; max 100 chars) |
 
 Scanner query grammar (shared by both endpoints):
 
 ```
-search=0xabc                    # partial address (case-insensitive)
+search=0xabc                    # partial address OR own tag (case-insensitive)
 dex=hyperliquid,gmx             # multi-select OR: repeat key or comma form
 chain=evm&chain=starknet        # same for chain / market
 timeframe=24H|7D|30D|90D|ALL    # default 30D; unavailable metrics = null, never 0 (BR-07)

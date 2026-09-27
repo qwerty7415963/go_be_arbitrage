@@ -952,6 +952,11 @@ definitions:
       win_rate:
         type: number
     type: object
+  internal_wallet.UpdateTagRequest:
+    properties:
+      tag:
+        type: string
+    type: object
   internal_wallet.Wallet:
     properties:
       address:
@@ -968,6 +973,8 @@ definitions:
         type: string
       metrics:
         $ref: '#/definitions/internal_wallet.Metrics'
+      tag:
+        type: string
     type: object
   internal_wallet.WalletDetail:
     properties:
@@ -989,6 +996,8 @@ definitions:
         type: array
       metrics:
         $ref: '#/definitions/internal_wallet.Metrics'
+      tag:
+        type: string
     type: object
   internal_walletgroup.CreateGroupRequest:
     properties:
@@ -3428,6 +3437,64 @@ paths:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Wallet detail
+      tags:
+      - wallets
+    patch:
+      consumes:
+      - application/json
+      description: Set (or clear, with an empty string) the caller's private
+      parameters:
+      - description: Wallet ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Tag (empty clears)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_wallet.UpdateTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_wallet.WalletDetail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Set wallet tag
       tags:
       - wallets
   /health:

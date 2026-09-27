@@ -197,12 +197,20 @@ func (s *walletSuite) get(t *testing.T, target, userID string) (int, map[string]
 }
 
 func (s *walletSuite) postJSON(t *testing.T, target, userID string, body interface{}) (int, map[string]interface{}) {
+	return s.doJSON(t, http.MethodPost, target, userID, body)
+}
+
+func (s *walletSuite) patchJSON(t *testing.T, target, userID string, body interface{}) (int, map[string]interface{}) {
+	return s.doJSON(t, http.MethodPatch, target, userID, body)
+}
+
+func (s *walletSuite) doJSON(t *testing.T, method, target, userID string, body interface{}) (int, map[string]interface{}) {
 	t.Helper()
 	raw, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, target, strings.NewReader(string(raw)))
+	req, err := http.NewRequest(method, target, strings.NewReader(string(raw)))
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
@@ -379,5 +387,81 @@ func TestE2E_Wallet_Detail_NoForeignMembershipLeak(t *testing.T) {
 	memberships, _ = resp["data"].(map[string]interface{})["memberships"].([]interface{})
 	if len(memberships) != 1 {
 		t.Errorf("B should see own membership, got %v", memberships)
+	}
+}
+
+// TAG-E2E: tag round-trip over HTTP — PATCH → detail → scan search, with
+// per-user isolation.
+func TestE2E_Wallet_TagRoundTrip(t *testing.T) {
+	s := setupWalletSuite(t)
+	addr := walletSeedAddr(0)
+	id := s.walletID[addr].String()
+
+	// A sets a tag.
+	code, resp := s.patchJSON(t, "/api/v1/wallets/"+id, s.userA.String(),
+		map[string]string{"tag": "E2E Tag"})
+	if code != http.StatusOK {
+		t.Fatalf("PATCH: %d %v", code, resp)
+	}
+	if resp["data"].(map[string]interface{})["tag"] != "E2E Tag" {
+		t.Errorf("tag not in PATCH response: %v", resp["data"])
+	}
+
+	// A reads it back on detail.
+	code, resp = s.get(t, "/api/v1/wallets/"+id, s.userA.String())
+	if code != http.StatusOK {
+		t.Fatalf("detail: %d", code)
+	}
+	if resp["data"].(map[string]interface{})["tag"] != "E2E Tag" {
+		t.Errorf("tag not in detail: %v", resp["data"])
+	}
+
+	// A finds it via tag search.
+	code, resp = s.get(t, "/api/v1/wallets?search=E2E%20Tag", s.userA.String())
+	if code != http.StatusOK {
+		t.Fatalf("scan: %d", code)
+	}
+	rows, _ := resp["data"].([]interface{})
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row via tag search, got %d", len(rows))
+	}
+	if rows[0].(map[string]interface{})["address"] != addr {
+		t.Errorf("wrong wallet via tag search: %v", rows[0])
+	}
+
+	// B sees no tag anywhere.
+	code, resp = s.get(t, "/api/v1/wallets/"+id, s.userB.String())
+	if code != http.StatusOK {
+		t.Fatalf("B detail: %d", code)
+	}
+	if tag, _ := resp["data"].(map[string]interface{})["tag"]; tag != nil {
+		t.Errorf("B must not see A's tag: %v", tag)
+	}
+	code, resp = s.get(t, "/api/v1/wallets?search=E2E%20Tag", s.userB.String())
+	if code != http.StatusOK {
+		t.Fatalf("B scan: %d", code)
+	}
+	if rows, _ := resp["data"].([]interface{}); len(rows) != 0 {
+		t.Errorf("B's search must not match A's tag: %v", rows)
+	}
+
+	// A clears the tag.
+	code, resp = s.patchJSON(t, "/api/v1/wallets/"+id, s.userA.String(),
+		map[string]string{"tag": ""})
+	if code != http.StatusOK {
+		t.Fatalf("clear: %d %v", code, resp)
+	}
+	if tag, _ := resp["data"].(map[string]interface{})["tag"]; tag != nil {
+		t.Errorf("expected null tag after clear: %v", tag)
+	}
+
+	// Unknown wallet → 404 WALLET-001.
+	code, resp = s.patchJSON(t, "/api/v1/wallets/00000000-0000-0000-0000-000000000000",
+		s.userA.String(), map[string]string{"tag": "x"})
+	if code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %v", code, resp)
+	}
+	if resp["error"].(map[string]interface{})["code"] != "WALLET-001" {
+		t.Errorf("expected WALLET-001: %v", resp["error"])
 	}
 }

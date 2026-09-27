@@ -58,15 +58,19 @@ func (a *argCounter) add(v any) string {
 
 // buildScanFrom assembles the shared FROM/JOIN/WHERE for the scanner; the
 // market enum doubles as the lateral row picker and the outer row filter so
-// wallets without a matching market snapshot are excluded entirely.
-func buildScanFrom(f *Filters, groupID *uuid.UUID) (string, *argCounter) {
+// wallets without a matching market snapshot are excluded entirely. The
+// caller's private tag joins on userID (never another user's tag).
+func buildScanFrom(f *Filters, groupID *uuid.UUID, userID uuid.UUID) (string, *argCounter) {
 	ac := &argCounter{}
 
 	tf := ac.add(snapshotKey(f))
 	markets := ac.add(nonNil(f.Market))
+	uid := ac.add(userID)
 
 	from := `FROM tracked_wallets w
 	LEFT JOIN venues v ON v.id = w.venue_id`
+	from += fmt.Sprintf(`
+	LEFT JOIN user_wallet_tags t ON t.wallet_id = w.id AND t.user_id = %s`, uid)
 	if groupID != nil {
 		g := ac.add(*groupID)
 		from += fmt.Sprintf(`
@@ -78,7 +82,8 @@ func buildScanFrom(f *Filters, groupID *uuid.UUID) (string, *argCounter) {
 
 	if f.Search != "" {
 		s := ac.add(f.Search)
-		where = append(where, fmt.Sprintf("w.address ILIKE '%%' || %s || '%%'", s))
+		where = append(where, fmt.Sprintf(
+			"(w.address ILIKE '%%' || %s || '%%' OR t.tag ILIKE '%%' || %s || '%%')", s, s))
 	}
 	if len(f.Dex) > 0 {
 		d := ac.add(f.Dex)
@@ -152,7 +157,7 @@ func snapshotKey(f *Filters) string {
 }
 
 const scanSelect = `
-	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), w.first_seen_at, w.last_seen_at,
+	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), t.tag, w.first_seen_at, w.last_seen_at,
 	       snap.realized_pnl, snap.roi, snap.win_rate, snap.volume, snap.trade_count,
 	       snap.avg_position, snap.avg_leverage, snap.long_count, snap.short_count,
 	       snap.last_active_at
@@ -161,8 +166,8 @@ const scanSelect = `
 // ScanWallets returns one page of scanner rows plus the total count.
 // Ordering is metric-first with the deterministic (chain, address) tiebreak
 // (BR-12); NULL metrics sort last regardless of direction.
-func (r *Repository) ScanWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
-	from, ac := buildScanFrom(f, groupID)
+func (r *Repository) ScanWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, userID uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+	from, ac := buildScanFrom(f, groupID, userID)
 
 	var total int64
 	if err := r.db.QueryRow(ctx, "SELECT COUNT(*) "+from, ac.args...).Scan(&total); err != nil {
@@ -202,6 +207,7 @@ type rowScanner interface {
 func scanWalletRow(rows rowScanner) (*Wallet, error) {
 	var (
 		w              Wallet
+		tag            sql.NullString
 		pnl, roi, winR sql.NullFloat64
 		vol, avgPos    sql.NullFloat64
 		avgLev         sql.NullFloat64
@@ -210,10 +216,13 @@ func scanWalletRow(rows rowScanner) (*Wallet, error) {
 		lastActive     sql.NullTime
 		hasMetric      bool
 	)
-	err := rows.Scan(&w.ID, &w.Chain, &w.Address, &w.Dex, &w.FirstSeenAt, &w.LastSeenAt,
+	err := rows.Scan(&w.ID, &w.Chain, &w.Address, &w.Dex, &tag, &w.FirstSeenAt, &w.LastSeenAt,
 		&pnl, &roi, &winR, &vol, &trades, &avgPos, &avgLev, &lngs, &shorts, &lastActive)
 	if err != nil {
 		return nil, err
+	}
+	if tag.Valid {
+		w.Tag = &tag.String
 	}
 
 	m := &Metrics{}
@@ -267,7 +276,7 @@ func scanWalletRow(rows rowScanner) (*Wallet, error) {
 // GetDetail returns a single wallet, its metrics for the timeframe and the
 // caller's own group memberships only (BE-06).
 func (r *Repository) GetDetail(ctx context.Context, id, userID uuid.UUID, f *Filters) (*WalletDetail, error) {
-	from, ac := buildScanFrom(f, nil)
+	from, ac := buildScanFrom(f, nil, userID)
 	// id filter (added last → highest $n)
 	idArg := ac.add(id)
 	query := scanSelect + from + "\n	AND w.id = " + idArg + "\n	LIMIT 1"
@@ -311,6 +320,34 @@ func (r *Repository) GetGroupOwner(ctx context.Context, groupID uuid.UUID) (uuid
 		return uuid.Nil, false, err
 	}
 	return owner, true, nil
+}
+
+// WalletExists reports whether a tracked wallet exists.
+func (r *Repository) WalletExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM tracked_wallets WHERE id = $1)`, id).Scan(&exists)
+	return exists, err
+}
+
+// UpsertTag sets the caller's private tag for a wallet (TAG-I-01).
+func (r *Repository) UpsertTag(ctx context.Context, userID, walletID uuid.UUID, tag string) error {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO user_wallet_tags (user_id, wallet_id, tag, updated_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (user_id, wallet_id)
+		DO UPDATE SET tag = EXCLUDED.tag, updated_at = NOW()`,
+		userID, walletID, tag)
+	return err
+}
+
+// ClearTag removes the caller's private tag (TAG-I-02). Absent tags are a
+// no-op.
+func (r *Repository) ClearTag(ctx context.Context, userID, walletID uuid.UUID) error {
+	_, err := r.db.Exec(ctx,
+		`DELETE FROM user_wallet_tags WHERE user_id = $1 AND wallet_id = $2`,
+		userID, walletID)
+	return err
 }
 
 // LoadFilterConfig builds the enum validation sets from data (venues,

@@ -770,6 +770,27 @@ precision, not settlement precision).
 | HARD-09 | Security | SQL injection via `search`/filters | Parameterized only, no effect |
 | HARD-10 | Security | XSS in group name/color | Stored/rendered safely |
 
+### 17.11 Wallet Tag (per-user label)
+
+Tag is private per user (`user_wallet_tags`, PK `(user_id, wallet_id)`).
+Rules: trim whitespace, max 100 chars, empty string clears the tag (row
+deleted); missing/wrong-typed field → `COMMON-902`; unknown wallet →
+`WALLET-001`. Tag rides on scan rows + detail for the caller only; `search`
+matches address OR the caller's own tag (never another user's tag).
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| TAG-U-01 | NormalizeTag | Trim, max 100, empty → clear signal | Normalized or `COMMON-902` |
+| TAG-H-01 | PATCH /wallets/:id | Valid tag | 200 + tag in detail response |
+| TAG-H-02 | PATCH /wallets/:id | Unknown wallet | 404 `WALLET-001` |
+| TAG-H-03 | PATCH /wallets/:id | Too long / bad ID / missing field | 400 `COMMON-902` |
+| TAG-H-04 | PATCH /wallets/:id | Empty string | Tag cleared (null) |
+| TAG-H-05 | GET /wallets/:id | Caller's tag set | Detail contains tag |
+| TAG-H-06 | GET /wallets | Tag set + search by tag | Rows carry tag; tag search matches |
+| TAG-I-01 | UpsertTag | Persist + per-user isolation | B sees null; B's search never matches A's tag |
+| TAG-I-02 | ClearTag | Empty tag deletes row | Row gone, detail tag null |
+| TAG-E2E | Full flow | PATCH → detail → scan search | Tag round-trips over HTTP |
+
 ---
 
 ## Summary

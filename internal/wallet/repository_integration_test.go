@@ -244,7 +244,7 @@ func (f *fixture) insertSnapshot(ctx context.Context, walletID uuid.UUID, market
 
 func scan(t *testing.T, f *fixture, q url.Values) ([]*Wallet, int64) {
 	t.Helper()
-	wallets, meta, err := f.svc.Scan(context.Background(), q)
+	wallets, meta, err := f.svc.Scan(context.Background(), f.userA, q)
 	if err != nil {
 		t.Fatalf("scan %v: %v", q, err)
 	}

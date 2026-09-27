@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,19 +20,22 @@ import (
 const testUser = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
 type mockRepo struct {
-	scanFn      func(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, limit, offset int) ([]*Wallet, int64, error)
+	scanFn      func(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, userID uuid.UUID, limit, offset int) ([]*Wallet, int64, error)
 	detailFn    func(ctx context.Context, id, userID uuid.UUID, f *Filters) (*WalletDetail, error)
 	ownerFn     func(ctx context.Context, groupID uuid.UUID) (uuid.UUID, bool, error)
+	existsFn    func(ctx context.Context, id uuid.UUID) (bool, error)
+	upsertTagFn func(ctx context.Context, userID, walletID uuid.UUID, tag string) error
+	clearTagFn  func(ctx context.Context, userID, walletID uuid.UUID) error
 	lastFilters *Filters
 	lastSort    *SortSpec
 	lastLimit   int
 	lastOffset  int
 }
 
-func (m *mockRepo) ScanWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+func (m *mockRepo) ScanWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, userID uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
 	m.lastFilters, m.lastSort, m.lastLimit, m.lastOffset = f, sort, limit, offset
 	if m.scanFn != nil {
-		return m.scanFn(ctx, f, sort, groupID, limit, offset)
+		return m.scanFn(ctx, f, sort, groupID, userID, limit, offset)
 	}
 	return []*Wallet{}, 0, nil
 }
@@ -48,6 +52,27 @@ func (m *mockRepo) GetGroupOwner(ctx context.Context, groupID uuid.UUID) (uuid.U
 		return m.ownerFn(ctx, groupID)
 	}
 	return uuid.Nil, false, errors.New("ownerFn not set")
+}
+
+func (m *mockRepo) WalletExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	if m.existsFn != nil {
+		return m.existsFn(ctx, id)
+	}
+	return false, errors.New("existsFn not set")
+}
+
+func (m *mockRepo) UpsertTag(ctx context.Context, userID, walletID uuid.UUID, tag string) error {
+	if m.upsertTagFn != nil {
+		return m.upsertTagFn(ctx, userID, walletID, tag)
+	}
+	return errors.New("upsertTagFn not set")
+}
+
+func (m *mockRepo) ClearTag(ctx context.Context, userID, walletID uuid.UUID) error {
+	if m.clearTagFn != nil {
+		return m.clearTagFn(ctx, userID, walletID)
+	}
+	return errors.New("clearTagFn not set")
 }
 
 func setupRouter(handler *Handler) *gin.Engine {
@@ -108,7 +133,7 @@ func sampleWallet(id uuid.UUID, addr string, pnl float64) *Wallet {
 
 // SCAN-H-01: no filters → 200, defaults timeframe 30D + sort pnl desc.
 func TestHandler_Scan_NoFilters_Defaults(t *testing.T) {
-	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
 		return []*Wallet{sampleWallet(uuid.New(), "0xaaa", 150)}, 1, nil
 	}}
 	router := setupRouter(NewHandler(NewService(repo, testConfig())))
@@ -199,7 +224,7 @@ func TestHandler_Scan_DexOr_BothCollected(t *testing.T) {
 // matching rows, as the repository would).
 func TestHandler_Scan_NumericFilter_MockReturnsOnlyMatches(t *testing.T) {
 	id := uuid.New()
-	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
 		return []*Wallet{sampleWallet(id, "0xmatch", 500)}, 1, nil
 	}}
 	router := setupRouter(NewHandler(NewService(repo, testConfig())))
@@ -398,3 +423,167 @@ func TestHasScannerParams(t *testing.T) {
 }
 
 var _ = api.Meta{} // keep api import if unused by later edits
+
+func strPtr(s string) *string { return &s }
+
+func patchJSON(t *testing.T, router *gin.Engine, target, userID string, body interface{}) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPatch, target, bytes.NewReader(raw))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Test-User", userID)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+// TAG-H-01: PATCH valid tag → 200 with tag in the refreshed detail.
+func TestHandler_UpdateTag_Valid_Returns200(t *testing.T) {
+	id := uuid.New()
+	var gotTag string
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return true, nil },
+		upsertTagFn: func(ctx context.Context, uid, wid uuid.UUID, tag string) error {
+			gotTag = tag
+			return nil
+		},
+		detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+			w := sampleWallet(wid, "0xabc", 10)
+			w.Tag = strPtr(gotTag)
+			return &WalletDetail{Wallet: *w, Memberships: []GroupRef{}}, nil
+		},
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := patchJSON(t, router, "/api/v1/wallets/"+id.String(), testUser,
+		map[string]string{"tag": "  Binance hot  "})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if gotTag != "Binance hot" {
+		t.Errorf("tag not trimmed on write: %q", gotTag)
+	}
+	data := decode(t, w)["data"].(map[string]interface{})
+	if data["tag"] != "Binance hot" {
+		t.Errorf("tag missing in response: %v", data["tag"])
+	}
+}
+
+// TAG-H-02: PATCH unknown wallet → 404 WALLET-001.
+func TestHandler_UpdateTag_Unknown_Returns404(t *testing.T) {
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return false, nil },
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := patchJSON(t, router, "/api/v1/wallets/"+uuid.New().String(), testUser,
+		map[string]string{"tag": "x"})
+	expectCode(t, w, http.StatusNotFound, string(domain.ErrCodeWalletNotFound))
+}
+
+// TAG-H-03: too-long tag, bad ID, missing/wrong-typed field → 400 COMMON-902.
+func TestHandler_UpdateTag_Invalid_Returns400(t *testing.T) {
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return true, nil },
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+	id := uuid.New().String()
+
+	long := ""
+	for i := 0; i < MaxTagRunes+1; i++ {
+		long += "a"
+	}
+	cases := map[string]interface{}{
+		"too long":   map[string]string{"tag": long},
+		"missing":    map[string]string{},
+		"wrong type": map[string]interface{}{"tag": 5},
+	}
+	for name, body := range cases {
+		w := patchJSON(t, router, "/api/v1/wallets/"+id, testUser, body)
+		expectCode(t, w, http.StatusBadRequest, string(domain.ErrCodeValidation))
+		_ = name
+	}
+
+	w := patchJSON(t, router, "/api/v1/wallets/not-a-uuid", testUser,
+		map[string]string{"tag": "x"})
+	expectCode(t, w, http.StatusBadRequest, string(domain.ErrCodeValidation))
+}
+
+// TAG-H-04: PATCH empty string clears the tag (ClearTag, detail tag null).
+func TestHandler_UpdateTag_Empty_ClearsTag(t *testing.T) {
+	id := uuid.New()
+	cleared := false
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return true, nil },
+		clearTagFn: func(ctx context.Context, uid, wid uuid.UUID) error {
+			cleared = true
+			return nil
+		},
+		detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+			w := sampleWallet(wid, "0xabc", 10)
+			return &WalletDetail{Wallet: *w, Memberships: []GroupRef{}}, nil
+		},
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := patchJSON(t, router, "/api/v1/wallets/"+id.String(), testUser,
+		map[string]string{"tag": "   "})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !cleared {
+		t.Error("expected ClearTag to be called")
+	}
+	if data := decode(t, w)["data"].(map[string]interface{}); data["tag"] != nil {
+		t.Errorf("expected null tag, got %v", data["tag"])
+	}
+}
+
+// TAG-H-05: GET detail carries the caller's tag.
+func TestHandler_Detail_IncludesTag(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+		w := sampleWallet(wid, "0xabc", 42)
+		w.Tag = strPtr("Mine")
+		return &WalletDetail{Wallet: *w, Memberships: []GroupRef{}}, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/"+id.String(), testUser)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if data := decode(t, w)["data"].(map[string]interface{}); data["tag"] != "Mine" {
+		t.Errorf("tag missing in detail: %v", data["tag"])
+	}
+}
+
+// TAG-H-06: scan rows carry tags; search text reaches the repository
+// (tag matching itself is SQL — covered by TAG-I-01).
+func TestHandler_Scan_RowsCarryTag(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+		w := sampleWallet(id, "0xmatch", 500)
+		w.Tag = strPtr("tagged")
+		return []*Wallet{w}, 1, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets?search=tagged", testUser)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if repo.lastFilters.Search != "tagged" {
+		t.Errorf("search not forwarded: %q", repo.lastFilters.Search)
+	}
+	rows := decode(t, w)["data"].([]interface{})
+	if len(rows) != 1 || rows[0].(map[string]interface{})["tag"] != "tagged" {
+		t.Errorf("tag missing in scan row: %v", rows)
+	}
+}

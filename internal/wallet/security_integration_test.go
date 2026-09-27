@@ -37,7 +37,7 @@ func TestSecurity_MaliciousFilters_NoEffect(t *testing.T) {
 		`0x%' OR TRUE --`,
 		`%' AND '1'='1' /*`,
 	} {
-		wallets, _, err := f.svc.Scan(ctx, url.Values{"search": {search}, "limit": {"200"}})
+		wallets, _, err := f.svc.Scan(ctx, f.userA, url.Values{"search": {search}, "limit": {"200"}})
 		if err != nil {
 			t.Errorf("search %q: unexpected error %v", search, err)
 		}
@@ -52,7 +52,7 @@ func TestSecurity_MaliciousFilters_NoEffect(t *testing.T) {
 		"order injection":   {"order": {"desc; DELETE FROM users"}},
 		"dex injection":     {"dex": {"hyperliquid' OR '1'='1"}},
 	} {
-		_, _, err := f.svc.Scan(ctx, q)
+		_, _, err := f.svc.Scan(ctx, f.userA, q)
 		var appErr *domain.AppError
 		if !errors.As(err, &appErr) || appErr.Code != domain.ErrCodeValidation {
 			t.Errorf("%s: expected COMMON-902, got %v", name, err)
