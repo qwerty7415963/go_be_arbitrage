@@ -48,7 +48,7 @@ type App struct {
 	authHandler        *auth.Handler
 	collector          *collector.Collector
 	opportunityService *opportunity.Service
-	backfillService    *hyperliquid.BackfillService
+	backfillService    *wallet.BackfillService
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -160,11 +160,11 @@ func New(cfg *config.Config) (*App, error) {
 	// for EVM tracked wallets; started in Run, per-wallet failures are
 	// logged and retried on the next tick.
 	fillRepo := wallet.NewFillRepository(db.Pool())
-	var backfillSvc *hyperliquid.BackfillService
+	var backfillSvc *wallet.BackfillService
 	if venueID, verr := fillRepo.VenueIDByCode(ctx, hyperliquid.VenueCode); verr != nil {
 		log.Warn("hyperliquid venue missing; backfill worker disabled", "error", verr)
 	} else {
-		backfillSvc = hyperliquid.NewBackfillService(fillRepo,
+		backfillSvc = wallet.NewBackfillService(fillRepo,
 			hyperliquid.NewClient("", 30*time.Second, 2*time.Second), venueID)
 	}
 
@@ -213,9 +213,9 @@ func (a *App) Run() error {
 	// Start refresh token cleanup worker (every 1 hour)
 	go a.auth.StartCleanupWorker(ctx, 1*time.Hour)
 
-	// Start Hyperliquid wallet backfill worker (every 6 hours)
+	// Start wallet backfill workers (every 6 hours); add one per venue.
 	if a.backfillService != nil {
-		go runHyperliquidBackfill(ctx, a.logger, a.backfillService)
+		go runBackfillWorker(ctx, a.logger, hyperliquid.VenueCode, a.backfillService)
 	}
 
 	quit := make(chan os.Signal, 1)
@@ -257,19 +257,19 @@ func (a *App) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// runHyperliquidBackfill ingests venue fills for all tracked wallets on
-// start and every interval until ctx is done.
-func runHyperliquidBackfill(ctx context.Context, log *logger.Logger, svc *hyperliquid.BackfillService) {
+// runBackfillWorker ingests venue fills for all tracked wallets on start
+// and every interval until ctx is done.
+func runBackfillWorker(ctx context.Context, log *logger.Logger, venueCode string, svc *wallet.BackfillService) {
 	const interval = 6 * time.Hour
 
 	run := func() {
 		done, failed, err := svc.BackfillAll(ctx, time.Now().UTC())
 		if err != nil {
-			log.Warn("hyperliquid backfill finished with failures",
-				"done", done, "failed", failed, "error", err)
+			log.Warn("backfill finished with failures",
+				"venue", venueCode, "done", done, "failed", failed, "error", err)
 			return
 		}
-		log.Info("hyperliquid backfill finished", "done", done, "failed", failed)
+		log.Info("backfill finished", "venue", venueCode, "done", done, "failed", failed)
 	}
 
 	run()

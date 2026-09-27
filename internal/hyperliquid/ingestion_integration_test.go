@@ -89,14 +89,15 @@ type fakeVenue struct {
 	truncated bool
 }
 
-func (f *fakeVenue) FetchAll(ctx context.Context, address string, startMs, endMs int64) ([]Fill, bool, error) {
-	var out []Fill
+func (f *fakeVenue) FetchFills(ctx context.Context, address string, startMs, endMs int64) ([]wallet.FillInput, bool, error) {
+	var raw []Fill
 	for _, fl := range f.fills {
 		if fl.Time >= startMs && fl.Time < endMs {
-			out = append(out, fl)
+			raw = append(raw, fl)
 		}
 	}
-	return out, f.truncated, nil
+	inputs, _ := NormalizeFills(raw)
+	return inputs, f.truncated, nil
 }
 
 func snapshot(t *testing.T, f *ingFixture, walletID uuid.UUID, timeframe, market string) (tradeCount *int64, partial bool, found bool) {
@@ -175,7 +176,7 @@ func TestBackfill_WalletWithHistory_AllTimeframes(t *testing.T) {
 		fill("BTC", "Open Long", "0", "100", "1", "5", "0", "B", at(200*24*time.Hour), 105),
 	}}
 
-	svc := NewBackfillService(f.fills, venue, f.venueID)
+	svc := wallet.NewBackfillService(f.fills, venue, f.venueID)
 	if err := svc.BackfillWallet(ctx, walletID, addr, now); err != nil {
 		t.Fatalf("backfill: %v", err)
 	}
@@ -218,7 +219,7 @@ func TestBackfill_EngineMatchesFixture(t *testing.T) {
 		fill("BTC", "Close Long", "0.5", "120", "0.5", "10", "0", "A", now.Add(-time.Hour).UnixMilli(), 203),
 	}}
 
-	svc := NewBackfillService(f.fills, venue, f.venueID)
+	svc := wallet.NewBackfillService(f.fills, venue, f.venueID)
 	if err := svc.BackfillWallet(ctx, walletID, addr, now); err != nil {
 		t.Fatalf("backfill: %v", err)
 	}
@@ -317,7 +318,7 @@ func TestBackfill_TruncatedWindow_MarksPartial(t *testing.T) {
 		},
 		truncated: true,
 	}
-	svc := NewBackfillService(f.fills, venue, f.venueID)
+	svc := wallet.NewBackfillService(f.fills, venue, f.venueID)
 	if err := svc.BackfillWallet(ctx, walletID, addr, now); err != nil {
 		t.Fatalf("backfill: %v", err)
 	}
