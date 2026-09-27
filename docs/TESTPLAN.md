@@ -791,6 +791,17 @@ matches address OR the caller's own tag (never another user's tag).
 | TAG-I-02 | ClearTag | Empty tag deletes row | Row gone, detail tag null |
 | TAG-E2E | Full flow | PATCH → detail → scan search | Tag round-trips over HTTP |
 
+### 17.12 Scanner Contract Polish (frontend integration review)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SCAN-U-21 | ParseFilters | Every metric × every op (`_gt/_gte/_lt/_lte/_between`) | All 40 combos parse (symmetric ops) |
+| SCAN-H-17 | GET /groups/:id/wallets | `?include=metrics`, no other filter | Metric-enriched rows (scanner path) |
+| SCAN-H-18 | POST /groups/:id/wallets | Add mix of new + existing wallets | 200 `{added, skipped}` with `skipped = len − added` |
+| SCAN-H-19 | GET /wallets | Any scan | `meta.total` equals full count |
+| SCAN-H-20 | GET /wallets | Row with snapshot | `metrics.computed_at` set (= snapshot freshness); null when no snapshot |
+| SCAN-H-21 | Swagger contract | Enums/defaults in schema | `timeframe`/`sort`/`order` enums + defaults present; all 40 metric-op params documented |
+
 ---
 
 ## Summary

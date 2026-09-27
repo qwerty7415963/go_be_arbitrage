@@ -30,6 +30,8 @@ var validTimeframes = map[string]bool{
 }
 
 // Metrics are nullable: nil means unavailable, never 0 (BR-07).
+// ComputedAt is when the backing snapshot was computed (freshness;
+// nil = no snapshot).
 type Metrics struct {
 	RealizedPnl  *float64   `json:"realized_pnl"`
 	Roi          *float64   `json:"roi"`
@@ -41,6 +43,7 @@ type Metrics struct {
 	LongCount    *int64     `json:"long_count"`
 	ShortCount   *int64     `json:"short_count"`
 	LastActiveAt *time.Time `json:"last_active_at"`
+	ComputedAt   *time.Time `json:"computed_at"`
 }
 
 // Wallet is the scanner row: identity plus timeframe-scoped metrics

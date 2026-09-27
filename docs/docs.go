@@ -1145,15 +1145,27 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "description": "Page (default 1)",
                         "name": "page",
                         "in": "query"
                     },
                     {
+                        "maximum": 200,
+                        "minimum": 1,
                         "type": "integer",
                         "description": "Page size (default 50, max 200)",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "metrics"
+                        ],
+                        "type": "string",
+                        "description": "Set to metrics for metric-enriched rows",
+                        "name": "include",
                         "in": "query"
                     }
                 ],
@@ -1280,11 +1292,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "integer",
-                                                "format": "int64"
-                                            }
+                                            "$ref": "#/definitions/internal_walletgroup.AddWalletsResult"
                                         }
                                     }
                                 }
@@ -3753,31 +3761,39 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Partial address match",
+                        "description": "Partial address or own tag match (case-insensitive)",
                         "name": "search",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "DEX filter (repeat or comma-separated)",
+                        "description": "DEX filter, data-driven enum (repeat or comma-separated; e.g. hyperliquid,extended; unknown → COMMON-902)",
                         "name": "dex",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Chain filter (repeat or comma-separated)",
+                        "description": "Chain filter, data-driven enum (repeat or comma-separated; e.g. evm; unknown → COMMON-902)",
                         "name": "chain",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Market filter (repeat or comma-separated)",
+                        "description": "Market filter, data-driven enum (repeat or comma-separated; e.g. BTC; unknown → COMMON-902)",
                         "name": "market",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "24H",
+                            "7D",
+                            "30D",
+                            "90D",
+                            "ALL"
+                        ],
                         "type": "string",
-                        "description": "24H|7D|30D|90D|ALL (default 30D)",
+                        "default": "30D",
+                        "description": "Metric window",
                         "name": "timeframe",
                         "in": "query"
                     },
@@ -3830,6 +3846,24 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "number",
+                        "description": "roi \u003e= value",
+                        "name": "roi_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "roi \u003c value",
+                        "name": "roi_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "roi \u003c= value",
+                        "name": "roi_lte",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "roi between lo,hi",
                         "name": "roi_between",
@@ -3837,8 +3871,32 @@ const docTemplate = `{
                     },
                     {
                         "type": "number",
-                        "description": "win_rate \u003e= value",
+                        "description": "win_rate \u003e value (0-100)",
+                        "name": "win_rate_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003e= value (0-100)",
                         "name": "win_rate_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003c value (0-100)",
+                        "name": "win_rate_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003c= value (0-100)",
+                        "name": "win_rate_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "win_rate between lo,hi",
+                        "name": "win_rate_between",
                         "in": "query"
                     },
                     {
@@ -3849,8 +3907,56 @@ const docTemplate = `{
                     },
                     {
                         "type": "number",
+                        "description": "volume \u003e= value",
+                        "name": "volume_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "volume \u003c value",
+                        "name": "volume_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "volume \u003c= value",
+                        "name": "volume_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "volume between lo,hi",
+                        "name": "volume_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003e value",
+                        "name": "trade_count_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
                         "description": "trade_count \u003e= value",
                         "name": "trade_count_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003c value",
+                        "name": "trade_count_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003c= value",
+                        "name": "trade_count_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "trade_count between lo,hi",
+                        "name": "trade_count_between",
                         "in": "query"
                     },
                     {
@@ -3861,14 +3967,86 @@ const docTemplate = `{
                     },
                     {
                         "type": "number",
+                        "description": "avg_position \u003e= value",
+                        "name": "avg_position_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_position \u003c value",
+                        "name": "avg_position_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_position \u003c= value",
+                        "name": "avg_position_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "avg_position between lo,hi",
+                        "name": "avg_position_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003e value",
+                        "name": "avg_leverage_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003e= value",
+                        "name": "avg_leverage_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003c value",
+                        "name": "avg_leverage_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
                         "description": "avg_leverage \u003c= value",
                         "name": "avg_leverage_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "avg_leverage between lo,hi",
+                        "name": "avg_leverage_between",
                         "in": "query"
                     },
                     {
                         "type": "number",
                         "description": "long/short ratio \u003e value",
                         "name": "long_short_ratio_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003e= value",
+                        "name": "long_short_ratio_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003c value",
+                        "name": "long_short_ratio_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003c= value",
+                        "name": "long_short_ratio_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "long/short ratio between lo,hi",
+                        "name": "long_short_ratio_between",
                         "in": "query"
                     },
                     {
@@ -3890,26 +4068,47 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "pnl",
+                            "roi",
+                            "win_rate",
+                            "volume",
+                            "trade_count",
+                            "avg_position",
+                            "avg_leverage",
+                            "last_active"
+                        ],
                         "type": "string",
-                        "description": "pnl|roi|win_rate|volume|trade_count|avg_position|avg_leverage|last_active",
+                        "default": "pnl",
+                        "description": "Sort field",
                         "name": "sort",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
                         "type": "string",
-                        "description": "asc|desc (default desc)",
+                        "default": "desc",
+                        "description": "Sort direction",
                         "name": "order",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
-                        "description": "Page (default 1)",
+                        "default": 1,
+                        "description": "Page",
                         "name": "page",
                         "in": "query"
                     },
                     {
+                        "maximum": 200,
+                        "minimum": 1,
                         "type": "integer",
-                        "description": "Page size (default 50, max 200)",
+                        "default": 50,
+                        "description": "Page size",
                         "name": "limit",
                         "in": "query"
                     }
@@ -3997,8 +4196,16 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "enum": [
+                            "24H",
+                            "7D",
+                            "30D",
+                            "90D",
+                            "ALL"
+                        ],
                         "type": "string",
-                        "description": "24H|7D|30D|90D|ALL (default 30D)",
+                        "default": "30D",
+                        "description": "Metric window",
                         "name": "timeframe",
                         "in": "query"
                     }
@@ -4332,6 +4539,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "page": {
+                    "type": "integer"
+                },
+                "total": {
                     "type": "integer"
                 },
                 "total_pages": {
@@ -5683,6 +5893,9 @@ const docTemplate = `{
                 "avg_position": {
                     "type": "number"
                 },
+                "computed_at": {
+                    "type": "string"
+                },
                 "last_active_at": {
                     "type": "string"
                 },
@@ -5778,6 +5991,17 @@ const docTemplate = `{
                 },
                 "tag": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_walletgroup.AddWalletsResult": {
+            "type": "object",
+            "properties": {
+                "added": {
+                    "type": "integer"
+                },
+                "skipped": {
+                    "type": "integer"
                 }
             }
         },

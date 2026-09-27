@@ -32,6 +32,8 @@ definitions:
         type: integer
       page:
         type: integer
+      total:
+        type: integer
       total_pages:
         type: integer
     type: object
@@ -935,6 +937,8 @@ definitions:
         type: number
       avg_position:
         type: number
+      computed_at:
+        type: string
       last_active_at:
         type: string
       long_count:
@@ -998,6 +1002,13 @@ definitions:
         $ref: '#/definitions/internal_wallet.Metrics'
       tag:
         type: string
+    type: object
+  internal_walletgroup.AddWalletsResult:
+    properties:
+      added:
+        type: integer
+      skipped:
+        type: integer
     type: object
   internal_walletgroup.CreateGroupRequest:
     properties:
@@ -1779,12 +1790,21 @@ paths:
         type: string
       - description: Page (default 1)
         in: query
+        minimum: 1
         name: page
         type: integer
       - description: Page size (default 50, max 200)
         in: query
+        maximum: 200
+        minimum: 1
         name: limit
         type: integer
+      - description: Set to metrics for metric-enriched rows
+        enum:
+        - metrics
+        in: query
+        name: include
+        type: string
       produces:
       - application/json
       responses:
@@ -1857,10 +1877,7 @@ paths:
             - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
             - properties:
                 data:
-                  additionalProperties:
-                    format: int64
-                    type: integer
-                  type: object
+                  $ref: '#/definitions/internal_walletgroup.AddWalletsResult'
               type: object
         "400":
           description: Bad Request
@@ -3239,23 +3256,33 @@ paths:
     get:
       description: Offset-paginated wallet scanner with multi-select and metric
       parameters:
-      - description: Partial address match
+      - description: Partial address or own tag match (case-insensitive)
         in: query
         name: search
         type: string
-      - description: DEX filter (repeat or comma-separated)
+      - description: DEX filter, data-driven enum (repeat or comma-separated; e.g.
+          hyperliquid,extended; unknown → COMMON-902)
         in: query
         name: dex
         type: string
-      - description: Chain filter (repeat or comma-separated)
+      - description: Chain filter, data-driven enum (repeat or comma-separated; e.g.
+          evm; unknown → COMMON-902)
         in: query
         name: chain
         type: string
-      - description: Market filter (repeat or comma-separated)
+      - description: Market filter, data-driven enum (repeat or comma-separated; e.g.
+          BTC; unknown → COMMON-902)
         in: query
         name: market
         type: string
-      - description: 24H|7D|30D|90D|ALL (default 30D)
+      - default: 30D
+        description: Metric window
+        enum:
+        - 24H
+        - 7D
+        - 30D
+        - 90D
+        - ALL
         in: query
         name: timeframe
         type: string
@@ -3291,34 +3318,142 @@ paths:
         in: query
         name: roi_gt
         type: number
+      - description: roi >= value
+        in: query
+        name: roi_gte
+        type: number
+      - description: roi < value
+        in: query
+        name: roi_lt
+        type: number
+      - description: roi <= value
+        in: query
+        name: roi_lte
+        type: number
       - description: roi between lo,hi
         in: query
         name: roi_between
         type: string
-      - description: win_rate >= value
+      - description: win_rate > value (0-100)
+        in: query
+        name: win_rate_gt
+        type: number
+      - description: win_rate >= value (0-100)
         in: query
         name: win_rate_gte
         type: number
+      - description: win_rate < value (0-100)
+        in: query
+        name: win_rate_lt
+        type: number
+      - description: win_rate <= value (0-100)
+        in: query
+        name: win_rate_lte
+        type: number
+      - description: win_rate between lo,hi
+        in: query
+        name: win_rate_between
+        type: string
       - description: volume > value
         in: query
         name: volume_gt
+        type: number
+      - description: volume >= value
+        in: query
+        name: volume_gte
+        type: number
+      - description: volume < value
+        in: query
+        name: volume_lt
+        type: number
+      - description: volume <= value
+        in: query
+        name: volume_lte
+        type: number
+      - description: volume between lo,hi
+        in: query
+        name: volume_between
+        type: string
+      - description: trade_count > value
+        in: query
+        name: trade_count_gt
         type: number
       - description: trade_count >= value
         in: query
         name: trade_count_gte
         type: number
+      - description: trade_count < value
+        in: query
+        name: trade_count_lt
+        type: number
+      - description: trade_count <= value
+        in: query
+        name: trade_count_lte
+        type: number
+      - description: trade_count between lo,hi
+        in: query
+        name: trade_count_between
+        type: string
       - description: avg_position > value
         in: query
         name: avg_position_gt
+        type: number
+      - description: avg_position >= value
+        in: query
+        name: avg_position_gte
+        type: number
+      - description: avg_position < value
+        in: query
+        name: avg_position_lt
+        type: number
+      - description: avg_position <= value
+        in: query
+        name: avg_position_lte
+        type: number
+      - description: avg_position between lo,hi
+        in: query
+        name: avg_position_between
+        type: string
+      - description: avg_leverage > value
+        in: query
+        name: avg_leverage_gt
+        type: number
+      - description: avg_leverage >= value
+        in: query
+        name: avg_leverage_gte
+        type: number
+      - description: avg_leverage < value
+        in: query
+        name: avg_leverage_lt
         type: number
       - description: avg_leverage <= value
         in: query
         name: avg_leverage_lte
         type: number
+      - description: avg_leverage between lo,hi
+        in: query
+        name: avg_leverage_between
+        type: string
       - description: long/short ratio > value
         in: query
         name: long_short_ratio_gt
         type: number
+      - description: long/short ratio >= value
+        in: query
+        name: long_short_ratio_gte
+        type: number
+      - description: long/short ratio < value
+        in: query
+        name: long_short_ratio_lt
+        type: number
+      - description: long/short ratio <= value
+        in: query
+        name: long_short_ratio_lte
+        type: number
+      - description: long/short ratio between lo,hi
+        in: query
+        name: long_short_ratio_between
+        type: string
       - description: Active within duration, e.g. 24h
         in: query
         name: last_active_within
@@ -3331,20 +3466,39 @@ paths:
         in: query
         name: last_active_to
         type: string
-      - description: pnl|roi|win_rate|volume|trade_count|avg_position|avg_leverage|last_active
+      - default: pnl
+        description: Sort field
+        enum:
+        - pnl
+        - roi
+        - win_rate
+        - volume
+        - trade_count
+        - avg_position
+        - avg_leverage
+        - last_active
         in: query
         name: sort
         type: string
-      - description: asc|desc (default desc)
+      - default: desc
+        description: Sort direction
+        enum:
+        - asc
+        - desc
         in: query
         name: order
         type: string
-      - description: Page (default 1)
+      - default: 1
+        description: Page
         in: query
+        minimum: 1
         name: page
         type: integer
-      - description: Page size (default 50, max 200)
+      - default: 50
+        description: Page size
         in: query
+        maximum: 200
+        minimum: 1
         name: limit
         type: integer
       produces:
@@ -3393,7 +3547,14 @@ paths:
         name: id
         required: true
         type: string
-      - description: 24H|7D|30D|90D|ALL (default 30D)
+      - default: 30D
+        description: Metric window
+        enum:
+        - 24H
+        - 7D
+        - 30D
+        - 90D
+        - ALL
         in: query
         name: timeframe
         type: string

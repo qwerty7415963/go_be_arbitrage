@@ -17,9 +17,10 @@ func TestSwagger_ScannerContract_Documented(t *testing.T) {
 	var spec struct {
 		Paths map[string]map[string]struct {
 			Parameters []struct {
-				Name string   `json:"name"`
-				In   string   `json:"in"`
-				Enum []string `json:"enum"`
+				Name    string   `json:"name"`
+				In      string   `json:"in"`
+				Enum    []string `json:"enum"`
+				Default any      `json:"default"`
 			} `json:"parameters"`
 		} `json:"paths"`
 	}
@@ -31,9 +32,17 @@ func TestSwagger_ScannerContract_Documented(t *testing.T) {
 	if !ok {
 		t.Fatal("swagger missing GET /api/v1/wallets")
 	}
+	byName := map[string]struct {
+		Enum    []string `json:"enum"`
+		Default any      `json:"default"`
+	}{}
 	params := map[string]bool{}
 	for _, p := range get["get"].Parameters {
 		params[p.Name] = true
+		byName[p.Name] = struct {
+			Enum    []string `json:"enum"`
+			Default any      `json:"default"`
+		}{p.Enum, p.Default}
 	}
 	for _, want := range []string{
 		"search", "dex", "chain", "market", "timeframe", "start", "end",
@@ -45,7 +54,60 @@ func TestSwagger_ScannerContract_Documented(t *testing.T) {
 		}
 	}
 
+	// SCAN-H-21: closed sets carry enums + defaults in the schema.
+	assertEnum := func(name string, wantEnum []string, wantDefault string) {
+		t.Helper()
+		got, ok := byName[name]
+		if !ok {
+			t.Errorf("swagger missing param %q", name)
+			return
+		}
+		if len(got.Enum) != len(wantEnum) {
+			t.Errorf("%s enum: expected %v, got %v", name, wantEnum, got.Enum)
+			return
+		}
+		for i := range wantEnum {
+			if got.Enum[i] != wantEnum[i] {
+				t.Errorf("%s enum: expected %v, got %v", name, wantEnum, got.Enum)
+				break
+			}
+		}
+		if def, _ := got.Default.(string); def != wantDefault {
+			t.Errorf("%s default: expected %q, got %v", name, wantDefault, got.Default)
+		}
+	}
+	assertEnum("timeframe", []string{"24H", "7D", "30D", "90D", "ALL"}, "30D")
+	assertEnum("sort", []string{"pnl", "roi", "win_rate", "volume", "trade_count", "avg_position", "avg_leverage", "last_active"}, "pnl")
+	assertEnum("order", []string{"asc", "desc"}, "desc")
+
+	// All 8 metrics × 5 ops documented (symmetric ops).
+	for _, m := range []string{"pnl", "roi", "win_rate", "volume", "trade_count", "avg_position", "avg_leverage", "long_short_ratio"} {
+		for _, op := range []string{"gt", "gte", "lt", "lte", "between"} {
+			if !params[m+"_"+op] {
+				t.Errorf("swagger GET /wallets missing param %q", m+"_"+op)
+			}
+		}
+	}
+
 	if _, ok := spec.Paths["/api/v1/wallets/{id}"]; !ok {
 		t.Error("swagger missing GET /api/v1/wallets/{id}")
+	}
+	if _, ok := spec.Paths["/api/v1/wallets/{id}"]["patch"]; !ok {
+		t.Error("swagger missing PATCH /api/v1/wallets/{id}")
+	}
+
+	// Group wallets list documents include=metrics.
+	if grp, ok := spec.Paths["/api/v1/groups/{id}/wallets"]; !ok {
+		t.Error("swagger missing GET /api/v1/groups/{id}/wallets")
+	} else {
+		found := false
+		for _, p := range grp["get"].Parameters {
+			if p.Name == "include" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("swagger group wallets missing documented param \"include\"")
+		}
 	}
 }

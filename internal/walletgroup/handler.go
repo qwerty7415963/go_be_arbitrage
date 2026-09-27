@@ -295,7 +295,7 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Produce      json
 // @Param        id       path      string           true  "Group ID"
 // @Param        request  body      WalletsRequest   true  "Wallet entries (IDs or addresses)"
-// @Success      200      {object}  api.Response{data=map[string]int64}
+// @Success      200      {object}  api.Response{data=AddWalletsResult}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
@@ -322,8 +322,15 @@ func (h *Handler) AddWallets(c *gin.Context) {
 		return
 	}
 
-	h.logMutation(c, "group.wallets.add", "group_id", groupID.String(), "added", created)
-	c.JSON(http.StatusOK, api.Response{Success: true, Data: map[string]int64{"added": created}})
+	// All-or-nothing transaction: success means every entry resolved, so
+	// skipped = entries already members (idempotent re-adds). Failures
+	// surface as error responses, never as partial counts.
+	skipped := int64(len(req.Wallets)) - created
+	if skipped < 0 {
+		skipped = 0
+	}
+	h.logMutation(c, "group.wallets.add", "group_id", groupID.String(), "added", created, "skipped", skipped)
+	c.JSON(http.StatusOK, api.Response{Success: true, Data: AddWalletsResult{Added: created, Skipped: skipped}})
 }
 
 // RemoveWallets godoc
@@ -368,16 +375,17 @@ func (h *Handler) RemoveWallets(c *gin.Context) {
 // @Summary      List group wallets
 // @Description  Paginated wallets of a group with partial address search.
 //
-//	Scanner filter params (dex/chain/market/timeframe/metric
-//	operators/sort — TEST-01 grammar) route to the group
-//	scanner and return metric-enriched rows (BE-09)
+//	Pass include=metrics (or any scanner filter param —
+//	dex/chain/market/timeframe/metric operators/sort) to route
+//	to the group scanner and return metric-enriched rows (BE-09)
 //
 // @Tags         groups
 // @Produce      json
-// @Param        id      path   string  true   "Group ID"
-// @Param        search  query  string  false  "Partial address match"
-// @Param        page    query  int     false  "Page (default 1)"
-// @Param        limit   query  int     false  "Page size (default 50, max 200)"
+// @Param        id       path   string  true   "Group ID"
+// @Param        search   query  string  false  "Partial address match"
+// @Param        page     query  int     false  "Page (default 1)" minimum(1)
+// @Param        limit    query  int     false  "Page size (default 50, max 200)" minimum(1) maximum(200)
+// @Param        include  query  string  false  "Set to metrics for metric-enriched rows" enums(metrics)
 // @Success      200     {object}  api.Response{data=[]WalletRef,meta=api.Meta}
 // @Failure      400     {object}  api.Response{error=api.ErrorBody}
 // @Failure      403     {object}  api.Response{error=api.ErrorBody}
@@ -393,10 +401,12 @@ func (h *Handler) ListWallets(c *gin.Context) {
 		return
 	}
 
-	// Scanner path (BE-09): any non-Phase-1 query param triggers the
-	// metric-enriched group scanner; otherwise keep Phase 1 behavior.
-	if h.scanner != nil && wallet.HasScannerParams(c.Request.URL.Query()) {
-		wallets, meta, err := h.scanner.ScanGroupWallets(c.Request.Context(), userID, groupID, c.Request.URL.Query())
+	// Scanner path (BE-09): include=metrics or any non-Phase-1 query param
+	// triggers the metric-enriched group scanner; otherwise keep the
+	// lightweight Phase 1 behavior.
+	q := c.Request.URL.Query()
+	if h.scanner != nil && (q.Get("include") == "metrics" || wallet.HasScannerParams(q)) {
+		wallets, meta, err := h.scanner.ScanGroupWallets(c.Request.Context(), userID, groupID, q)
 		if err != nil {
 			respondServiceError(c, err)
 			return

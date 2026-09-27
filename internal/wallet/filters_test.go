@@ -230,8 +230,43 @@ func TestParseFilters_MultipleMetrics_AllCollected(t *testing.T) {
 	}
 }
 
-// Bad operator suffix on a known metric is COMMON-902 (SCAN-H-11 unit
-// coverage): the parser never ignores an invalid operator silently.
+// SCAN-U-21: every metric supports every operator suffix (symmetric ops).
+func TestParseFilters_AllMetricsAllOps_Parsed(t *testing.T) {
+	metrics := []string{"pnl", "roi", "win_rate", "volume", "trade_count",
+		"avg_position", "avg_leverage", "long_short_ratio"}
+	suffixes := map[string]FilterOp{
+		"gt": OpGT, "gte": OpGTE, "lt": OpLT, "lte": OpLTE, "between": OpBetween,
+	}
+	for _, m := range metrics {
+		for suffix, wantOp := range suffixes {
+			raw := "5"
+			if wantOp == OpBetween {
+				raw = "1,10"
+			}
+			// win_rate is capped at 100; keep values in range.
+			if m == "win_rate" && wantOp == OpBetween {
+				raw = "10,90"
+			}
+			f, err := ParseFilters(url.Values{m + "_" + suffix: {raw}}, testConfig())
+			if err != nil {
+				t.Fatalf("%s_%s: unexpected error: %v", m, suffix, err)
+			}
+			if len(f.Numeric) != 1 {
+				t.Fatalf("%s_%s: expected 1 filter, got %d", m, suffix, len(f.Numeric))
+			}
+			nf := f.Numeric[0]
+			if nf.Metric != m || nf.Op != wantOp {
+				t.Errorf("%s_%s: got %+v", m, suffix, nf)
+			}
+			if wantOp == OpBetween && (nf.Hi == nil || nf.Lo >= *nf.Hi) {
+				t.Errorf("%s_between: bad bounds: %+v", m, nf)
+			}
+		}
+	}
+}
+
+// Unknown operator suffix on a known metric is COMMON-902: the parser never
+// ignores an invalid operator silently.
 func TestParseFilters_UnknownOperator_ReturnsCommon902(t *testing.T) {
 	if appErr := parseErr(t, url.Values{"pnl_approx": {"1"}}); appErr.Code != domain.ErrCodeValidation {
 		t.Errorf("expected COMMON-902, got %s", appErr.Code)

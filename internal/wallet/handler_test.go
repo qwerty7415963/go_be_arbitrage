@@ -158,6 +158,26 @@ func TestHandler_Scan_NoFilters_Defaults(t *testing.T) {
 	}
 }
 
+// SCAN-H-19: meta carries the full total (not just pages).
+func TestHandler_Scan_MetaContainsTotal(t *testing.T) {
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+		return []*Wallet{sampleWallet(uuid.New(), "0xaaa", 1)}, 42, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets?limit=10", testUser)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	meta := decode(t, w)["meta"].(map[string]interface{})
+	if meta["total"] != float64(42) {
+		t.Errorf("meta.total: expected 42, got %v", meta["total"])
+	}
+	if meta["total_pages"] != float64(5) {
+		t.Errorf("meta.total_pages: got %v", meta["total_pages"])
+	}
+}
+
 // SCAN-H-02: search passed to the repository (matched rows come from SQL).
 func TestHandler_Scan_Search_PassedThrough(t *testing.T) {
 	repo := &mockRepo{}

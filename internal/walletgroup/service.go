@@ -201,6 +201,7 @@ func (s *Service) ListGroupWallets(ctx context.Context, userID, groupID uuid.UUI
 	return wallets, &api.Meta{
 		Page:       page,
 		TotalPages: totalPages,
+		Total:      total,
 		Limit:      limit,
 		Offset:     (page - 1) * limit,
 		HasMore:    int64(page*limit) < total,

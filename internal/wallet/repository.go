@@ -160,7 +160,7 @@ const scanSelect = `
 	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), t.tag, w.first_seen_at, w.last_seen_at,
 	       snap.realized_pnl, snap.roi, snap.win_rate, snap.volume, snap.trade_count,
 	       snap.avg_position, snap.avg_leverage, snap.long_count, snap.short_count,
-	       snap.last_active_at
+	       snap.last_active_at, snap.computed_at
 `
 
 // ScanWallets returns one page of scanner rows plus the total count.
@@ -214,10 +214,11 @@ func scanWalletRow(rows rowScanner) (*Wallet, error) {
 		trades, lngs   sql.NullInt64
 		shorts         sql.NullInt64
 		lastActive     sql.NullTime
+		computedAt     sql.NullTime
 		hasMetric      bool
 	)
 	err := rows.Scan(&w.ID, &w.Chain, &w.Address, &w.Dex, &tag, &w.FirstSeenAt, &w.LastSeenAt,
-		&pnl, &roi, &winR, &vol, &trades, &avgPos, &avgLev, &lngs, &shorts, &lastActive)
+		&pnl, &roi, &winR, &vol, &trades, &avgPos, &avgLev, &lngs, &shorts, &lastActive, &computedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -266,6 +267,12 @@ func scanWalletRow(rows rowScanner) (*Wallet, error) {
 		t := lastActive.Time.UTC()
 		m.LastActiveAt = &t
 		hasMetric = true
+	}
+	if computedAt.Valid {
+		// Freshness metadata only — never marks the row as having metrics
+		// (BR-07: no data stays null).
+		t := computedAt.Time.UTC()
+		m.ComputedAt = &t
 	}
 	if hasMetric {
 		w.Metrics = m

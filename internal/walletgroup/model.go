@@ -48,6 +48,15 @@ type WalletsRequest struct {
 	Chain   string   `json:"chain"`
 }
 
+// AddWalletsResult is the POST /groups/:id/wallets response body: added =
+// memberships actually created, skipped = entries already members
+// (idempotent). Failures abort the whole batch and surface as error
+// responses — never as partial counts.
+type AddWalletsResult struct {
+	Added   int64 `json:"added"`
+	Skipped int64 `json:"skipped"`
+}
+
 type walletItem struct {
 	isID    bool
 	id      uuid.UUID

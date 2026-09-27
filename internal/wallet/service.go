@@ -39,6 +39,7 @@ func metaFor(page, limit, offset int, total int64) *api.Meta {
 		Limit:      limit,
 		Offset:     offset,
 		TotalPages: totalPages,
+		Total:      total,
 		HasMore:    offset+limit < int(total),
 	}
 }

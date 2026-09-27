@@ -12,6 +12,7 @@ type Response struct {
 type Meta struct {
 	Page       int    `json:"page,omitempty"`
 	TotalPages int    `json:"total_pages,omitempty"`
+	Total      int64  `json:"total,omitempty"`
 	Limit      int    `json:"limit,omitempty"`
 	Offset     int    `json:"offset,omitempty"`
 	HasMore    bool   `json:"has_more"`

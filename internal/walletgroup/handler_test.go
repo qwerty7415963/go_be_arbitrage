@@ -559,6 +559,56 @@ func TestHandler_ListWallets_Pagination(t *testing.T) {
 	}
 }
 
+// ─── SCAN-H-17: include=metrics routes to the scanner ──────────
+
+func TestHandler_ListWallets_IncludeMetrics_UsesScanner(t *testing.T) {
+	groupID := uuid.New()
+	scanner := &fakeScanner{
+		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.Wallet, *api.Meta, error) {
+			return []*wallet.Wallet{}, &api.Meta{Page: 1, Limit: 50, TotalPages: 0, HasMore: false}, nil
+		},
+	}
+	handler := NewHandler(NewService(&mockRepo{}))
+	handler.SetScanner(scanner)
+	router := setupTestRouter(handler)
+
+	w := doJSON(t, router, "GET", fmt.Sprintf("/api/v1/groups/%s/wallets?include=metrics", groupID), userA, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if scanner.calls != 1 {
+		t.Fatalf("expected scanner delegation via include=metrics, got %d calls", scanner.calls)
+	}
+}
+
+// ─── SCAN-H-18: POST add response carries added + skipped ──────
+
+func TestHandler_AddWallets_ResponseKeys(t *testing.T) {
+	groupID := uuid.New()
+	repo := &mockRepo{
+		getGroupByIDFn: func(ctx context.Context, id uuid.UUID) (*Group, error) {
+			return ownerGroup(id), nil
+		},
+		addMembersFn: func(ctx context.Context, g uuid.UUID, addedBy uuid.UUID, items []walletItem) (int64, error) {
+			return 2, nil // 2 of 3 created → 1 skipped
+		},
+	}
+	router := setupTestRouter(NewHandler(NewService(repo)))
+
+	w := doJSON(t, router, "POST", fmt.Sprintf("/api/v1/groups/%s/wallets", groupID), userA,
+		WalletsRequest{Wallets: []string{uuid.New().String(), uuid.New().String(), uuid.New().String()}})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	data := decodeBody(t, w)["data"].(map[string]interface{})
+	if data["added"] != float64(2) {
+		t.Errorf("added: got %v", data["added"])
+	}
+	if data["skipped"] != float64(1) {
+		t.Errorf("skipped: expected len-added = 1, got %v", data["skipped"])
+	}
+}
+
 func strPtr(s string) *string { return &s }
 
 // --- SCAN-H-15: scanner filter on group wallets ? only group rows --
