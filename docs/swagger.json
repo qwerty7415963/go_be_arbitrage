@@ -724,7 +724,7 @@
                 }
             },
             "post": {
-                "description": "Create a wallet group owned by the current user",
+                "description": "Create a wallet group owned by the current user. Duplicate name within the same user is 409 GROUP-002.",
                 "consumes": [
                     "application/json"
                 ],
@@ -995,7 +995,7 @@
                 }
             },
             "patch": {
-                "description": "Update name/description/color of an owned group",
+                "description": "Update name/description/color of an owned group. Renaming to an existing name of the same user is 409 GROUP-002.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1120,7 +1120,7 @@
         },
         "/api/v1/groups/{id}/wallets": {
             "get": {
-                "description": "Paginated wallets of a group with partial address search.",
+                "description": "Paginated wallets of a group with partial address search.\nTwo response shapes: without include/filter params, data=[]WalletRef ({id,chain,address,added_at}).\nWith include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort), data=[]wallet.Wallet metric-enriched rows ({id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics}) and NO added_at (BE-09).",
                 "produces": [
                     "application/json"
                 ],
@@ -3748,7 +3748,7 @@
         },
         "/api/v1/wallets": {
             "get": {
-                "description": "Offset-paginated wallet scanner with multi-select and metric",
+                "description": "Offset-paginated wallet scanner with multi-select and metric filters, timeframe windows and deterministic sorting (TEST-01)",
                 "produces": [
                     "application/json"
                 ],
@@ -4177,7 +4177,7 @@
         },
         "/api/v1/wallets/{id}": {
             "get": {
-                "description": "One wallet with timeframe metrics and the caller's own group",
+                "description": "One wallet with timeframe metrics and the caller's own group memberships only (BE-06)",
                 "produces": [
                     "application/json"
                 ],
@@ -4284,7 +4284,7 @@
                 }
             },
             "patch": {
-                "description": "Set (or clear, with an empty string) the caller's private",
+                "description": "Set (or clear, with an empty string) the caller's private label for a wallet; returns the refreshed detail. Tag is trimmed, max 100 runes; missing/wrong-typed field is COMMON-902, unknown wallet is WALLET-001. Tags never conflict: no 409 exists on this endpoint.",
                 "consumes": [
                     "application/json"
                 ],

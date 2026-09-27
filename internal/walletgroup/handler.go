@@ -122,7 +122,7 @@ func bindingFieldError(field, message string) []api.FieldError {
 
 // Create godoc
 // @Summary      Create wallet group
-// @Description  Create a wallet group owned by the current user
+// @Description  Create a wallet group owned by the current user. Duplicate name within the same user is 409 GROUP-002.
 // @Tags         groups
 // @Accept       json
 // @Produce      json
@@ -213,7 +213,7 @@ func (h *Handler) Get(c *gin.Context) {
 
 // Update godoc
 // @Summary      Update wallet group
-// @Description  Update name/description/color of an owned group
+// @Description  Update name/description/color of an owned group. Renaming to an existing name of the same user is 409 GROUP-002.
 // @Tags         groups
 // @Accept       json
 // @Produce      json
@@ -374,11 +374,8 @@ func (h *Handler) RemoveWallets(c *gin.Context) {
 // ListWallets godoc
 // @Summary      List group wallets
 // @Description  Paginated wallets of a group with partial address search.
-//
-//	Pass include=metrics (or any scanner filter param —
-//	dex/chain/market/timeframe/metric operators/sort) to route
-//	to the group scanner and return metric-enriched rows (BE-09)
-//
+// @Description  Two response shapes: without include/filter params, data=[]WalletRef ({id,chain,address,added_at}).
+// @Description  With include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort), data=[]wallet.Wallet metric-enriched rows ({id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics}) and NO added_at (BE-09).
 // @Tags         groups
 // @Produce      json
 // @Param        id       path   string  true   "Group ID"

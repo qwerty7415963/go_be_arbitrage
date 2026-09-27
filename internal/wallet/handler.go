@@ -62,10 +62,7 @@ func respondError(c *gin.Context, err error) {
 
 // Scan godoc
 // @Summary      Scan wallets
-// @Description  Offset-paginated wallet scanner with multi-select and metric
-//
-//	filters, timeframe windows and deterministic sorting (TEST-01)
-//
+// @Description  Offset-paginated wallet scanner with multi-select and metric filters, timeframe windows and deterministic sorting (TEST-01)
 // @Tags         wallets
 // @Produce      json
 // @Param        search              query  string  false  "Partial address or own tag match (case-insensitive)"
@@ -142,10 +139,7 @@ func (h *Handler) Scan(c *gin.Context) {
 
 // Detail godoc
 // @Summary      Wallet detail
-// @Description  One wallet with timeframe metrics and the caller's own group
-//
-//	memberships only (BE-06)
-//
+// @Description  One wallet with timeframe metrics and the caller's own group memberships only (BE-06)
 // @Tags         wallets
 // @Produce      json
 // @Param        id         path   string  true   "Wallet ID"
@@ -186,10 +180,7 @@ type UpdateTagRequest struct {
 
 // UpdateTag godoc
 // @Summary      Set wallet tag
-// @Description  Set (or clear, with an empty string) the caller's private
-//
-//	label for a wallet; returns the refreshed detail
-//
+// @Description  Set (or clear, with an empty string) the caller's private label for a wallet; returns the refreshed detail. Tag is trimmed, max 100 runes; missing/wrong-typed field is COMMON-902, unknown wallet is WALLET-001. Tags never conflict: no 409 exists on this endpoint.
 // @Tags         wallets
 // @Accept       json
 // @Produce      json
