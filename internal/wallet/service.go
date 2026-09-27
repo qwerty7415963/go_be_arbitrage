@@ -16,6 +16,7 @@ import (
 // implements it in production, tests substitute a mock.
 type RepositoryInterface interface {
 	ScanWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, userID uuid.UUID, limit, offset int) ([]*Wallet, int64, error)
+	ScanGroupWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID uuid.UUID, userID uuid.UUID, limit, offset int) ([]*GroupWallet, int64, error)
 	GetDetail(ctx context.Context, id, userID uuid.UUID, f *Filters) (*WalletDetail, error)
 	GetGroupOwner(ctx context.Context, groupID uuid.UUID) (uuid.UUID, bool, error)
 	WalletExists(ctx context.Context, id uuid.UUID) (bool, error)
@@ -60,8 +61,9 @@ func (s *Service) Scan(ctx context.Context, userID uuid.UUID, query url.Values) 
 
 // ScanGroupWallets is the group-scoped scanner (BE-09): same grammar,
 // ownership enforced first (GROUP-001 unknown / GROUP-003 foreign), rows
-// restricted to the group's members.
-func (s *Service) ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*Wallet, *api.Meta, error) {
+// restricted to the group's members and returned as unified GroupWallet
+// rows (Wallet fields + membership added_at).
+func (s *Service) ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*GroupWallet, *api.Meta, error) {
 	if err := s.requireGroup(ctx, userID, groupID); err != nil {
 		return nil, nil, err
 	}
@@ -69,7 +71,7 @@ func (s *Service) ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUI
 	if err != nil {
 		return nil, nil, err
 	}
-	wallets, total, err := s.repo.ScanWallets(ctx, f, sort, &groupID, userID, limit, (page-1)*limit)
+	wallets, total, err := s.repo.ScanGroupWallets(ctx, f, sort, groupID, userID, limit, (page-1)*limit)
 	if err != nil {
 		return nil, nil, domain.WrapError(domain.ErrCodeInternal, "scan failed", err)
 	}

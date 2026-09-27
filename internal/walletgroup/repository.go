@@ -267,3 +267,28 @@ func (r *Repository) ListMembers(ctx context.Context, groupID uuid.UUID, search 
 	}
 	return wallets, total, rows.Err()
 }
+
+// GetTags returns the caller's private tags for the given wallets in one
+// query (map wallet → tag; untagged wallets absent).
+func (r *Repository) GetTags(ctx context.Context, userID uuid.UUID, walletIDs []uuid.UUID) (map[uuid.UUID]string, error) {
+	out := map[uuid.UUID]string{}
+	if len(walletIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT wallet_id, tag FROM user_wallet_tags
+		WHERE user_id = $1 AND wallet_id = ANY($2)`, userID, walletIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		var tag string
+		if err := rows.Scan(&id, &tag); err != nil {
+			return nil, err
+		}
+		out[id] = tag
+	}
+	return out, rows.Err()
+}

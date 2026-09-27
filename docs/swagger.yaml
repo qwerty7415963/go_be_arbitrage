@@ -53,6 +53,52 @@ definitions:
       success:
         type: boolean
     type: object
+  github_com_qwerty7415963_go_be_arbitrage_internal_wallet.GroupWallet:
+    properties:
+      added_at:
+        type: string
+      address:
+        type: string
+      chain:
+        type: string
+      dex:
+        type: string
+      first_seen_at:
+        type: string
+      id:
+        type: string
+      last_seen_at:
+        type: string
+      metrics:
+        $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_wallet.Metrics'
+      tag:
+        type: string
+    type: object
+  github_com_qwerty7415963_go_be_arbitrage_internal_wallet.Metrics:
+    properties:
+      avg_leverage:
+        type: number
+      avg_position:
+        type: number
+      computed_at:
+        type: string
+      last_active_at:
+        type: string
+      long_count:
+        type: integer
+      realized_pnl:
+        type: number
+      roi:
+        type: number
+      short_count:
+        type: integer
+      trade_count:
+        type: integer
+      volume:
+        type: number
+      win_rate:
+        type: number
+    type: object
   internal_auth.AuthResponse:
     properties:
       access_token:
@@ -1047,17 +1093,6 @@ definitions:
       name:
         type: string
     type: object
-  internal_walletgroup.WalletRef:
-    properties:
-      added_at:
-        type: string
-      address:
-        type: string
-      chain:
-        type: string
-      id:
-        type: string
-    type: object
   internal_walletgroup.WalletsRequest:
     properties:
       chain:
@@ -1781,24 +1816,26 @@ paths:
     get:
       description: |-
         Paginated wallets of a group with partial address search.
-        Two response shapes: without include/filter params, data=[]WalletRef ({id,chain,address,added_at}).
-        With include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort), data=[]wallet.Wallet metric-enriched rows ({id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics}) and NO added_at (BE-09).
+        Always returns data=[]wallet.GroupWallet: every Wallet field (id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics) plus membership added_at. Metrics/tag are null when absent.
+        Pass include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort) for metric-enriched rows (BE-09).
       parameters:
       - description: Group ID
         in: path
         name: id
         required: true
         type: string
-      - description: Partial address match
+      - description: Partial address or own tag match (case-insensitive)
         in: query
         name: search
         type: string
-      - description: Page (default 1)
+      - default: 1
+        description: Page
         in: query
         minimum: 1
         name: page
         type: integer
-      - description: Page size (default 50, max 200)
+      - default: 50
+        description: Page size
         in: query
         maximum: 200
         minimum: 1
@@ -1809,6 +1846,223 @@ paths:
         - metrics
         in: query
         name: include
+        type: string
+      - description: DEX filter, data-driven enum (repeat or comma-separated)
+        in: query
+        name: dex
+        type: string
+      - description: Chain filter, data-driven enum (repeat or comma-separated)
+        in: query
+        name: chain
+        type: string
+      - description: Market filter, data-driven enum (repeat or comma-separated)
+        in: query
+        name: market
+        type: string
+      - default: 30D
+        description: Metric window
+        enum:
+        - 24H
+        - 7D
+        - 30D
+        - 90D
+        - ALL
+        in: query
+        name: timeframe
+        type: string
+      - description: realized_pnl > value
+        in: query
+        name: pnl_gt
+        type: number
+      - description: realized_pnl >= value
+        in: query
+        name: pnl_gte
+        type: number
+      - description: realized_pnl < value
+        in: query
+        name: pnl_lt
+        type: number
+      - description: realized_pnl <= value
+        in: query
+        name: pnl_lte
+        type: number
+      - description: realized_pnl between lo,hi
+        in: query
+        name: pnl_between
+        type: string
+      - description: roi > value
+        in: query
+        name: roi_gt
+        type: number
+      - description: roi >= value
+        in: query
+        name: roi_gte
+        type: number
+      - description: roi < value
+        in: query
+        name: roi_lt
+        type: number
+      - description: roi <= value
+        in: query
+        name: roi_lte
+        type: number
+      - description: roi between lo,hi
+        in: query
+        name: roi_between
+        type: string
+      - description: win_rate > value (0-100)
+        in: query
+        name: win_rate_gt
+        type: number
+      - description: win_rate >= value (0-100)
+        in: query
+        name: win_rate_gte
+        type: number
+      - description: win_rate < value (0-100)
+        in: query
+        name: win_rate_lt
+        type: number
+      - description: win_rate <= value (0-100)
+        in: query
+        name: win_rate_lte
+        type: number
+      - description: win_rate between lo,hi
+        in: query
+        name: win_rate_between
+        type: string
+      - description: volume > value
+        in: query
+        name: volume_gt
+        type: number
+      - description: volume >= value
+        in: query
+        name: volume_gte
+        type: number
+      - description: volume < value
+        in: query
+        name: volume_lt
+        type: number
+      - description: volume <= value
+        in: query
+        name: volume_lte
+        type: number
+      - description: volume between lo,hi
+        in: query
+        name: volume_between
+        type: string
+      - description: trade_count > value
+        in: query
+        name: trade_count_gt
+        type: number
+      - description: trade_count >= value
+        in: query
+        name: trade_count_gte
+        type: number
+      - description: trade_count < value
+        in: query
+        name: trade_count_lt
+        type: number
+      - description: trade_count <= value
+        in: query
+        name: trade_count_lte
+        type: number
+      - description: trade_count between lo,hi
+        in: query
+        name: trade_count_between
+        type: string
+      - description: avg_position > value
+        in: query
+        name: avg_position_gt
+        type: number
+      - description: avg_position >= value
+        in: query
+        name: avg_position_gte
+        type: number
+      - description: avg_position < value
+        in: query
+        name: avg_position_lt
+        type: number
+      - description: avg_position <= value
+        in: query
+        name: avg_position_lte
+        type: number
+      - description: avg_position between lo,hi
+        in: query
+        name: avg_position_between
+        type: string
+      - description: avg_leverage > value
+        in: query
+        name: avg_leverage_gt
+        type: number
+      - description: avg_leverage >= value
+        in: query
+        name: avg_leverage_gte
+        type: number
+      - description: avg_leverage < value
+        in: query
+        name: avg_leverage_lt
+        type: number
+      - description: avg_leverage <= value
+        in: query
+        name: avg_leverage_lte
+        type: number
+      - description: avg_leverage between lo,hi
+        in: query
+        name: avg_leverage_between
+        type: string
+      - description: long/short ratio > value
+        in: query
+        name: long_short_ratio_gt
+        type: number
+      - description: long/short ratio >= value
+        in: query
+        name: long_short_ratio_gte
+        type: number
+      - description: long/short ratio < value
+        in: query
+        name: long_short_ratio_lt
+        type: number
+      - description: long/short ratio <= value
+        in: query
+        name: long_short_ratio_lte
+        type: number
+      - description: long/short ratio between lo,hi
+        in: query
+        name: long_short_ratio_between
+        type: string
+      - description: Active within duration, e.g. 24h
+        in: query
+        name: last_active_within
+        type: string
+      - description: Active from (RFC3339)
+        in: query
+        name: last_active_from
+        type: string
+      - description: Active to (RFC3339)
+        in: query
+        name: last_active_to
+        type: string
+      - default: pnl
+        description: Sort field
+        enum:
+        - pnl
+        - roi
+        - win_rate
+        - volume
+        - trade_count
+        - avg_position
+        - avg_leverage
+        - last_active
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Sort direction
+        enum:
+        - asc
+        - desc
+        in: query
+        name: order
         type: string
       produces:
       - application/json
@@ -1821,7 +2075,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/internal_walletgroup.WalletRef'
+                    $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_wallet.GroupWallet'
                   type: array
                 meta:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta'

@@ -531,6 +531,10 @@ func TestRepo_ScanGroupWallets_FilterSubset(t *testing.T) {
 		if *w.Metrics.RealizedPnl <= 400 {
 			t.Errorf("%s violates filter", w.Address)
 		}
+		// SCAN-H-22: unified rows carry the membership timestamp.
+		if w.AddedAt.IsZero() {
+			t.Errorf("%s: missing added_at", w.Address)
+		}
 	}
 
 	// Membership unchanged: full group still has 10 wallets.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -163,15 +164,18 @@ const scanSelect = `
 	       snap.last_active_at, snap.computed_at
 `
 
-// ScanWallets returns one page of scanner rows plus the total count.
-// Ordering is metric-first with the deterministic (chain, address) tiebreak
-// (BR-12); NULL metrics sort last regardless of direction.
-func (r *Repository) ScanWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, userID uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
-	from, ac := buildScanFrom(f, groupID, userID)
+const scanSelectGroup = `
+	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), t.tag, w.first_seen_at, w.last_seen_at,
+	       snap.realized_pnl, snap.roi, snap.win_rate, snap.volume, snap.trade_count,
+	       snap.avg_position, snap.avg_leverage, snap.long_count, snap.short_count,
+	       snap.last_active_at, snap.computed_at, gm.added_at
+`
 
+// scanPage runs the shared count + ordered page flow; scan maps each row.
+func (r *Repository) scanPage(ctx context.Context, selectClause, from string, ac *argCounter, sort *SortSpec, limit, offset int, scan func(pgx.Rows) error) (int64, error) {
 	var total int64
 	if err := r.db.QueryRow(ctx, "SELECT COUNT(*) "+from, ac.args...).Scan(&total); err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 
 	sortExpr := metricExpr[sort.Field]
@@ -179,32 +183,70 @@ func (r *Repository) ScanWallets(ctx context.Context, f *Filters, sort *SortSpec
 	if sort.Order == "asc" {
 		dir = "ASC"
 	}
-	query := scanSelect + from + fmt.Sprintf(
+	query := selectClause + from + fmt.Sprintf(
 		"\n	ORDER BY %s %s NULLS LAST, w.chain ASC, w.address ASC\n	LIMIT %d OFFSET %d",
 		sortExpr, dir, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, ac.args...)
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 	defer rows.Close()
 
-	wallets := []*Wallet{}
 	for rows.Next() {
+		if err := scan(rows); err != nil {
+			return 0, err
+		}
+	}
+	return total, rows.Err()
+}
+
+// ScanWallets returns one page of scanner rows plus the total count.
+// Ordering is metric-first with the deterministic (chain, address) tiebreak
+// (BR-12); NULL metrics sort last regardless of direction.
+func (r *Repository) ScanWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID *uuid.UUID, userID uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+	from, ac := buildScanFrom(f, groupID, userID)
+
+	wallets := []*Wallet{}
+	total, err := r.scanPage(ctx, scanSelect, from, ac, sort, limit, offset, func(rows pgx.Rows) error {
 		w, err := scanWalletRow(rows)
 		if err != nil {
-			return nil, 0, err
+			return err
 		}
 		wallets = append(wallets, w)
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
 	}
-	return wallets, total, rows.Err()
+	return wallets, total, nil
+}
+
+// ScanGroupWallets is the group-scoped scan returning the unified
+// GroupWallet rows (Wallet fields + membership added_at).
+func (r *Repository) ScanGroupWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID uuid.UUID, userID uuid.UUID, limit, offset int) ([]*GroupWallet, int64, error) {
+	from, ac := buildScanFrom(f, &groupID, userID)
+
+	wallets := []*GroupWallet{}
+	total, err := r.scanPage(ctx, scanSelectGroup, from, ac, sort, limit, offset, func(rows pgx.Rows) error {
+		w, err := scanGroupWalletRow(rows)
+		if err != nil {
+			return err
+		}
+		wallets = append(wallets, w)
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return wallets, total, nil
 }
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanWalletRow(rows rowScanner) (*Wallet, error) {
+func scanWalletRow(rows rowScanner, extra ...any) (*Wallet, error) {
 	var (
 		w              Wallet
 		tag            sql.NullString
@@ -217,8 +259,9 @@ func scanWalletRow(rows rowScanner) (*Wallet, error) {
 		computedAt     sql.NullTime
 		hasMetric      bool
 	)
-	err := rows.Scan(&w.ID, &w.Chain, &w.Address, &w.Dex, &tag, &w.FirstSeenAt, &w.LastSeenAt,
-		&pnl, &roi, &winR, &vol, &trades, &avgPos, &avgLev, &lngs, &shorts, &lastActive, &computedAt)
+	dests := []any{&w.ID, &w.Chain, &w.Address, &w.Dex, &tag, &w.FirstSeenAt, &w.LastSeenAt,
+		&pnl, &roi, &winR, &vol, &trades, &avgPos, &avgLev, &lngs, &shorts, &lastActive, &computedAt}
+	err := rows.Scan(append(dests, extra...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +321,17 @@ func scanWalletRow(rows rowScanner) (*Wallet, error) {
 		w.Metrics = m
 	}
 	return &w, nil
+}
+
+// scanGroupWalletRow scans the unified group row (scanSelectGroup column
+// order): every Wallet column plus the membership added_at.
+func scanGroupWalletRow(rows rowScanner) (*GroupWallet, error) {
+	var addedAt time.Time
+	w, err := scanWalletRow(rows, &addedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &GroupWallet{Wallet: *w, AddedAt: addedAt.UTC()}, nil
 }
 
 // GetDetail returns a single wallet, its metrics for the timeframe and the

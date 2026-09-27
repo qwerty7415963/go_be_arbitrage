@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -525,7 +526,18 @@ func TestHandler_ListWallets_SearchPartial(t *testing.T) {
 	}
 	items := decodeBody(t, w)["data"].([]interface{})
 	if len(items) != 1 {
-		t.Errorf("expected 1 wallet, got %d", len(items))
+		t.Fatalf("expected 1 wallet, got %d", len(items))
+	}
+	// SCAN-H-22: legacy path returns the unified GroupWallet shape.
+	row := items[0].(map[string]interface{})
+	if row["address"] != "0xabc123" {
+		t.Errorf("address: got %v", row["address"])
+	}
+	if _, ok := row["added_at"]; !ok {
+		t.Errorf("unified shape must carry added_at: %v", row)
+	}
+	if metrics, ok := row["metrics"]; !ok || metrics != nil {
+		t.Errorf("legacy path must carry null metrics: %v", row)
 	}
 }
 
@@ -559,13 +571,57 @@ func TestHandler_ListWallets_Pagination(t *testing.T) {
 	}
 }
 
+// ─── SCAN-H-22: unified GroupWallet on the legacy path ─────────
+
+func TestHandler_ListWallets_Legacy_UnifiedShape(t *testing.T) {
+	groupID := uuid.New()
+	wid := uuid.New()
+	addedAt := "2026-09-01T10:00:00Z"
+	repo := &mockRepo{
+		getGroupByIDFn: func(ctx context.Context, id uuid.UUID) (*Group, error) {
+			return ownerGroup(id), nil
+		},
+		listMembersFn: func(ctx context.Context, g uuid.UUID, search string, limit, offset int) ([]*WalletRef, int64, error) {
+			return []*WalletRef{{ID: wid, Chain: "evm", Address: "0xunified",
+				AddedAt: mustTime(t, addedAt)}}, 1, nil
+		},
+		getTagsFn: func(ctx context.Context, uid uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+			return map[uuid.UUID]string{wid: "Legacy Tag"}, nil
+		},
+	}
+	router := setupTestRouter(NewHandler(NewService(repo)))
+
+	w := doJSON(t, router, "GET", fmt.Sprintf("/api/v1/groups/%s/wallets", groupID), userA, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	items := decodeBody(t, w)["data"].([]interface{})
+	if len(items) != 1 {
+		t.Fatalf("expected 1 wallet, got %d", len(items))
+	}
+	row := items[0].(map[string]interface{})
+	if row["added_at"] != addedAt {
+		t.Errorf("added_at: got %v", row["added_at"])
+	}
+	if row["tag"] != "Legacy Tag" {
+		t.Errorf("tag: got %v", row["tag"])
+	}
+	if metrics, ok := row["metrics"]; !ok || metrics != nil {
+		t.Errorf("metrics must be present-null: %v", row)
+	}
+	// No metrics key missing, no WalletRef-only shape: dex key exists (omitted when empty).
+	if _, ok := row["address"]; !ok {
+		t.Errorf("address missing: %v", row)
+	}
+}
+
 // ─── SCAN-H-17: include=metrics routes to the scanner ──────────
 
 func TestHandler_ListWallets_IncludeMetrics_UsesScanner(t *testing.T) {
 	groupID := uuid.New()
 	scanner := &fakeScanner{
-		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.Wallet, *api.Meta, error) {
-			return []*wallet.Wallet{}, &api.Meta{Page: 1, Limit: 50, TotalPages: 0, HasMore: false}, nil
+		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.GroupWallet, *api.Meta, error) {
+			return []*wallet.GroupWallet{}, &api.Meta{Page: 1, Limit: 50, TotalPages: 0, HasMore: false}, nil
 		},
 	}
 	handler := NewHandler(NewService(&mockRepo{}))
@@ -611,17 +667,26 @@ func TestHandler_AddWallets_ResponseKeys(t *testing.T) {
 
 func strPtr(s string) *string { return &s }
 
+func mustTime(t *testing.T, raw string) time.Time {
+	t.Helper()
+	ts, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		t.Fatalf("parse time: %v", err)
+	}
+	return ts
+}
+
 // --- SCAN-H-15: scanner filter on group wallets ? only group rows --
 
 type fakeScanner struct {
-	ScanGroupWalletsFn func(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.Wallet, *api.Meta, error)
+	ScanGroupWalletsFn func(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.GroupWallet, *api.Meta, error)
 	calls              int
 	lastQuery          url.Values
 	lastUserID         uuid.UUID
 	lastGroupID        uuid.UUID
 }
 
-func (f *fakeScanner) ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.Wallet, *api.Meta, error) {
+func (f *fakeScanner) ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.GroupWallet, *api.Meta, error) {
 	f.calls++
 	f.lastQuery, f.lastUserID, f.lastGroupID = query, userID, groupID
 	return f.ScanGroupWalletsFn(ctx, userID, groupID, query)
@@ -631,10 +696,12 @@ func TestHandler_ListWallets_ScannerFilter_OnlyGroupRows(t *testing.T) {
 	groupID := uuid.New()
 	pnl := 1234.0
 	scanner := &fakeScanner{
-		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.Wallet, *api.Meta, error) {
-			return []*wallet.Wallet{{
-				ID: uuid.New(), Chain: "evm", Address: "0xgrouponly",
-				Metrics: &wallet.Metrics{RealizedPnl: &pnl},
+		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.GroupWallet, *api.Meta, error) {
+			return []*wallet.GroupWallet{{
+				Wallet: wallet.Wallet{
+					ID: uuid.New(), Chain: "evm", Address: "0xgrouponly",
+					Metrics: &wallet.Metrics{RealizedPnl: &pnl},
+				},
 			}}, &api.Meta{Page: 1, Limit: 50, TotalPages: 1, HasMore: false}, nil
 		},
 	}
@@ -667,8 +734,8 @@ func TestHandler_ListWallets_ScannerFilter_OnlyGroupRows(t *testing.T) {
 func TestHandler_ListWallets_ScannerEmptyFilter_ReturnsEmptyList(t *testing.T) {
 	groupID := uuid.New()
 	scanner := &fakeScanner{
-		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.Wallet, *api.Meta, error) {
-			return []*wallet.Wallet{}, &api.Meta{Page: 1, Limit: 50, TotalPages: 0, HasMore: false}, nil
+		ScanGroupWalletsFn: func(ctx context.Context, userID, g uuid.UUID, q url.Values) ([]*wallet.GroupWallet, *api.Meta, error) {
+			return []*wallet.GroupWallet{}, &api.Meta{Page: 1, Limit: 50, TotalPages: 0, HasMore: false}, nil
 		},
 	}
 	handler := NewHandler(NewService(&mockRepo{}))

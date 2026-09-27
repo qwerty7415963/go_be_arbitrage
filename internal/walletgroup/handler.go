@@ -20,7 +20,7 @@ import (
 // *wallet.Service. Declared as an interface to keep both packages free of
 // import cycles.
 type Scanner interface {
-	ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.Wallet, *api.Meta, error)
+	ScanGroupWallets(ctx context.Context, userID, groupID uuid.UUID, query url.Values) ([]*wallet.GroupWallet, *api.Meta, error)
 }
 
 type Handler struct {
@@ -374,16 +374,65 @@ func (h *Handler) RemoveWallets(c *gin.Context) {
 // ListWallets godoc
 // @Summary      List group wallets
 // @Description  Paginated wallets of a group with partial address search.
-// @Description  Two response shapes: without include/filter params, data=[]WalletRef ({id,chain,address,added_at}).
-// @Description  With include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort), data=[]wallet.Wallet metric-enriched rows ({id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics}) and NO added_at (BE-09).
+// @Description  Always returns data=[]wallet.GroupWallet: every Wallet field (id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics) plus membership added_at. Metrics/tag are null when absent.
+// @Description  Pass include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort) for metric-enriched rows (BE-09).
 // @Tags         groups
 // @Produce      json
 // @Param        id       path   string  true   "Group ID"
-// @Param        search   query  string  false  "Partial address match"
-// @Param        page     query  int     false  "Page (default 1)" minimum(1)
-// @Param        limit    query  int     false  "Page size (default 50, max 200)" minimum(1) maximum(200)
+// @Param        search   query  string  false  "Partial address or own tag match (case-insensitive)"
+// @Param        page     query  int     false  "Page" minimum(1) default(1)
+// @Param        limit    query  int     false  "Page size" minimum(1) maximum(200) default(50)
 // @Param        include  query  string  false  "Set to metrics for metric-enriched rows" enums(metrics)
-// @Success      200     {object}  api.Response{data=[]WalletRef,meta=api.Meta}
+// @Param        dex                 query  string  false  "DEX filter, data-driven enum (repeat or comma-separated)"
+// @Param        chain               query  string  false  "Chain filter, data-driven enum (repeat or comma-separated)"
+// @Param        market              query  string  false  "Market filter, data-driven enum (repeat or comma-separated)"
+// @Param        timeframe           query  string  false  "Metric window" enums(24H,7D,30D,90D,ALL) default(30D)
+// @Param        pnl_gt              query  number  false  "realized_pnl > value"
+// @Param        pnl_gte             query  number  false  "realized_pnl >= value"
+// @Param        pnl_lt              query  number  false  "realized_pnl < value"
+// @Param        pnl_lte             query  number  false  "realized_pnl <= value"
+// @Param        pnl_between         query  string  false  "realized_pnl between lo,hi"
+// @Param        roi_gt              query  number  false  "roi > value"
+// @Param        roi_gte             query  number  false  "roi >= value"
+// @Param        roi_lt              query  number  false  "roi < value"
+// @Param        roi_lte             query  number  false  "roi <= value"
+// @Param        roi_between         query  string  false  "roi between lo,hi"
+// @Param        win_rate_gt         query  number  false  "win_rate > value (0-100)"
+// @Param        win_rate_gte        query  number  false  "win_rate >= value (0-100)"
+// @Param        win_rate_lt         query  number  false  "win_rate < value (0-100)"
+// @Param        win_rate_lte        query  number  false  "win_rate <= value (0-100)"
+// @Param        win_rate_between    query  string  false  "win_rate between lo,hi"
+// @Param        volume_gt           query  number  false  "volume > value"
+// @Param        volume_gte          query  number  false  "volume >= value"
+// @Param        volume_lt           query  number  false  "volume < value"
+// @Param        volume_lte          query  number  false  "volume <= value"
+// @Param        volume_between      query  string  false  "volume between lo,hi"
+// @Param        trade_count_gt      query  number  false  "trade_count > value"
+// @Param        trade_count_gte     query  number  false  "trade_count >= value"
+// @Param        trade_count_lt      query  number  false  "trade_count < value"
+// @Param        trade_count_lte     query  number  false  "trade_count <= value"
+// @Param        trade_count_between query  string  false  "trade_count between lo,hi"
+// @Param        avg_position_gt     query  number  false  "avg_position > value"
+// @Param        avg_position_gte    query  number  false  "avg_position >= value"
+// @Param        avg_position_lt     query  number  false  "avg_position < value"
+// @Param        avg_position_lte    query  number  false  "avg_position <= value"
+// @Param        avg_position_between query  string  false  "avg_position between lo,hi"
+// @Param        avg_leverage_gt     query  number  false  "avg_leverage > value"
+// @Param        avg_leverage_gte    query  number  false  "avg_leverage >= value"
+// @Param        avg_leverage_lt     query  number  false  "avg_leverage < value"
+// @Param        avg_leverage_lte    query  number  false  "avg_leverage <= value"
+// @Param        avg_leverage_between query  string  false  "avg_leverage between lo,hi"
+// @Param        long_short_ratio_gt query  number  false  "long/short ratio > value"
+// @Param        long_short_ratio_gte query  number  false  "long/short ratio >= value"
+// @Param        long_short_ratio_lt query  number  false  "long/short ratio < value"
+// @Param        long_short_ratio_lte query  number  false  "long/short ratio <= value"
+// @Param        long_short_ratio_between query  string  false  "long/short ratio between lo,hi"
+// @Param        last_active_within  query  string  false  "Active within duration, e.g. 24h"
+// @Param        last_active_from    query  string  false  "Active from (RFC3339)"
+// @Param        last_active_to      query  string  false  "Active to (RFC3339)"
+// @Param        sort                query  string  false  "Sort field" enums(pnl,roi,win_rate,volume,trade_count,avg_position,avg_leverage,last_active) default(pnl)
+// @Param        order               query  string  false  "Sort direction" enums(asc,desc) default(desc)
+// @Success      200     {object}  api.Response{data=[]wallet.GroupWallet,meta=api.Meta}
 // @Failure      400     {object}  api.Response{error=api.ErrorBody}
 // @Failure      403     {object}  api.Response{error=api.ErrorBody}
 // @Failure      404     {object}  api.Response{error=api.ErrorBody}

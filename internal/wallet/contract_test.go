@@ -3,6 +3,7 @@ package wallet
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -96,18 +97,22 @@ func TestSwagger_ScannerContract_Documented(t *testing.T) {
 		t.Error("swagger missing PATCH /api/v1/wallets/{id}")
 	}
 
-	// Group wallets list documents include=metrics.
+	// Group wallets list documents include=metrics and returns the single
+	// GroupWallet $ref (SCAN-H-22).
+	if !strings.Contains(string(raw), "internal_wallet.GroupWallet") {
+		t.Error("swagger group wallets must reference the unified GroupWallet schema")
+	}
 	if grp, ok := spec.Paths["/api/v1/groups/{id}/wallets"]; !ok {
 		t.Error("swagger missing GET /api/v1/groups/{id}/wallets")
 	} else {
-		found := false
+		grpParams := map[string]bool{}
 		for _, p := range grp["get"].Parameters {
-			if p.Name == "include" {
-				found = true
-			}
+			grpParams[p.Name] = true
 		}
-		if !found {
-			t.Error("swagger group wallets missing documented param \"include\"")
+		for _, want := range []string{"include", "timeframe", "sort", "order", "pnl_gt", "win_rate_gte"} {
+			if !grpParams[want] {
+				t.Errorf("swagger group wallets missing documented param %q", want)
+			}
 		}
 	}
 }

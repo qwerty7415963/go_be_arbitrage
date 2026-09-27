@@ -20,6 +20,7 @@ type mockRepo struct {
 	addMembersFn    func(ctx context.Context, groupID, addedBy uuid.UUID, items []walletItem) (int64, error)
 	removeMembersFn func(ctx context.Context, groupID uuid.UUID, items []walletItem) (int64, error)
 	listMembersFn   func(ctx context.Context, groupID uuid.UUID, search string, limit, offset int) ([]*WalletRef, int64, error)
+	getTagsFn       func(ctx context.Context, userID uuid.UUID, walletIDs []uuid.UUID) (map[uuid.UUID]string, error)
 }
 
 func (m *mockRepo) CreateGroup(ctx context.Context, g *Group) error {
@@ -76,6 +77,13 @@ func (m *mockRepo) ListMembers(ctx context.Context, groupID uuid.UUID, search st
 		return m.listMembersFn(ctx, groupID, search, limit, offset)
 	}
 	return nil, 0, errors.New("listMembersFn not set")
+}
+
+func (m *mockRepo) GetTags(ctx context.Context, userID uuid.UUID, walletIDs []uuid.UUID) (map[uuid.UUID]string, error) {
+	if m.getTagsFn != nil {
+		return m.getTagsFn(ctx, userID, walletIDs)
+	}
+	return map[uuid.UUID]string{}, nil
 }
 
 const validHexAddr = "0xABCDEF1234567890ABCDEF1234567890ABCDEF12"

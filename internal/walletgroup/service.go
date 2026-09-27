@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
 )
 
 type RepositoryInterface interface {
@@ -21,6 +22,7 @@ type RepositoryInterface interface {
 	AddMembersTx(ctx context.Context, groupID, addedBy uuid.UUID, items []walletItem) (int64, error)
 	RemoveMembers(ctx context.Context, groupID uuid.UUID, items []walletItem) (int64, error)
 	ListMembers(ctx context.Context, groupID uuid.UUID, search string, limit, offset int) ([]*WalletRef, int64, error)
+	GetTags(ctx context.Context, userID uuid.UUID, walletIDs []uuid.UUID) (map[uuid.UUID]string, error)
 }
 
 type Service struct {
@@ -184,7 +186,7 @@ func (s *Service) RemoveWallets(ctx context.Context, userID, groupID uuid.UUID, 
 
 // ListGroupWallets enforces ownership, then returns one page of members and
 // pagination metadata.
-func (s *Service) ListGroupWallets(ctx context.Context, userID, groupID uuid.UUID, search string, page, limit int) ([]*WalletRef, *api.Meta, error) {
+func (s *Service) ListGroupWallets(ctx context.Context, userID, groupID uuid.UUID, search string, page, limit int) ([]*wallet.GroupWallet, *api.Meta, error) {
 	if _, err := s.requireGroup(ctx, userID, groupID); err != nil {
 		return nil, nil, err
 	}
@@ -197,8 +199,32 @@ func (s *Service) ListGroupWallets(ctx context.Context, userID, groupID uuid.UUI
 		return nil, nil, domain.WrapError(domain.ErrCodeInternal, "failed to list group wallets", err)
 	}
 
+	// Caller's tags in one query (no N+1); metrics stay null on this path.
+	var ids []uuid.UUID
+	for _, w := range wallets {
+		ids = append(ids, w.ID)
+	}
+	tags, err := s.repo.GetTags(ctx, userID, ids)
+	if err != nil {
+		return nil, nil, domain.WrapError(domain.ErrCodeInternal, "failed to load wallet tags", err)
+	}
+
+	out := make([]*wallet.GroupWallet, 0, len(wallets))
+	for _, w := range wallets {
+		gw := &wallet.GroupWallet{
+			Wallet: wallet.Wallet{
+				ID: w.ID, Chain: w.Chain, Address: w.Address,
+			},
+			AddedAt: w.AddedAt,
+		}
+		if tag, ok := tags[w.ID]; ok {
+			gw.Tag = &tag
+		}
+		out = append(out, gw)
+	}
+
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
-	return wallets, &api.Meta{
+	return out, &api.Meta{
 		Page:       page,
 		TotalPages: totalPages,
 		Total:      total,

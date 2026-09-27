@@ -1122,7 +1122,7 @@ const docTemplate = `{
         },
         "/api/v1/groups/{id}/wallets": {
             "get": {
-                "description": "Paginated wallets of a group with partial address search.\nTwo response shapes: without include/filter params, data=[]WalletRef ({id,chain,address,added_at}).\nWith include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort), data=[]wallet.Wallet metric-enriched rows ({id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics}) and NO added_at (BE-09).",
+                "description": "Paginated wallets of a group with partial address search.\nAlways returns data=[]wallet.GroupWallet: every Wallet field (id,chain,address,dex,tag,first_seen_at,last_seen_at,metrics) plus membership added_at. Metrics/tag are null when absent.\nPass include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort) for metric-enriched rows (BE-09).",
                 "produces": [
                     "application/json"
                 ],
@@ -1140,14 +1140,15 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Partial address match",
+                        "description": "Partial address or own tag match (case-insensitive)",
                         "name": "search",
                         "in": "query"
                     },
                     {
                         "minimum": 1,
                         "type": "integer",
-                        "description": "Page (default 1)",
+                        "default": 1,
+                        "description": "Page",
                         "name": "page",
                         "in": "query"
                     },
@@ -1155,7 +1156,8 @@ const docTemplate = `{
                         "maximum": 200,
                         "minimum": 1,
                         "type": "integer",
-                        "description": "Page size (default 50, max 200)",
+                        "default": 50,
+                        "description": "Page size",
                         "name": "limit",
                         "in": "query"
                     },
@@ -1166,6 +1168,324 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Set to metrics for metric-enriched rows",
                         "name": "include",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "DEX filter, data-driven enum (repeat or comma-separated)",
+                        "name": "dex",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Chain filter, data-driven enum (repeat or comma-separated)",
+                        "name": "chain",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Market filter, data-driven enum (repeat or comma-separated)",
+                        "name": "market",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "24H",
+                            "7D",
+                            "30D",
+                            "90D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Metric window",
+                        "name": "timeframe",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003e value",
+                        "name": "pnl_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003e= value",
+                        "name": "pnl_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003c value",
+                        "name": "pnl_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "realized_pnl \u003c= value",
+                        "name": "pnl_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "realized_pnl between lo,hi",
+                        "name": "pnl_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "roi \u003e value",
+                        "name": "roi_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "roi \u003e= value",
+                        "name": "roi_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "roi \u003c value",
+                        "name": "roi_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "roi \u003c= value",
+                        "name": "roi_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "roi between lo,hi",
+                        "name": "roi_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003e value (0-100)",
+                        "name": "win_rate_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003e= value (0-100)",
+                        "name": "win_rate_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003c value (0-100)",
+                        "name": "win_rate_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "win_rate \u003c= value (0-100)",
+                        "name": "win_rate_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "win_rate between lo,hi",
+                        "name": "win_rate_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "volume \u003e value",
+                        "name": "volume_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "volume \u003e= value",
+                        "name": "volume_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "volume \u003c value",
+                        "name": "volume_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "volume \u003c= value",
+                        "name": "volume_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "volume between lo,hi",
+                        "name": "volume_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003e value",
+                        "name": "trade_count_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003e= value",
+                        "name": "trade_count_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003c value",
+                        "name": "trade_count_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "trade_count \u003c= value",
+                        "name": "trade_count_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "trade_count between lo,hi",
+                        "name": "trade_count_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_position \u003e value",
+                        "name": "avg_position_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_position \u003e= value",
+                        "name": "avg_position_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_position \u003c value",
+                        "name": "avg_position_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_position \u003c= value",
+                        "name": "avg_position_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "avg_position between lo,hi",
+                        "name": "avg_position_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003e value",
+                        "name": "avg_leverage_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003e= value",
+                        "name": "avg_leverage_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003c value",
+                        "name": "avg_leverage_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "avg_leverage \u003c= value",
+                        "name": "avg_leverage_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "avg_leverage between lo,hi",
+                        "name": "avg_leverage_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003e value",
+                        "name": "long_short_ratio_gt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003e= value",
+                        "name": "long_short_ratio_gte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003c value",
+                        "name": "long_short_ratio_lt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "long/short ratio \u003c= value",
+                        "name": "long_short_ratio_lte",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "long/short ratio between lo,hi",
+                        "name": "long_short_ratio_between",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Active within duration, e.g. 24h",
+                        "name": "last_active_within",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Active from (RFC3339)",
+                        "name": "last_active_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Active to (RFC3339)",
+                        "name": "last_active_to",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pnl",
+                            "roi",
+                            "win_rate",
+                            "volume",
+                            "trade_count",
+                            "avg_position",
+                            "avg_leverage",
+                            "last_active"
+                        ],
+                        "type": "string",
+                        "default": "pnl",
+                        "description": "Sort field",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Sort direction",
+                        "name": "order",
                         "in": "query"
                     }
                 ],
@@ -1183,7 +1503,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/internal_walletgroup.WalletRef"
+                                                "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_wallet.GroupWallet"
                                             }
                                         },
                                         "meta": {
@@ -4573,6 +4893,76 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_qwerty7415963_go_be_arbitrage_internal_wallet.GroupWallet": {
+            "type": "object",
+            "properties": {
+                "added_at": {
+                    "type": "string"
+                },
+                "address": {
+                    "type": "string"
+                },
+                "chain": {
+                    "type": "string"
+                },
+                "dex": {
+                    "type": "string"
+                },
+                "first_seen_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string"
+                },
+                "metrics": {
+                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_wallet.Metrics"
+                },
+                "tag": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_qwerty7415963_go_be_arbitrage_internal_wallet.Metrics": {
+            "type": "object",
+            "properties": {
+                "avg_leverage": {
+                    "type": "number"
+                },
+                "avg_position": {
+                    "type": "number"
+                },
+                "computed_at": {
+                    "type": "string"
+                },
+                "last_active_at": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "realized_pnl": {
+                    "type": "number"
+                },
+                "roi": {
+                    "type": "number"
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "trade_count": {
+                    "type": "integer"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "win_rate": {
+                    "type": "number"
+                }
+            }
+        },
         "internal_auth.AuthResponse": {
             "type": "object",
             "properties": {
@@ -6058,23 +6448,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_walletgroup.WalletRef": {
-            "type": "object",
-            "properties": {
-                "added_at": {
-                    "type": "string"
-                },
-                "address": {
-                    "type": "string"
-                },
-                "chain": {
-                    "type": "string"
-                },
-                "id": {
                     "type": "string"
                 }
             }

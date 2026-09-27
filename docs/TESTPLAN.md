@@ -801,6 +801,7 @@ matches address OR the caller's own tag (never another user's tag).
 | SCAN-H-19 | GET /wallets | Any scan | `meta.total` equals full count |
 | SCAN-H-20 | GET /wallets | Row with snapshot | `metrics.computed_at` set (= snapshot freshness); null when no snapshot |
 | SCAN-H-21 | Swagger contract | Enums/defaults in schema | `timeframe`/`sort`/`order` enums + defaults present; all 40 metric-op params documented |
+| SCAN-H-22 | GET /groups/:id/wallets | Any query (plain/filter/include) | Always `GroupWallet[]` (Wallet fields + `added_at`); `metrics` null when no snapshot; caller's tag included |
 
 ---
 

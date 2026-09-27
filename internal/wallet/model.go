@@ -65,6 +65,14 @@ type GroupRef struct {
 	Name string    `json:"name"`
 }
 
+// GroupWallet is the unified group-wallet row: every Wallet field plus the
+// membership timestamp. GET /groups/:id/wallets always returns this single
+// shape (metrics/tag may be null); JSON readers see a flat object.
+type GroupWallet struct {
+	Wallet
+	AddedAt time.Time `json:"added_at"`
+}
+
 // WalletDetail adds the caller's group memberships (BE-06: never other
 // users' memberships).
 type WalletDetail struct {

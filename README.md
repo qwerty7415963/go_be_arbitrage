@@ -115,7 +115,7 @@ Server runs on `http://localhost:8080` by default.
 | DELETE | `/api/v1/groups/:id` | Delete group (memberships removed, wallets kept) |
 | POST | `/api/v1/groups/:id/wallets` | Add wallets — IDs or addresses, idempotent (`WALLET-001` unknown); 200 `{"added": N, "skipped": M}` (failures abort the batch as errors, never partial) |
 | DELETE | `/api/v1/groups/:id/wallets` | Remove wallets — idempotent no-op |
-| GET | `/api/v1/groups/:id/wallets` | List wallets (`search`, `page`, `limit`); `include=metrics` or any scanner filter → metric-enriched rows (BE-09) |
+| GET | `/api/v1/groups/:id/wallets` | List wallets — always `GroupWallet[]` (every Wallet field + `added_at`); `include=metrics` or any scanner filter → metric-enriched rows, else `metrics` null (BE-09) |
 
 Group mutations (create/update/delete/add/remove wallets) emit structured logs
 with `actor` (user id) + `request_id` (BE-13); IDs and counts only, never secrets.

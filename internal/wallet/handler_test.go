@@ -47,6 +47,10 @@ func (m *mockRepo) GetDetail(ctx context.Context, id, userID uuid.UUID, f *Filte
 	return nil, errors.New("detailFn not set")
 }
 
+func (m *mockRepo) ScanGroupWallets(ctx context.Context, f *Filters, sort *SortSpec, groupID uuid.UUID, userID uuid.UUID, limit, offset int) ([]*GroupWallet, int64, error) {
+	return []*GroupWallet{}, 0, nil
+}
+
 func (m *mockRepo) GetGroupOwner(ctx context.Context, groupID uuid.UUID) (uuid.UUID, bool, error) {
 	if m.ownerFn != nil {
 		return m.ownerFn(ctx, groupID)
