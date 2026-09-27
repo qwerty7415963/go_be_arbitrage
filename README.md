@@ -117,6 +117,9 @@ Server runs on `http://localhost:8080` by default.
 | DELETE | `/api/v1/groups/:id/wallets` | Remove wallets — idempotent no-op |
 | GET | `/api/v1/groups/:id/wallets` | List wallets (`search`, `page`, `limit`; scanner filters → metric rows, BE-09) |
 
+Group mutations (create/update/delete/add/remove wallets) emit structured logs
+with `actor` (user id) + `request_id` (BE-13); IDs and counts only, never secrets.
+
 ### Wallet Scanner (JWT required; TEST-01 grammar)
 | Method | Path | Description |
 |--------|------|-------------|

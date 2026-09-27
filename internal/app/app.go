@@ -143,7 +143,7 @@ func New(cfg *config.Config) (*App, error) {
 	// Wallet Groups (Wallet Dashboard Phase 1)
 	walletGroupRepo := walletgroup.NewRepository(db.Pool())
 	walletGroupService := walletgroup.NewService(walletGroupRepo)
-	walletGroupHandler := walletgroup.NewHandler(walletGroupService)
+	walletGroupHandler := walletgroup.NewHandler(walletGroupService, log)
 
 	// Wallet Scanner (Wallet Dashboard Phase 2)
 	walletRepo := wallet.NewRepository(db.Pool())

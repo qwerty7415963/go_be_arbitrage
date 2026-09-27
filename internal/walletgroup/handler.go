@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
 )
 
@@ -25,10 +26,26 @@ type Scanner interface {
 type Handler struct {
 	service *Service
 	scanner Scanner
+	log     *logger.Logger
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, logs ...*logger.Logger) *Handler {
+	h := &Handler{service: service}
+	if len(logs) > 0 {
+		h.log = logs[0]
+	}
+	return h
+}
+
+// logMutation records group mutations with actor + request id (BE-13).
+// Only IDs, names and counts are logged — never tokens or secrets.
+func (h *Handler) logMutation(c *gin.Context, action string, fields ...any) {
+	if h.log == nil {
+		return
+	}
+	args := []any{"module", "walletgroup", "action", action,
+		"actor", c.GetString("user_id"), "request_id", c.GetString("request_id")}
+	h.log.Info("group mutation", append(args, fields...)...)
 }
 
 // SetScanner enables the scanner filter path on GET /groups/:id/wallets;
@@ -137,6 +154,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
+	h.logMutation(c, "group.create", "group_id", g.ID.String(), "name", g.Name)
 	c.JSON(http.StatusCreated, api.Response{Success: true, Data: g})
 }
 
@@ -235,6 +253,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
+	h.logMutation(c, "group.update", "group_id", groupID.String())
 	c.JSON(http.StatusOK, api.Response{Success: true, Data: g})
 }
 
@@ -264,6 +283,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
+	h.logMutation(c, "group.delete", "group_id", groupID.String())
 	c.JSON(http.StatusNoContent, nil)
 }
 
@@ -302,6 +322,7 @@ func (h *Handler) AddWallets(c *gin.Context) {
 		return
 	}
 
+	h.logMutation(c, "group.wallets.add", "group_id", groupID.String(), "added", created)
 	c.JSON(http.StatusOK, api.Response{Success: true, Data: map[string]int64{"added": created}})
 }
 
@@ -339,15 +360,18 @@ func (h *Handler) RemoveWallets(c *gin.Context) {
 		return
 	}
 
+	h.logMutation(c, "group.wallets.remove", "group_id", groupID.String())
 	c.JSON(http.StatusNoContent, nil)
 }
 
 // ListWallets godoc
 // @Summary      List group wallets
 // @Description  Paginated wallets of a group with partial address search.
-//                Scanner filter params (dex/chain/market/timeframe/metric
-//                operators/sort — TEST-01 grammar) route to the group
-//                scanner and return metric-enriched rows (BE-09)
+//
+//	Scanner filter params (dex/chain/market/timeframe/metric
+//	operators/sort — TEST-01 grammar) route to the group
+//	scanner and return metric-enriched rows (BE-09)
+//
 // @Tags         groups
 // @Produce      json
 // @Param        id      path   string  true   "Group ID"
