@@ -16,6 +16,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/fundingarbitrage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/health"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/httpserver"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
@@ -47,6 +48,7 @@ type App struct {
 	authHandler        *auth.Handler
 	collector          *collector.Collector
 	opportunityService *opportunity.Service
+	backfillService    *hyperliquid.BackfillService
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -154,6 +156,18 @@ func New(cfg *config.Config) (*App, error) {
 	walletHandler := wallet.NewHandler(walletService)
 	walletGroupHandler.SetScanner(walletService)
 
+	// Hyperliquid backfill worker (Wallet Dashboard Phase 3): ingest fills
+	// for EVM tracked wallets; started in Run, per-wallet failures are
+	// logged and retried on the next tick.
+	fillRepo := wallet.NewFillRepository(db.Pool())
+	var backfillSvc *hyperliquid.BackfillService
+	if venueID, verr := fillRepo.VenueIDByCode(ctx, hyperliquid.VenueCode); verr != nil {
+		log.Warn("hyperliquid venue missing; backfill worker disabled", "error", verr)
+	} else {
+		backfillSvc = hyperliquid.NewBackfillService(fillRepo,
+			hyperliquid.NewClient("", 30*time.Second, 2*time.Second), venueID)
+	}
+
 	// Collector (lazy start - will start on first request context)
 	fundingCollector := collector.NewCollector(
 		db.Pool(),
@@ -182,6 +196,7 @@ func New(cfg *config.Config) (*App, error) {
 		authHandler:        authHandler,
 		collector:          fundingCollector,
 		opportunityService: opportunityService,
+		backfillService:    backfillSvc,
 	}, nil
 }
 
@@ -197,6 +212,11 @@ func (a *App) Run() error {
 
 	// Start refresh token cleanup worker (every 1 hour)
 	go a.auth.StartCleanupWorker(ctx, 1*time.Hour)
+
+	// Start Hyperliquid wallet backfill worker (every 6 hours)
+	if a.backfillService != nil {
+		go runHyperliquidBackfill(ctx, a.logger, a.backfillService)
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -235,4 +255,32 @@ func (a *App) Shutdown(ctx context.Context) error {
 
 	a.logger.Info("application shutdown complete")
 	return nil
+}
+
+// runHyperliquidBackfill ingests venue fills for all tracked wallets on
+// start and every interval until ctx is done.
+func runHyperliquidBackfill(ctx context.Context, log *logger.Logger, svc *hyperliquid.BackfillService) {
+	const interval = 6 * time.Hour
+
+	run := func() {
+		done, failed, err := svc.BackfillAll(ctx, time.Now().UTC())
+		if err != nil {
+			log.Warn("hyperliquid backfill finished with failures",
+				"done", done, "failed", failed, "error", err)
+			return
+		}
+		log.Info("hyperliquid backfill finished", "done", done, "failed", failed)
+	}
+
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
 }

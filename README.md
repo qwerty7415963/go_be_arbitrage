@@ -145,6 +145,16 @@ across metrics; multi-select OR within a key (BR-11). Null metrics never match
 numeric filters (BR-07). Ordering is metric-first with a deterministic
 `(chain, address)` tiebreak (BR-12).
 
+### Metric Ingestion — Hyperliquid (background worker)
+| Item | Description |
+|------|-------------|
+| Source | Hyperliquid public `POST /info` (`userFillsByTime`, no auth, any address) |
+| Scope | EVM tracked wallets (`chain='evm'`); snapshots per timeframe 24H/7D/30D/90D/ALL |
+| Mapping | `closedPnl − fee` → net realized PnL; `dir`+`startPosition` → logical-position legs; leverage unavailable → `avg_leverage` null |
+| Schedule | On startup + every 6h (`runHyperliquidBackfill`); per-wallet failures logged, retried next tick |
+| Limits | ≤2000 fills/response (auto window-split); only 10,000 most recent fills queryable → capped snapshots flagged `is_partial` |
+| Spike note | Extended has no by-address endpoint (self-scoped feeds only); Variational trading API not live — see `WALLET_DASHBOARD_PLAN.md §8` |
+
 ## WebSocket: Order Book Real-time
 
 ### Connect

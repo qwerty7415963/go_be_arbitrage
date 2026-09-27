@@ -62,7 +62,9 @@ func respondError(c *gin.Context, err error) {
 // Scan godoc
 // @Summary      Scan wallets
 // @Description  Offset-paginated wallet scanner with multi-select and metric
-//                filters, timeframe windows and deterministic sorting (TEST-01)
+//
+//	filters, timeframe windows and deterministic sorting (TEST-01)
+//
 // @Tags         wallets
 // @Produce      json
 // @Param        search              query  string  false  "Partial address match"
@@ -112,7 +114,9 @@ func (h *Handler) Scan(c *gin.Context) {
 // Detail godoc
 // @Summary      Wallet detail
 // @Description  One wallet with timeframe metrics and the caller's own group
-//                memberships only (BE-06)
+//
+//	memberships only (BE-06)
+//
 // @Tags         wallets
 // @Produce      json
 // @Param        id         path   string  true   "Wallet ID"

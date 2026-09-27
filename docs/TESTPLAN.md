@@ -731,17 +731,29 @@
 | E2E-15 | GET /groups/:id/wallets | A filters own group (BE-09); B tries same group | A gets filtered group rows + metrics; B gets 403/404 |
 | E2E-16 | GET /wallets/:id | Wallet exists only in B's group → A queries detail (BE-06) | 200, wallet identity + metrics, zero memberships of B leaked |
 
-### 17.9 Phase 3 — Ingestion & Metrics Engine
+### 17.9 Phase 3 — Ingestion & Metrics Engine (Hyperliquid)
+
+Source: Hyperliquid public `POST /info` (`userFillsByTime`, no auth, any
+address). Spike gate result: Extended has no by-address endpoint (all trade/PnL
+feeds are self-scoped); Variational trading API is not live (CSV export only).
+Metric mapping: `time`/`sz`+`side`/`px` → Timestamp/Quantity/Price,
+`closedPnl − fee` → RealizedPnl (net), `dir`+`startPosition` → PositionID legs
+(`startPosition == 0` opens a new leg; partial closes share the leg);
+`Leverage` unavailable in fills → `avg_leverage` null (BR-07).
+Limits: ≤2000 fills/response, only 10,000 most recent fills queryable;
+numeric fields arrive as decimal strings (parsed to float64 — dashboard
+precision, not settlement precision).
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
-| ING-U-01 | Extended adapter fixture | Valid trader-history payload | Normalized fills persisted |
-| ING-U-02 | Extended adapter fixture | Unknown/missing fields | Graceful skip + log, no crash |
-| ING-U-03 | Variational adapter fixture | Valid payload | Normalized fills persisted |
-| ING-U-04 | Ingestion idempotency | Same fill delivered twice | 1 row (unique venue fill id) |
-| ING-I-01 | Backfill worker | Wallet with history | Snapshots computed for all timeframes |
-| ING-I-02 | Engine vs fixture | Known fill sequence | PnL/ROI/win-rate match expected fixture values |
-| ING-I-03 | Spike gate | No usable venue feed | STOP: documented, no guessed data (not a test — process gate) |
+| ING-U-01 | hyperliquid.NormalizeFills | Valid `userFillsByTime` fixture (open/close/partial) | MetricFill rows: time, qty, px, net PnL = closedPnl−fee, leg PositionIDs |
+| ING-U-02 | hyperliquid.NormalizeFills | Unknown/missing fields, bad decimals | Row skipped + logged, no crash; valid rows kept |
+| ING-U-03 | hyperliquid.NormalizeFills | Partial closes in one leg, then flat, then new leg | 1 trade for the leg, new PositionID after flat |
+| ING-U-04 | hyperliquid.Client pagination | httptest server: full 2000-fill page | Window split, no dup/skip, terminates |
+| ING-U-05 | Backfill idempotency | Same fill delivered twice | 1 row (`UNIQUE(venue, market, fill id)`) |
+| ING-I-01 | Backfill worker | Wallet with history (mock venue client) | Snapshots computed for 24H/7D/30D/90D/ALL |
+| ING-I-02 | Engine vs fixture | Known fill sequence | PnL/ROI/win-rate match expected values |
+| ING-I-03 | 10k cap | Window with >10k fills (mock always-full pages) | Stops subdividing at floor, snapshot marked `is_partial`, no infinite loop |
 
 ### 17.10 Phase 4 — Hardening (TEST-07/08/09/10)
 
