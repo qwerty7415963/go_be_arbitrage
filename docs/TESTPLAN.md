@@ -522,10 +522,11 @@
 | FA-U-05 | cache.GetStats | Any | Stats returned |
 | FA-U-06 | model.APR | Calculation | Correct APR |
 | FA-U-07 | model.APY | Calculation | Correct APY |
-| FA-U-08 | HyperliquidAdapter.FetchAllFunding | Valid metaAndAssetCtxs fixture | Perps parsed with funding/mark/index/OI |
+| FA-U-08 | HyperliquidAdapter.FetchAllFunding | Valid metaAndAssetCtxs fixture (object envelope `{universe:[...]}` + ctx array) | Perps parsed with funding/mark/index/OI |
 | FA-U-09 | HyperliquidAdapter.FetchAllFunding | Delisted market in universe | Skipped |
 | FA-U-10 | HyperliquidAdapter.FetchAllFunding | Universe/ctx length mismatch | Skipped extras, no crash |
 | FA-U-11 | HyperliquidAdapter.FetchAllFunding | HTTP error / bad JSON | Error returned |
+| FA-U-12 | HyperliquidAdapter.FetchAllFunding | Live-shape excerpt (marginTables/collateralToken siblings); missing `universe` key | Parses OK; missing universe → error |
 
 ### 13.2 Handler Tests (new)
 

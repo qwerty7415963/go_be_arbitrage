@@ -39,6 +39,12 @@ type HyperliquidAssetCtx struct {
 	OraclePx     string `json:"oraclePx"`
 }
 
+// hyperliquidMetaEnvelope is outer[0] of metaAndAssetCtxs: an object
+// holding the market universe (not a bare array).
+type hyperliquidMetaEnvelope struct {
+	Universe []HyperliquidUniverseEntry `json:"universe"`
+}
+
 type HyperliquidFundingData struct {
 	Symbol      string
 	BaseAsset   string
@@ -107,10 +113,14 @@ func (a *HyperliquidAdapter) FetchAllFunding(ctx context.Context) ([]Hyperliquid
 		return nil, &HyperliquidAPIError{Status: resp.StatusCode, Body: "metaAndAssetCtxs: expected [universe, ctxs]"}
 	}
 
-	var universe []HyperliquidUniverseEntry
-	if err := json.Unmarshal(outer[0], &universe); err != nil {
+	var meta hyperliquidMetaEnvelope
+	if err := json.Unmarshal(outer[0], &meta); err != nil {
 		return nil, err
 	}
+	if len(meta.Universe) == 0 {
+		return nil, &HyperliquidAPIError{Status: resp.StatusCode, Body: "metaAndAssetCtxs: universe missing"}
+	}
+	universe := meta.Universe
 	var ctxs []HyperliquidAssetCtx
 	if err := json.Unmarshal(outer[1], &ctxs); err != nil {
 		return nil, err
