@@ -522,6 +522,10 @@
 | FA-U-05 | cache.GetStats | Any | Stats returned |
 | FA-U-06 | model.APR | Calculation | Correct APR |
 | FA-U-07 | model.APY | Calculation | Correct APY |
+| FA-U-08 | HyperliquidAdapter.FetchAllFunding | Valid metaAndAssetCtxs fixture | Perps parsed with funding/mark/index/OI |
+| FA-U-09 | HyperliquidAdapter.FetchAllFunding | Delisted market in universe | Skipped |
+| FA-U-10 | HyperliquidAdapter.FetchAllFunding | Universe/ctx length mismatch | Skipped extras, no crash |
+| FA-U-11 | HyperliquidAdapter.FetchAllFunding | HTTP error / bad JSON | Error returned |
 
 ### 13.2 Handler Tests (new)
 
@@ -541,6 +545,8 @@
 | C-U-01 | NormalizeSymbol | "BTCUSDT" | base=BTC, quote=USDT |
 | C-U-02 | NormalizeSymbol | "BTC-USD" | base=BTC, quote=USD |
 | C-U-03 | CalculateAnnualizedRate | 0.01 daily | ~365% APR |
+| C-U-04 | NormalizeBaseAsset | "BTC" (hyperliquid coin, no suffix) | base=BTC |
+| C-U-05 | NormalizeQuoteAsset | "BTC" (hyperliquid, no suffix) | quote=USD default |
 
 ---
 

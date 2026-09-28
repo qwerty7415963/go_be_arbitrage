@@ -74,6 +74,12 @@ Server runs on `http://localhost:8080` by default.
 |--------|------|-------------|
 | GET | `/api/v1/funding/arbitrage` | Funding arbitrage table |
 
+> Pairs appear only for instruments mapped ACTIVE on **both** venues
+> (`venue_instruments`) with **fresh** funding (<15 min, else `include_stale=true`).
+> Funding sources: Binance, Extended, Variational (WS/REST adapters) +
+> Hyperliquid (REST `metaAndAssetCtxs` poll, hourly) via the
+> background collector.
+
 #### Query Parameters
 
 | Param | Type | Required | Default | Description |

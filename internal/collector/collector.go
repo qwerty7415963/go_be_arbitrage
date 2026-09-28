@@ -107,6 +107,13 @@ func (c *Collector) collectAll(ctx context.Context) {
 		c.collectVariational(ctx)
 	}()
 
+	// Collect from Hyperliquid
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.collectHyperliquid(ctx)
+	}()
+
 	wg.Wait()
 	c.logger.Debug("funding collection complete")
 }
@@ -220,6 +227,45 @@ func (c *Collector) collectVariational(ctx context.Context) {
 	}
 
 	c.logger.Info("stored variational funding", "stored", stored, "total", len(fundingData))
+
+	if c.invalidator != nil {
+		c.invalidator.Invalidate(v.ID)
+	}
+}
+
+func (c *Collector) collectHyperliquid(ctx context.Context) {
+	v, err := c.venueRepo.GetByCode(ctx, "hyperliquid")
+	if err != nil {
+		c.logger.Error("failed to get hyperliquid venue", "error", err)
+		return
+	}
+
+	adapter := exchange.NewHyperliquidAdapter()
+	fundingData, err := adapter.FetchAllFunding(ctx)
+	if err != nil {
+		c.logger.Error("failed to fetch hyperliquid funding", "error", err)
+		return
+	}
+
+	c.logger.Info("collected hyperliquid funding", "count", len(fundingData))
+
+	stored := 0
+	for _, data := range fundingData {
+		baseAsset := data.BaseAsset
+		if baseAsset == "" {
+			baseAsset = NormalizeBaseAsset(data.Symbol, "hyperliquid")
+		}
+		quoteAsset := data.QuoteAsset
+		if quoteAsset == "" {
+			quoteAsset = NormalizeQuoteAsset(data.Symbol, "hyperliquid")
+		}
+
+		if c.storeFundingWithDiscovery(ctx, v.ID, "hyperliquid", data.Symbol, baseAsset, quoteAsset, data.FundingRate, adapter.GetFundingInterval(), data.MarkPrice, data.IndexPrice, data.OI, data.ObservedAt) {
+			stored++
+		}
+	}
+
+	c.logger.Info("stored hyperliquid funding", "stored", stored, "total", len(fundingData))
 
 	if c.invalidator != nil {
 		c.invalidator.Invalidate(v.ID)
