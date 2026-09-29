@@ -635,14 +635,13 @@ func TestHandler_FilterConfig_Returns200(t *testing.T) {
 	}
 }
 
-// CFG-H-02: unauthenticated → rejected (401 from the JWT middleware in
-// production; the test shim reaches getUserID which answers 403).
-func TestHandler_FilterConfig_NoAuth_Rejected(t *testing.T) {
+// CFG-H-02: filter-config is public — no auth needed (static enums only).
+func TestHandler_FilterConfig_Anonymous_Returns200(t *testing.T) {
 	router := setupRouter(NewHandler(NewService(&mockRepo{}, testConfig())))
 
 	w := get(t, router, "/api/v1/wallets/filter-config", "")
-	if w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
-		t.Errorf("expected 401/403, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for anonymous config, got %d", w.Code)
 	}
 }
 
@@ -906,5 +905,98 @@ func TestHandler_Detail_TimeframeAppliedToPositions(t *testing.T) {
 	}
 	if gotTF != Timeframe24H {
 		t.Errorf("positions timeframe: got %q", gotTF)
+	}
+}
+
+// PUB-H-01: GET /wallets without a token ? 200, repo receives uuid.Nil
+// (anonymous) and rows carry no personal data.
+func TestHandler_Scan_Anonymous_Returns200(t *testing.T) {
+	id := uuid.New()
+	var gotUser uuid.UUID
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+		gotUser = u
+		w := sampleWallet(id, "0xanon", 100)
+		return []*Wallet{w}, 1, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("anonymous scan: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if gotUser != uuid.Nil {
+		t.Errorf("anonymous scan must pass uuid.Nil, got %v", gotUser)
+	}
+	row := decode(t, w)["data"].([]interface{})[0].(map[string]interface{})
+	if row["tag"] != nil || row["watchlisted"] != false {
+		t.Errorf("anonymous row must have empty personal fields: %v", row)
+	}
+}
+
+// PUB-H-02: ?watchlisted=true without a token ? 401 AUTH-003 (the star
+// filter is meaningless without a caller).
+func TestHandler_Scan_Anonymous_WatchlistedFilter_401(t *testing.T) {
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+		return []*Wallet{}, 0, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets?watchlisted=true", "")
+	expectCode(t, w, http.StatusUnauthorized, "AUTH-003")
+	if repo.lastFilters != nil {
+		t.Error("repository must not be reached for anonymous watchlist filter")
+	}
+}
+
+// PUB-H-03: authenticated scan still personalizes (sanity that optional
+// auth did not disable the user path).
+func TestHandler_Scan_Authenticated_Personalizes(t *testing.T) {
+	id := uuid.New()
+	var gotUser uuid.UUID
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+		gotUser = u
+		return []*Wallet{}, 0, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets", testUser)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotUser.String() != testUser {
+		t.Errorf("authenticated scan must pass the caller, got %v", gotUser)
+	}
+	_ = id
+}
+
+// PUB-H-04: GET /wallets/:id without a token ? 200 (public drawer).
+func TestHandler_Detail_Anonymous_Returns200(t *testing.T) {
+	id := uuid.New()
+	var gotUser uuid.UUID
+	repo := &mockRepo{detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+		gotUser = uid
+		return &WalletDetail{Wallet: *sampleWallet(wid, "0xanon", 5),
+			Memberships: []GroupRef{}, Positions: []Position{}}, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/"+id.String(), "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("anonymous detail: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if gotUser != uuid.Nil {
+		t.Errorf("anonymous detail must pass uuid.Nil, got %v", gotUser)
+	}
+}
+
+// PUB-H-05: PATCH without a token ? 403 AUTH-005 (writes stay auth-only).
+func TestHandler_Patch_Anonymous_Rejected(t *testing.T) {
+	repo := &mockRepo{}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := patchJSON(t, router, "/api/v1/wallets/"+uuid.New().String(), "",
+		map[string]bool{"watchlisted": true})
+	if w.Code != http.StatusForbidden {
+		t.Errorf("anonymous PATCH: expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 }

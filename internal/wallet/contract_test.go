@@ -94,6 +94,27 @@ func TestSwagger_ScannerContract_Documented(t *testing.T) {
 	if _, ok := spec.Paths["/api/v1/wallets/{id}"]; !ok {
 		t.Error("swagger missing GET /api/v1/wallets/{id}")
 	}
+	// PUB contract: reads are public (no security), the write requires BearerAuth.
+	var secSpec struct {
+		Paths map[string]map[string]struct {
+			Security []map[string][]string `json:"security"`
+		} `json:"paths"`
+	}
+	if err := json.Unmarshal(raw, &secSpec); err != nil {
+		t.Fatalf("parse security: %v", err)
+	}
+	if sec := secSpec.Paths["/api/v1/wallets"]["get"]; len(sec.Security) != 0 {
+		t.Errorf("GET /wallets must be documented as public, got security %v", sec.Security)
+	}
+	if sec := secSpec.Paths["/api/v1/wallets/filter-config"]["get"]; len(sec.Security) != 0 {
+		t.Errorf("GET filter-config must be public, got security %v", sec.Security)
+	}
+	if sec := secSpec.Paths["/api/v1/wallets/{id}"]["get"]; len(sec.Security) != 0 {
+		t.Errorf("GET /wallets/{id} must be public, got security %v", sec.Security)
+	}
+	if sec := secSpec.Paths["/api/v1/wallets/{id}"]["patch"]; len(sec.Security) == 0 {
+		t.Error("PATCH /wallets/{id} must document BearerAuth security")
+	}
 	if _, ok := spec.Paths["/api/v1/wallets/{id}"]["patch"]; !ok {
 		t.Error("swagger missing PATCH /api/v1/wallets/{id}")
 	}

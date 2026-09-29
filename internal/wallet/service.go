@@ -47,11 +47,17 @@ func metaFor(page, limit, offset int, total int64) *api.Meta {
 }
 
 // Scan runs the global wallet scanner (BE-02): parse → validate →
-// offset-paginated deterministic scan. Rows carry the caller's own tag.
+// offset-paginated deterministic scan. Rows carry the caller's own tag and
+// star (uuid.Nil = anonymous: both come back empty). The watchlist filter
+// needs a caller, so it is rejected with 401 for anonymous requests.
 func (s *Service) Scan(ctx context.Context, userID uuid.UUID, query url.Values) ([]*Wallet, *api.Meta, error) {
 	f, sort, page, limit, err := s.parse(query)
 	if err != nil {
 		return nil, nil, err
+	}
+	if f.Watchlisted != nil && userID == uuid.Nil {
+		return nil, nil, domain.NewError(domain.ErrCodeAuthTokenInvalid,
+			"watchlist filter requires authentication")
 	}
 	wallets, total, err := s.repo.ScanWallets(ctx, f, sort, nil, userID, limit, (page-1)*limit)
 	if err != nil {

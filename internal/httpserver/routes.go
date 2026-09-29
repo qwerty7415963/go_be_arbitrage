@@ -172,8 +172,10 @@ func (s *Server) SetupRoutes(
 		// Wallet Groups (Wallet Dashboard)
 		walletGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
 
-		// Wallet Scanner (Wallet Dashboard Phase 2)
-		walletHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		// Wallet Scanner (Wallet Dashboard Phase 2) — public reads with
+		// optional auth (a Bearer token personalizes tag/watchlist; PATCH
+		// still requires a token inside the handler).
+		walletHandler.RegisterRoutes(v1, middleware.OptionalJWT(authService))
 
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")

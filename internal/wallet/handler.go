@@ -52,6 +52,25 @@ func (h *Handler) getUserID(c *gin.Context) (uuid.UUID, bool) {
 	return userID, true
 }
 
+// optionalUserID resolves the caller for public endpoints: the
+// authenticated user id when a valid token was supplied, uuid.Nil for an
+// anonymous request (personal fields then come back empty).
+func (h *Handler) optionalUserID(c *gin.Context) uuid.UUID {
+	raw, exists := c.Get("user_id")
+	if !exists {
+		return uuid.Nil
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return uuid.Nil
+	}
+	userID, err := uuid.Parse(s)
+	if err != nil {
+		return uuid.Nil
+	}
+	return userID
+}
+
 func respondError(c *gin.Context, err error) {
 	var appErr *domain.AppError
 	if errors.As(err, &appErr) {
@@ -62,8 +81,8 @@ func respondError(c *gin.Context, err error) {
 }
 
 // Scan godoc
-// @Summary      Scan wallets
-// @Description  Offset-paginated wallet scanner with multi-select and metric filters, timeframe windows and deterministic sorting (TEST-01)
+// @Summary      Scan wallets (public)
+// @Description  Offset-paginated wallet scanner with multi-select and metric filters, timeframe windows and deterministic sorting (TEST-01). Public endpoint: a Bearer token personalizes rows (caller's tag, watchlist star); without a token tag=null and watchlisted=false. The watchlisted filter requires authentication (AUTH-003 otherwise).
 // @Tags         wallets
 // @Produce      json
 // @Param        search              query  string  false  "Partial address or own tag match (case-insensitive)"
@@ -126,10 +145,7 @@ func respondError(c *gin.Context, err error) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/wallets [get]
 func (h *Handler) Scan(c *gin.Context) {
-	userID, ok := h.getUserID(c)
-	if !ok {
-		return
-	}
+	userID := h.optionalUserID(c)
 
 	wallets, meta, err := h.service.Scan(c.Request.Context(), userID, c.Request.URL.Query())
 	if err != nil {
@@ -140,8 +156,8 @@ func (h *Handler) Scan(c *gin.Context) {
 }
 
 // Detail godoc
-// @Summary      Wallet detail
-// @Description  One wallet with timeframe metrics, per-market positions breakdown (empty array when none) and the caller's own group memberships only (BE-06)
+// @Summary      Wallet detail (public)
+// @Description  One wallet with timeframe metrics, per-market positions breakdown (empty array when none) and group memberships. Public endpoint: a Bearer token returns the caller's own tag/star/memberships; without a token those come back empty (BE-06 still never leaks other users' data).
 // @Tags         wallets
 // @Produce      json
 // @Param        id         path   string  true   "Wallet ID"
@@ -152,10 +168,7 @@ func (h *Handler) Scan(c *gin.Context) {
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/wallets/{id} [get]
 func (h *Handler) Detail(c *gin.Context) {
-	userID, ok := h.getUserID(c)
-	if !ok {
-		return
-	}
+	userID := h.optionalUserID(c)
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		api.RespondValidationError(c, []api.FieldError{{
@@ -184,15 +197,17 @@ type UpdateTagRequest struct {
 
 // UpdateTag godoc
 // @Summary      Set wallet tag and/or watchlist star
-// @Description  Updates the caller's private label and/or watchlist star for a wallet; returns the refreshed detail. At least one of tag/watchlisted is required (else COMMON-902). Tag is trimmed, max 100 runes; empty string clears the label. watchlisted=true stars, false unstars (per-user, PK upsert). Unknown wallet is WALLET-001. Never conflicts: no 409 exists on this endpoint.
+// @Description  Updates the caller's private label and/or watchlist star for a wallet; returns the refreshed detail. Requires authentication. At least one of tag/watchlisted is required (else COMMON-902). Tag is trimmed, max 100 runes; empty string clears the label. watchlisted=true stars, false unstars (per-user, PK upsert). Unknown wallet is WALLET-001. Never conflicts: no 409 exists on this endpoint.
 // @Tags         wallets
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id       path      string            true  "Wallet ID"
 // @Param        request  body      UpdateTagRequest  true  "tag (empty clears) and/or watchlisted"
 // @Success      200  {object}  api.Response{data=WalletDetail}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/wallets/{id} [patch]
 func (h *Handler) UpdateTag(c *gin.Context) {
@@ -229,17 +244,13 @@ func (h *Handler) UpdateTag(c *gin.Context) {
 }
 
 // FilterConfig godoc
-// @Summary      Scanner filter config
-// @Description  Data-driven filter enums (dexes, chains, markets) plus the code-declared timeframe/sort/metric tables so the frontend renders filters dynamically (CFG-*)
+// @Summary      Scanner filter config (public)
+// @Description  Data-driven filter enums (dexes, chains, markets) plus the code-declared timeframe/sort/metric tables so the frontend renders filters dynamically (CFG-*). Public endpoint — no user data.
 // @Tags         wallets
 // @Produce      json
 // @Success      200  {object}  api.Response{data=ScannerConfig}
-// @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/wallets/filter-config [get]
 func (h *Handler) FilterConfig(c *gin.Context) {
-	if _, ok := h.getUserID(c); !ok {
-		return
-	}
 	c.JSON(http.StatusOK, api.Response{Success: true, Data: h.service.Config()})
 }
 

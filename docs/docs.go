@@ -4070,14 +4070,14 @@ const docTemplate = `{
         },
         "/api/v1/wallets": {
             "get": {
-                "description": "Offset-paginated wallet scanner with multi-select and metric filters, timeframe windows and deterministic sorting (TEST-01)",
+                "description": "Offset-paginated wallet scanner with multi-select and metric filters, timeframe windows and deterministic sorting (TEST-01). Public endpoint: a Bearer token personalizes rows (caller's tag, watchlist star); without a token tag=null and watchlisted=false. The watchlisted filter requires authentication (AUTH-003 otherwise).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "wallets"
                 ],
-                "summary": "Scan wallets",
+                "summary": "Scan wallets (public)",
                 "parameters": [
                     {
                         "type": "string",
@@ -4509,14 +4509,14 @@ const docTemplate = `{
         },
         "/api/v1/wallets/filter-config": {
             "get": {
-                "description": "Data-driven filter enums (dexes, chains, markets) plus the code-declared timeframe/sort/metric tables so the frontend renders filters dynamically (CFG-*)",
+                "description": "Data-driven filter enums (dexes, chains, markets) plus the code-declared timeframe/sort/metric tables so the frontend renders filters dynamically (CFG-*). Public endpoint — no user data.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "wallets"
                 ],
-                "summary": "Scanner filter config",
+                "summary": "Scanner filter config (public)",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -4535,38 +4535,20 @@ const docTemplate = `{
                                 }
                             ]
                         }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
                     }
                 }
             }
         },
         "/api/v1/wallets/{id}": {
             "get": {
-                "description": "One wallet with timeframe metrics, per-market positions breakdown (empty array when none) and the caller's own group memberships only (BE-06)",
+                "description": "One wallet with timeframe metrics, per-market positions breakdown (empty array when none) and group memberships. Public endpoint: a Bearer token returns the caller's own tag/star/memberships; without a token those come back empty (BE-06 still never leaks other users' data).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "wallets"
                 ],
-                "summary": "Wallet detail",
+                "summary": "Wallet detail (public)",
                 "parameters": [
                     {
                         "type": "string",
@@ -4666,7 +4648,12 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Updates the caller's private label and/or watchlist star for a wallet; returns the refreshed detail. At least one of tag/watchlisted is required (else COMMON-902). Tag is trimmed, max 100 runes; empty string clears the label. watchlisted=true stars, false unstars (per-user, PK upsert). Unknown wallet is WALLET-001. Never conflicts: no 409 exists on this endpoint.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the caller's private label and/or watchlist star for a wallet; returns the refreshed detail. Requires authentication. At least one of tag/watchlisted is required (else COMMON-902). Tag is trimmed, max 100 runes; empty string clears the label. watchlisted=true stars, false unstars (per-user, PK upsert). Unknown wallet is WALLET-001. Never conflicts: no 409 exists on this endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4734,6 +4721,24 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "allOf": [
                                 {

@@ -238,3 +238,65 @@ func TestJWT_EmptyToken(t *testing.T) {
 		t.Errorf("expected 401 for empty token, got %d", w.Code)
 	}
 }
+
+// ─── OptionalJWT: no header → anonymous pass-through ───────────
+
+func TestOptionalJWT_NoHeader_PassesThrough(t *testing.T) {
+	svc := auth.NewService(testAuthConfig(), nil)
+	router := setupTestMiddlewareRouter(OptionalJWT(svc))
+
+	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for anonymous, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["user_id"] != "" {
+		t.Errorf("anonymous must not carry user_id, got %v", resp["user_id"])
+	}
+}
+
+// ─── OptionalJWT: valid header → context set ───────────────────
+
+func TestOptionalJWT_ValidToken_SetsContext(t *testing.T) {
+	svc := auth.NewService(testAuthConfig(), nil)
+	token := genToken(svc, "user-opt", "tenant-opt", "user")
+	router := setupTestMiddlewareRouter(OptionalJWT(svc))
+
+	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["user_id"] != "user-opt" {
+		t.Errorf("expected user_id=user-opt, got %v", resp["user_id"])
+	}
+}
+
+// ─── OptionalJWT: present but invalid header/token → 401 ───────
+
+func TestOptionalJWT_InvalidCredentials_401(t *testing.T) {
+	svc := auth.NewService(testAuthConfig(), nil)
+	router := setupTestMiddlewareRouter(OptionalJWT(svc))
+
+	for name, header := range map[string]string{
+		"malformed": "Token abc",
+		"bad token": "Bearer not-a-real-jwt",
+	} {
+		req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+		req.Header.Set("Authorization", header)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("%s: expected 401, got %d", name, w.Code)
+		}
+	}
+}

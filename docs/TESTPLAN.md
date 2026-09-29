@@ -833,7 +833,7 @@ filters dynamically instead of hard-coding enums).
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
 | CFG-H-01 | GET /wallets/filter-config | Authenticated | 200 `{dexes, chains, markets, timeframes, sort_fields, metrics[]}` |
-| CFG-H-02 | GET /wallets/filter-config | No auth | 401 (JWT middleware) / 403 (handler) rejected |
+| CFG-H-02 | GET /wallets/filter-config | No auth | 200 (public endpoint, static enums only) |
 | CFG-H-03 | GET /wallets/filter-config | metrics[] content | Every `numericMetrics` key present with `min`/`max`/`ops` |
 | CFG-H-04 | GET /wallets/filter-config | Enums | `timeframes` = 24H/7D/30D/90D/ALL; `sort_fields` = sortable set; `default_timeframe` = 30D |
 | CFG-U-01 | ScannerConfig | Assembled from code tables | Metrics/timeframes/sort fields match parser tables exactly |
@@ -856,6 +856,28 @@ filters dynamically instead of hard-coding enums).
 | WL-I-02 | SetWatchlisted | Per-user isolation | A's star invisible to B (rows + filter) |
 | WL-I-03 | SetWatchlisted(false) | Unstar | Row deleted; filter excludes |
 | WL-E2E | Star → scan filter → unstar | Full flow over HTTP | Round-trips; other user unaffected |
+
+### 17.14 Public Scanner (optional auth)
+
+`GET /wallets`, `GET /wallets/filter-config`, `GET /wallets/:id` are public
+(`middleware.OptionalJWT`): a Bearer token personalizes rows (tag, star,
+memberships); anonymous requests get `tag=null`, `watchlisted=false`, empty
+memberships. `PATCH /wallets/:id` and the `watchlisted` filter stay
+auth-only.
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| PUB-M-01 | OptionalJWT | No Authorization header | Passes through, no user context |
+| PUB-M-02 | OptionalJWT | Valid Bearer token | Context set (user_id/tenant_id/role) |
+| PUB-M-03 | OptionalJWT | Malformed header / invalid token | 401, aborted |
+| PUB-H-01 | GET /wallets | Anonymous | 200; repo gets `uuid.Nil`; rows `tag=null`, `watchlisted=false` |
+| PUB-H-02 | GET /wallets | Anonymous + `?watchlisted=true` | 401 `AUTH-003`, repo not reached |
+| PUB-H-03 | GET /wallets | Authenticated | Repo gets the caller's id (personalization intact) |
+| PUB-H-04 | GET /wallets/:id | Anonymous | 200, `uuid.Nil` passed |
+| PUB-H-05 | PATCH /wallets/:id | Anonymous | 403 `AUTH-005` (writes auth-only) |
+| PUB-H-06 | GET /wallets/filter-config | Anonymous | 200 (public) |
+| PUB-I-01 | Scan (uuid.Nil) | Wallet tagged + starred by A | Anonymous rows show neither; owner search still matches; watchlist filter → `AUTH-003` |
+| PUB-E2E | No-token flow | scan + config + detail + watchlist filter + PATCH | 200/200/200/401/403 over HTTP |
 
 ---
 

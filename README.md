@@ -126,13 +126,19 @@ Server runs on `http://localhost:8080` by default.
 Group mutations (create/update/delete/add/remove wallets) emit structured logs
 with `actor` (user id) + `request_id` (BE-13); IDs and counts only, never secrets.
 
-### Wallet Scanner (JWT required; TEST-01 grammar)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/wallets` | Offset-paginated scanner: filters, timeframe, metric operators, sort, watchlist star filter |
-| GET | `/api/v1/wallets/filter-config` | Filter config for dynamic UI: `dexes`/`chains`/`markets` (data-driven) + `timeframes`/`sort_fields`/`metrics[]` (code tables, with `min`/`max`/`ops`/`sortable`) |
-| GET | `/api/v1/wallets/:id` | Wallet detail: identity + timeframe metrics + per-market `positions[]` (empty array when none) + own group memberships only |
-| PATCH | `/api/v1/wallets/:id` | Update caller's private tag and/or watchlist star (`{"tag": "..."}` empty clears, max 100 chars; `{"watchlisted": true}` star, `false` unstar; at least one field, both allowed) |
+### Wallet Scanner (public reads; optional auth personalizes; TEST-01 grammar)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/wallets` | Public (optional Bearer) | Offset-paginated scanner: filters, timeframe, metric operators, sort, watchlist star filter |
+| GET | `/api/v1/wallets/filter-config` | Public | Filter config for dynamic UI: `dexes`/`chains`/`markets` (data-driven) + `timeframes`/`sort_fields`/`metrics[]` (code tables, with `min`/`max`/`ops`/`sortable`) |
+| GET | `/api/v1/wallets/:id` | Public (optional Bearer) | Wallet detail: identity + timeframe metrics + per-market `positions[]` (empty array when none) + own group memberships only |
+| PATCH | `/api/v1/wallets/:id` | **JWT required** | Update caller's private tag and/or watchlist star (`{"tag": "..."}` empty clears, max 100 chars; `{"watchlisted": true}` star, `false` unstar; at least one field, both allowed) |
+
+Without a token the reads work anonymously: rows carry `tag=null` and
+`watchlisted=false`, memberships `[]`. Supplying a Bearer token adds the
+caller's own tag/star/memberships. `?watchlisted=...` without a token → 401
+`AUTH-003`; PATCH without a token → 403 `AUTH-005`. Invalid/expired tokens →
+401 on every wallet route.
 
 Scanner query grammar (shared by both endpoints):
 

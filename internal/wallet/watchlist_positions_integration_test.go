@@ -4,8 +4,12 @@ package wallet
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
 
 // POS-I-01: per-market snapshots come back sorted by pnl desc (NULL pnl
@@ -224,5 +228,56 @@ func TestRepo_Watchlist_FalseFilterExcludesStarred(t *testing.T) {
 	}
 	if !exists {
 		t.Error("wallet vanished")
+	}
+}
+
+// PUB-I-01: anonymous scan (uuid.Nil) sees wallets but never anyone's
+// tag/star; the watchlist filter is rejected up front with AUTH-003.
+func TestRepo_Scan_Anonymous_NoPersonalization(t *testing.T) {
+	f := setupScannerFixture(t)
+	ctx := context.Background()
+
+	walletID, addr := tagFixtureWallet(t, f, 16)
+	if _, err := f.svc.UpdateTag(ctx, f.userA, walletID, strPtr("private-label")); err != nil {
+		t.Fatalf("set tag: %v", err)
+	}
+	if err := f.repo.SetWatchlisted(ctx, f.userA, walletID, true); err != nil {
+		t.Fatalf("star: %v", err)
+	}
+
+	rows, _, err := f.svc.Scan(ctx, uuid.Nil, url.Values{"limit": {"200"}})
+	if err != nil {
+		t.Fatalf("anonymous scan: %v", err)
+	}
+	found := false
+	for _, w := range rows {
+		if w.Address == addr {
+			found = true
+			if w.Tag != nil {
+				t.Errorf("anonymous row must not expose a tag: %v", *w.Tag)
+			}
+			if w.Watchlisted {
+				t.Error("anonymous row must not report watchlisted=true")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("wallet missing from anonymous scan (%d rows)", len(rows))
+	}
+
+	// Personal search still works for the owner (control case).
+	owned, _, err := f.svc.Scan(ctx, f.userA, url.Values{"search": {"private-label"}, "limit": {"200"}})
+	if err != nil || len(owned) == 0 {
+		t.Errorf("owner search must still match: %d rows, %v", len(owned), err)
+	}
+
+	// watchlisted filter without a caller → AUTH-003.
+	if _, _, err := f.svc.Scan(ctx, uuid.Nil, url.Values{"watchlisted": {"true"}}); err == nil {
+		t.Error("expected AUTH-003 for anonymous watchlist filter")
+	} else {
+		var appErr *domain.AppError
+		if !errors.As(err, &appErr) || appErr.Code != domain.ErrCodeAuthTokenInvalid {
+			t.Errorf("expected AUTH-003, got %v", err)
+		}
 	}
 }

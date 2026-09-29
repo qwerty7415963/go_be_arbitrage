@@ -578,3 +578,60 @@ func TestE2E_Wallet_DetailPositionsBreakdown(t *testing.T) {
 		t.Error("positions must be an empty array, not null")
 	}
 }
+
+// PUB-E2E: the scanner reads work without any token — anonymous scan,
+// config and detail return 200 with empty personal fields; the watchlist
+// filter and PATCH stay behind auth.
+func TestE2E_Wallet_PublicScan_NoToken(t *testing.T) {
+	s := setupWalletSuite(t)
+
+	// Anonymous list.
+	code, resp := s.get(t, "/api/v1/wallets?limit=10", "")
+	if code != http.StatusOK {
+		t.Fatalf("anonymous scan: %d %v", code, resp)
+	}
+	rows, _ := resp["data"].([]interface{})
+	if len(rows) == 0 {
+		t.Fatal("anonymous scan returned no rows")
+	}
+	for _, row := range rows {
+		m := row.(map[string]interface{})
+		if m["tag"] != nil || m["watchlisted"] != false {
+			t.Errorf("anonymous row leaks personal fields: %v", m)
+		}
+	}
+
+	// Anonymous filter config.
+	code, resp = s.get(t, "/api/v1/wallets/filter-config", "")
+	if code != http.StatusOK {
+		t.Fatalf("anonymous config: %d %v", code, resp)
+	}
+	if _, ok := resp["data"].(map[string]interface{})["metrics"]; !ok {
+		t.Errorf("config payload missing metrics: %v", resp)
+	}
+
+	// Anonymous detail.
+	id := s.walletID[walletSeedAddr(0)].String()
+	code, resp = s.get(t, "/api/v1/wallets/"+id, "")
+	if code != http.StatusOK {
+		t.Fatalf("anonymous detail: %d %v", code, resp)
+	}
+
+	// Anonymous watchlist filter → 401 AUTH-003.
+	code, resp = s.get(t, "/api/v1/wallets?watchlisted=true", "")
+	if code != http.StatusUnauthorized {
+		t.Fatalf("anonymous watchlisted filter: expected 401, got %d: %v", code, resp)
+	}
+	if resp["error"].(map[string]interface{})["code"] != "AUTH-003" {
+		t.Errorf("expected AUTH-003: %v", resp["error"])
+	}
+
+	// Anonymous PATCH → 403 AUTH-005 (writes require a token).
+	code, resp = s.patchJSON(t, "/api/v1/wallets/"+id, "", map[string]bool{"watchlisted": true})
+	if code != http.StatusForbidden {
+		t.Fatalf("anonymous PATCH: expected 403, got %d: %v", code, resp)
+	}
+	if resp["error"].(map[string]interface{})["code"] != "AUTH-005" {
+		t.Errorf("expected AUTH-005: %v", resp["error"])
+	}
+}
