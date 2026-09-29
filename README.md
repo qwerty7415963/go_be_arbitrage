@@ -129,9 +129,10 @@ with `actor` (user id) + `request_id` (BE-13); IDs and counts only, never secret
 ### Wallet Scanner (JWT required; TEST-01 grammar)
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/wallets` | Offset-paginated scanner: filters, timeframe, metric operators, sort |
-| GET | `/api/v1/wallets/:id` | Wallet detail: identity + timeframe metrics + own group memberships only |
-| PATCH | `/api/v1/wallets/:id` | Set/clear caller's private tag (`{"tag": "..."}`; empty clears; max 100 chars) |
+| GET | `/api/v1/wallets` | Offset-paginated scanner: filters, timeframe, metric operators, sort, watchlist star filter |
+| GET | `/api/v1/wallets/filter-config` | Filter config for dynamic UI: `dexes`/`chains`/`markets` (data-driven) + `timeframes`/`sort_fields`/`metrics[]` (code tables, with `min`/`max`/`ops`/`sortable`) |
+| GET | `/api/v1/wallets/:id` | Wallet detail: identity + timeframe metrics + per-market `positions[]` (empty array when none) + own group memberships only |
+| PATCH | `/api/v1/wallets/:id` | Update caller's private tag and/or watchlist star (`{"tag": "..."}` empty clears, max 100 chars; `{"watchlisted": true}` star, `false` unstar; at least one field, both allowed) |
 
 Scanner query grammar (shared by both endpoints):
 
@@ -140,6 +141,8 @@ search=0xabc                    # partial address OR own tag (case-insensitive)
 dex=hyperliquid,gmx             # multi-select OR: repeat key or comma form;
                                 #   data-driven enum (ACTIVE venues in DB), unknown → COMMON-902
 chain=evm&chain=starknet        # same for chain (observed chains) / market (ingested markets)
+watchlisted=true                # caller's own watchlist stars: true = starred only,
+                                #   false = unstarred only; absent = no filter
 timeframe=24H|7D|30D|90D|ALL    # default 30D; unavailable metrics = null, never 0 (BR-07)
 start=2026-01-01T00:00:00Z&end=2026-02-01T00:00:00Z   # custom range (RFC3339, start<end)
 pnl_gt=1000                     # every metric × every op: _gt _gte _lt _lte _between (lo,hi)

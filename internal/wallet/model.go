@@ -47,14 +47,16 @@ type Metrics struct {
 }
 
 // Wallet is the scanner row: identity plus timeframe-scoped metrics
-// (Metrics is nil when the wallet has no snapshot for the timeframe) and
-// the caller's own private tag (Tag is nil when unset).
+// (Metrics is nil when the wallet has no snapshot for the timeframe), the
+// caller's own private tag (Tag is nil when unset) and whether the caller
+// starred the wallet (Watchlisted — per-user, WL-*).
 type Wallet struct {
 	ID          uuid.UUID `json:"id"`
 	Chain       string    `json:"chain"`
 	Address     string    `json:"address"`
 	Dex         string    `json:"dex,omitempty"`
 	Tag         *string   `json:"tag"`
+	Watchlisted bool      `json:"watchlisted"`
 	FirstSeenAt time.Time `json:"first_seen_at"`
 	LastSeenAt  time.Time `json:"last_seen_at"`
 	Metrics     *Metrics  `json:"metrics"`
@@ -73,11 +75,20 @@ type GroupWallet struct {
 	AddedAt time.Time `json:"added_at"`
 }
 
+// Position is a per-market metric row (POS-*): the detail drawer's
+// positions breakdown. Metrics is embedded so its fields serialize flat.
+type Position struct {
+	Market string `json:"market"`
+	Metrics
+}
+
 // WalletDetail adds the caller's group memberships (BE-06: never other
-// users' memberships).
+// users' memberships) and the per-market positions breakdown (POS-*;
+// empty slice when the wallet has no per-market snapshots).
 type WalletDetail struct {
 	Wallet
 	Memberships []GroupRef `json:"memberships"`
+	Positions   []Position `json:"positions"`
 }
 
 // FilterConfig holds the valid enum values for filters; loaded from the

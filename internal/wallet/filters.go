@@ -32,6 +32,7 @@ type Filters struct {
 	Dex            []string
 	Chain          []string
 	Market         []string
+	Watchlisted    *bool  // nil = no star filter; true = starred only; false = unstarred only (WL-*)
 	Timeframe      string // 24H|7D|30D|90D|ALL (default 30D) — custom sets CustomKey
 	Start          *time.Time
 	End            *time.Time
@@ -157,6 +158,21 @@ func ParseFilters(q url.Values, cfg FilterConfig) (*Filters, error) {
 		return nil, err
 	}
 	f.Market = market
+
+	// Watchlist star filter (WL-U-01): absent = no filter, true/false keeps
+	// only starred/unstarred rows; anything else is COMMON-902 (WL-U-02).
+	if raw := strings.TrimSpace(q.Get("watchlisted")); raw != "" {
+		switch strings.ToLower(raw) {
+		case "true":
+			t := true
+			f.Watchlisted = &t
+		case "false":
+			t := false
+			f.Watchlisted = &t
+		default:
+			return nil, validationError("watchlisted", "must be true or false")
+		}
+	}
 
 	// Custom range and named timeframe are mutually exclusive.
 	start, err := parseTimeParam(q, "start")

@@ -272,3 +272,37 @@ func TestParseFilters_UnknownOperator_ReturnsCommon902(t *testing.T) {
 		t.Errorf("expected COMMON-902, got %s", appErr.Code)
 	}
 }
+
+// WL-U-01: watchlisted=true/false sets the flag; absent leaves it nil.
+func TestParseFilters_Watchlisted_Parsed(t *testing.T) {
+	f, err := ParseFilters(url.Values{"watchlisted": {"true"}}, testConfig())
+	if err != nil {
+		t.Fatalf("watchlisted=true: %v", err)
+	}
+	if f.Watchlisted == nil || !*f.Watchlisted {
+		t.Errorf("expected true, got %v", f.Watchlisted)
+	}
+
+	f, err = ParseFilters(url.Values{"watchlisted": {"FALSE"}}, testConfig())
+	if err != nil {
+		t.Fatalf("watchlisted=false: %v", err)
+	}
+	if f.Watchlisted == nil || *f.Watchlisted {
+		t.Errorf("expected false, got %v", f.Watchlisted)
+	}
+
+	f, err = ParseFilters(url.Values{}, testConfig())
+	if err != nil {
+		t.Fatalf("absent: %v", err)
+	}
+	if f.Watchlisted != nil {
+		t.Errorf("absent must stay nil (no filter), got %v", *f.Watchlisted)
+	}
+}
+
+// WL-U-02: non-boolean watchlisted value is COMMON-902.
+func TestParseFilters_Watchlisted_InvalidCommon902(t *testing.T) {
+	if appErr := parseErr(t, url.Values{"watchlisted": {"maybe"}}); appErr.Code != domain.ErrCodeValidation {
+		t.Errorf("expected COMMON-902, got %s", appErr.Code)
+	}
+}

@@ -49,6 +49,7 @@ func TestSwagger_ScannerContract_Documented(t *testing.T) {
 		"search", "dex", "chain", "market", "timeframe", "start", "end",
 		"pnl_gt", "pnl_between", "win_rate_gte", "volume_gt",
 		"last_active_within", "sort", "order", "page", "limit",
+		"watchlisted", // WL-*: star filter documented for the frontend
 	} {
 		if !params[want] {
 			t.Errorf("swagger GET /wallets missing documented param %q", want)
@@ -95,6 +96,49 @@ func TestSwagger_ScannerContract_Documented(t *testing.T) {
 	}
 	if _, ok := spec.Paths["/api/v1/wallets/{id}"]["patch"]; !ok {
 		t.Error("swagger missing PATCH /api/v1/wallets/{id}")
+	}
+
+	// CFG-H-01 contract: filter-config endpoint documented.
+	if _, ok := spec.Paths["/api/v1/wallets/filter-config"]["get"]; !ok {
+		t.Error("swagger missing GET /api/v1/wallets/filter-config")
+	}
+
+	// Schema contract: PATCH body carries watchlisted; detail carries
+	// positions (WL-*/POS-*), so the frontend can rely on the shapes.
+	var full struct {
+		Definitions map[string]struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		} `json:"definitions"`
+	}
+	if err := json.Unmarshal(raw, &full); err != nil {
+		t.Fatalf("parse definitions: %v", err)
+	}
+	patchBody, ok := full.Definitions["internal_wallet.UpdateTagRequest"]
+	if !ok {
+		t.Error("swagger missing UpdateTagRequest definition")
+	} else if _, ok := patchBody.Properties["watchlisted"]; !ok {
+		t.Error("UpdateTagRequest missing watchlisted property")
+	}
+	detail, ok := full.Definitions["internal_wallet.WalletDetail"]
+	if !ok {
+		t.Error("swagger missing WalletDetail definition")
+	} else {
+		if _, ok := detail.Properties["positions"]; !ok {
+			t.Error("WalletDetail missing positions property")
+		}
+		if _, ok := detail.Properties["memberships"]; !ok {
+			t.Error("WalletDetail missing memberships property")
+		}
+	}
+	if _, ok := full.Definitions["internal_wallet.ScannerConfig"]; !ok {
+		t.Error("swagger missing ScannerConfig definition")
+	}
+	if row, ok := full.Definitions["internal_wallet.Wallet"]; ok {
+		if _, ok := row.Properties["watchlisted"]; !ok {
+			t.Error("Wallet missing watchlisted property")
+		}
+	} else {
+		t.Error("swagger missing Wallet definition")
 	}
 
 	// Group wallets list documents include=metrics and returns the single

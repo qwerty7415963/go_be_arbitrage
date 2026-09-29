@@ -27,6 +27,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	}
 	{
 		wallets.GET("", h.Scan)
+		wallets.GET("/filter-config", h.FilterConfig)
 		wallets.GET("/:id", h.Detail)
 		wallets.PATCH("/:id", h.UpdateTag)
 	}
@@ -69,6 +70,7 @@ func respondError(c *gin.Context, err error) {
 // @Param        dex                 query  string  false  "DEX filter, data-driven enum (repeat or comma-separated; e.g. hyperliquid,extended; unknown → COMMON-902)"
 // @Param        chain               query  string  false  "Chain filter, data-driven enum (repeat or comma-separated; e.g. evm; unknown → COMMON-902)"
 // @Param        market              query  string  false  "Market filter, data-driven enum (repeat or comma-separated; e.g. BTC; unknown → COMMON-902)"
+// @Param        watchlisted         query  string  false  "Watchlist star filter: true = starred only, false = unstarred only (caller's own stars)" enums(true,false)
 // @Param        timeframe           query  string  false  "Metric window" enums(24H,7D,30D,90D,ALL) default(30D)
 // @Param        start               query  string  false  "Custom range start (RFC3339, requires end)"
 // @Param        end                 query  string  false  "Custom range end (RFC3339)"
@@ -139,7 +141,7 @@ func (h *Handler) Scan(c *gin.Context) {
 
 // Detail godoc
 // @Summary      Wallet detail
-// @Description  One wallet with timeframe metrics and the caller's own group memberships only (BE-06)
+// @Description  One wallet with timeframe metrics, per-market positions breakdown (empty array when none) and the caller's own group memberships only (BE-06)
 // @Tags         wallets
 // @Produce      json
 // @Param        id         path   string  true   "Wallet ID"
@@ -172,20 +174,22 @@ func (h *Handler) Detail(c *gin.Context) {
 	c.JSON(http.StatusOK, api.Response{Success: true, Data: detail})
 }
 
-// UpdateTagRequest is the body for PATCH /wallets/:id. A nil tag means the
-// field was absent (400); an empty/blank tag clears the label.
+// UpdateTagRequest is the body for PATCH /wallets/:id. At least one field
+// is required (both nil → 400). A nil tag means "leave the label alone",
+// an empty/blank tag clears it; nil watchlisted leaves the star untouched.
 type UpdateTagRequest struct {
-	Tag *string `json:"tag"`
+	Tag         *string `json:"tag"`
+	Watchlisted *bool   `json:"watchlisted"`
 }
 
 // UpdateTag godoc
-// @Summary      Set wallet tag
-// @Description  Set (or clear, with an empty string) the caller's private label for a wallet; returns the refreshed detail. Tag is trimmed, max 100 runes; missing/wrong-typed field is COMMON-902, unknown wallet is WALLET-001. Tags never conflict: no 409 exists on this endpoint.
+// @Summary      Set wallet tag and/or watchlist star
+// @Description  Updates the caller's private label and/or watchlist star for a wallet; returns the refreshed detail. At least one of tag/watchlisted is required (else COMMON-902). Tag is trimmed, max 100 runes; empty string clears the label. watchlisted=true stars, false unstars (per-user, PK upsert). Unknown wallet is WALLET-001. Never conflicts: no 409 exists on this endpoint.
 // @Tags         wallets
 // @Accept       json
 // @Produce      json
 // @Param        id       path      string            true  "Wallet ID"
-// @Param        request  body      UpdateTagRequest  true  "Tag (empty clears)"
+// @Param        request  body      UpdateTagRequest  true  "tag (empty clears) and/or watchlisted"
 // @Success      200  {object}  api.Response{data=WalletDetail}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
@@ -211,17 +215,32 @@ func (h *Handler) UpdateTag(c *gin.Context) {
 		api.RespondValidationError(c, []api.FieldError{{
 			Field:   "tag",
 			Code:    string(domain.ErrCodeValidation),
-			Message: "tag must be a string",
+			Message: "tag must be a string and watchlisted must be a boolean",
 		}})
 		return
 	}
 
-	detail, err := h.service.UpdateTag(c.Request.Context(), userID, id, req.Tag)
+	detail, err := h.service.UpdateWallet(c.Request.Context(), userID, id, req.Tag, req.Watchlisted)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, api.Response{Success: true, Data: detail})
+}
+
+// FilterConfig godoc
+// @Summary      Scanner filter config
+// @Description  Data-driven filter enums (dexes, chains, markets) plus the code-declared timeframe/sort/metric tables so the frontend renders filters dynamically (CFG-*)
+// @Tags         wallets
+// @Produce      json
+// @Success      200  {object}  api.Response{data=ScannerConfig}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Router       /api/v1/wallets/filter-config [get]
+func (h *Handler) FilterConfig(c *gin.Context) {
+	if _, ok := h.getUserID(c); !ok {
+		return
+	}
+	c.JSON(http.StatusOK, api.Response{Success: true, Data: h.service.Config()})
 }
 
 // HasScannerParams reports whether q contains any scanner-specific query

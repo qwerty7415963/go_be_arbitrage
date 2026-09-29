@@ -465,3 +465,116 @@ func TestE2E_Wallet_TagRoundTrip(t *testing.T) {
 		t.Errorf("expected WALLET-001: %v", resp["error"])
 	}
 }
+
+// WL-E2E: watchlist round-trip over HTTP — star → scan filter → detail →
+// unstar, with per-user isolation (B never sees A's stars).
+func TestE2E_Wallet_WatchlistRoundTrip(t *testing.T) {
+	s := setupWalletSuite(t)
+	addr := walletSeedAddr(1)
+	id := s.walletID[addr].String()
+
+	// A stars the wallet.
+	code, resp := s.patchJSON(t, "/api/v1/wallets/"+id, s.userA.String(),
+		map[string]bool{"watchlisted": true})
+	if code != http.StatusOK {
+		t.Fatalf("star: %d %v", code, resp)
+	}
+	if resp["data"].(map[string]interface{})["watchlisted"] != true {
+		t.Errorf("star not in PATCH response: %v", resp["data"])
+	}
+
+	// A's watchlist filter returns it, unfiltered scan marks it.
+	code, resp = s.get(t, "/api/v1/wallets?watchlisted=true", s.userA.String())
+	if code != http.StatusOK {
+		t.Fatalf("A scan: %d %v", code, resp)
+	}
+	rows, _ := resp["data"].([]interface{})
+	if len(rows) != 1 {
+		t.Fatalf("A: expected 1 starred wallet, got %d", len(rows))
+	}
+	if rows[0].(map[string]interface{})["address"] != addr {
+		t.Errorf("wrong starred wallet: %v", rows[0])
+	}
+
+	// B's watchlist filter is empty (per-user stars).
+	code, resp = s.get(t, "/api/v1/wallets?watchlisted=true", s.userB.String())
+	if code != http.StatusOK {
+		t.Fatalf("B scan: %d %v", code, resp)
+	}
+	if rows, _ := resp["data"].([]interface{}); len(rows) != 0 {
+		t.Errorf("B must not see A's stars: %v", rows)
+	}
+	code, resp = s.get(t, "/api/v1/wallets/"+id, s.userB.String())
+	if wl := resp["data"].(map[string]interface{})["watchlisted"]; wl != false {
+		t.Errorf("B detail watchlisted: %v", wl)
+	}
+
+	// A unstars → filter empty again.
+	code, resp = s.patchJSON(t, "/api/v1/wallets/"+id, s.userA.String(),
+		map[string]bool{"watchlisted": false})
+	if code != http.StatusOK {
+		t.Fatalf("unstar: %d %v", code, resp)
+	}
+	code, resp = s.get(t, "/api/v1/wallets?watchlisted=true", s.userA.String())
+	if code != http.StatusOK {
+		t.Fatalf("A scan after unstar: %d %v", code, resp)
+	}
+	if rows, _ := resp["data"].([]interface{}); len(rows) != 0 {
+		t.Errorf("expected empty watchlist after unstar: %v", rows)
+	}
+
+	// Empty body → 400 COMMON-902.
+	code, resp = s.patchJSON(t, "/api/v1/wallets/"+id, s.userA.String(), map[string]string{})
+	if code != http.StatusBadRequest {
+		t.Fatalf("empty PATCH: expected 400, got %d: %v", code, resp)
+	}
+}
+
+// POS-E2E: per-market snapshots flow into the detail drawer's positions
+// breakdown (sorted by pnl, timeframe-scoped).
+func TestE2E_Wallet_DetailPositionsBreakdown(t *testing.T) {
+	s := setupWalletSuite(t)
+	addr := walletSeedAddr(2)
+	id := s.walletID[addr].String()
+
+	// Seed per-market 30D snapshots for this wallet.
+	for _, row := range []struct {
+		market string
+		pnl    float64
+	}{{"BTC", 21000}, {"ETH", 14000}} {
+		if _, err := s.db.Exec(context.Background(), `
+			INSERT INTO wallet_metric_snapshots
+			    (wallet_id, market, timeframe, realized_pnl, volume, trade_count, computed_at)
+			VALUES ($1, $2, '30D', $3, $3, 1, NOW())
+			ON CONFLICT DO NOTHING`, s.walletID[addr], row.market, row.pnl); err != nil {
+			t.Fatalf("seed %s snapshot: %v", row.market, err)
+		}
+	}
+
+	code, resp := s.get(t, "/api/v1/wallets/"+id, s.userA.String())
+	if code != http.StatusOK {
+		t.Fatalf("detail: %d %v", code, resp)
+	}
+	data := resp["data"].(map[string]interface{})
+	positions, ok := data["positions"].([]interface{})
+	if !ok {
+		t.Fatalf("positions missing: %v", data)
+	}
+	if len(positions) != 2 {
+		t.Fatalf("expected 2 positions, got %d: %v", len(positions), positions)
+	}
+	first := positions[0].(map[string]interface{})
+	if first["market"] != "BTC" || first["realized_pnl"].(float64) != 21000 {
+		t.Errorf("expected BTC first (higher pnl): %v", first)
+	}
+
+	// A wallet without per-market rows → [] (never null).
+	other := s.walletID[walletSeedAddr(3)].String()
+	code, resp = s.get(t, "/api/v1/wallets/"+other, s.userA.String())
+	if code != http.StatusOK {
+		t.Fatalf("detail 2: %d", code)
+	}
+	if positions, _ := resp["data"].(map[string]interface{})["positions"].([]interface{}); positions == nil {
+		t.Error("positions must be an empty array, not null")
+	}
+}

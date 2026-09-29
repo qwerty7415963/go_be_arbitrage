@@ -72,6 +72,8 @@ func buildScanFrom(f *Filters, groupID *uuid.UUID, userID uuid.UUID) (string, *a
 	LEFT JOIN venues v ON v.id = w.venue_id`
 	from += fmt.Sprintf(`
 	LEFT JOIN user_wallet_tags t ON t.wallet_id = w.id AND t.user_id = %s`, uid)
+	from += fmt.Sprintf(`
+	LEFT JOIN user_wallet_watchlist wl ON wl.wallet_id = w.id AND wl.user_id = %s`, uid)
 	if groupID != nil {
 		g := ac.add(*groupID)
 		from += fmt.Sprintf(`
@@ -97,6 +99,14 @@ func buildScanFrom(f *Filters, groupID *uuid.UUID, userID uuid.UUID) (string, *a
 	if len(f.Market) > 0 {
 		// snap.market IS NOT NULL implied: NULL = ANY(...) is NULL → false.
 		where = append(where, fmt.Sprintf("snap.market = ANY(%s::text[])", markets))
+	}
+	// WL-H-06: star filter is caller-scoped through the joined user id.
+	if f.Watchlisted != nil {
+		if *f.Watchlisted {
+			where = append(where, "wl.user_id IS NOT NULL")
+		} else {
+			where = append(where, "wl.user_id IS NULL")
+		}
 	}
 
 	for _, nf := range f.Numeric {
@@ -158,14 +168,16 @@ func snapshotKey(f *Filters) string {
 }
 
 const scanSelect = `
-	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), t.tag, w.first_seen_at, w.last_seen_at,
+	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), t.tag, wl.user_id IS NOT NULL,
+	       w.first_seen_at, w.last_seen_at,
 	       snap.realized_pnl, snap.roi, snap.win_rate, snap.volume, snap.trade_count,
 	       snap.avg_position, snap.avg_leverage, snap.long_count, snap.short_count,
 	       snap.last_active_at, snap.computed_at
 `
 
 const scanSelectGroup = `
-	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), t.tag, w.first_seen_at, w.last_seen_at,
+	SELECT w.id, w.chain, w.address, COALESCE(v.code, ''), t.tag, wl.user_id IS NOT NULL,
+	       w.first_seen_at, w.last_seen_at,
 	       snap.realized_pnl, snap.roi, snap.win_rate, snap.volume, snap.trade_count,
 	       snap.avg_position, snap.avg_leverage, snap.long_count, snap.short_count,
 	       snap.last_active_at, snap.computed_at, gm.added_at
@@ -246,21 +258,88 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
+// metricScan is the nullable metric column block of a snapshot row: it
+// backs both the wallet row (scanWalletRow) and the per-market positions
+// query (GetPositions). Column order matches scanSelect after the identity
+// columns: pnl, roi, win_rate, volume, trade_count, avg_position,
+// avg_leverage, long_count, short_count, last_active_at, computed_at.
+type metricScan struct {
+	pnl, roi, winR sql.NullFloat64
+	vol, avgPos    sql.NullFloat64
+	avgLev         sql.NullFloat64
+	trades, lngs   sql.NullInt64
+	shorts         sql.NullInt64
+	lastActive     sql.NullTime
+	computedAt     sql.NullTime
+}
+
+func (m *metricScan) dests() []any {
+	return []any{&m.pnl, &m.roi, &m.winR, &m.vol, &m.trades, &m.avgPos, &m.avgLev,
+		&m.lngs, &m.shorts, &m.lastActive, &m.computedAt}
+}
+
+// result builds Metrics from the scanned columns. ComputedAt is freshness
+// metadata only — it never marks the row as having metrics (BR-07).
+func (m *metricScan) result() (*Metrics, bool) {
+	mm := &Metrics{}
+	hasMetric := false
+	if m.pnl.Valid {
+		mm.RealizedPnl = &m.pnl.Float64
+		hasMetric = true
+	}
+	if m.roi.Valid {
+		mm.Roi = &m.roi.Float64
+		hasMetric = true
+	}
+	if m.winR.Valid {
+		mm.WinRate = &m.winR.Float64
+		hasMetric = true
+	}
+	if m.vol.Valid {
+		mm.Volume = &m.vol.Float64
+		hasMetric = true
+	}
+	if m.trades.Valid {
+		mm.TradeCount = &m.trades.Int64
+		hasMetric = true
+	}
+	if m.avgPos.Valid {
+		mm.AvgPosition = &m.avgPos.Float64
+		hasMetric = true
+	}
+	if m.avgLev.Valid {
+		mm.AvgLeverage = &m.avgLev.Float64
+		hasMetric = true
+	}
+	if m.lngs.Valid {
+		mm.LongCount = &m.lngs.Int64
+		hasMetric = true
+	}
+	if m.shorts.Valid {
+		mm.ShortCount = &m.shorts.Int64
+		hasMetric = true
+	}
+	if m.lastActive.Valid {
+		t := m.lastActive.Time.UTC()
+		mm.LastActiveAt = &t
+		hasMetric = true
+	}
+	if m.computedAt.Valid {
+		t := m.computedAt.Time.UTC()
+		mm.ComputedAt = &t
+	}
+	return mm, hasMetric
+}
+
 func scanWalletRow(rows rowScanner, extra ...any) (*Wallet, error) {
 	var (
-		w              Wallet
-		tag            sql.NullString
-		pnl, roi, winR sql.NullFloat64
-		vol, avgPos    sql.NullFloat64
-		avgLev         sql.NullFloat64
-		trades, lngs   sql.NullInt64
-		shorts         sql.NullInt64
-		lastActive     sql.NullTime
-		computedAt     sql.NullTime
-		hasMetric      bool
+		w   Wallet
+		tag sql.NullString
+		ms  metricScan
 	)
-	dests := []any{&w.ID, &w.Chain, &w.Address, &w.Dex, &tag, &w.FirstSeenAt, &w.LastSeenAt,
-		&pnl, &roi, &winR, &vol, &trades, &avgPos, &avgLev, &lngs, &shorts, &lastActive, &computedAt}
+	dests := []any{&w.ID, &w.Chain, &w.Address, &w.Dex, &tag, &w.Watchlisted,
+		&w.FirstSeenAt, &w.LastSeenAt}
+	dests = append(dests, ms.dests()...)
 	err := rows.Scan(append(dests, extra...)...)
 	if err != nil {
 		return nil, err
@@ -268,56 +347,7 @@ func scanWalletRow(rows rowScanner, extra ...any) (*Wallet, error) {
 	if tag.Valid {
 		w.Tag = &tag.String
 	}
-
-	m := &Metrics{}
-	if pnl.Valid {
-		m.RealizedPnl = &pnl.Float64
-		hasMetric = true
-	}
-	if roi.Valid {
-		m.Roi = &roi.Float64
-		hasMetric = true
-	}
-	if winR.Valid {
-		m.WinRate = &winR.Float64
-		hasMetric = true
-	}
-	if vol.Valid {
-		m.Volume = &vol.Float64
-		hasMetric = true
-	}
-	if trades.Valid {
-		m.TradeCount = &trades.Int64
-		hasMetric = true
-	}
-	if avgPos.Valid {
-		m.AvgPosition = &avgPos.Float64
-		hasMetric = true
-	}
-	if avgLev.Valid {
-		m.AvgLeverage = &avgLev.Float64
-		hasMetric = true
-	}
-	if lngs.Valid {
-		m.LongCount = &lngs.Int64
-		hasMetric = true
-	}
-	if shorts.Valid {
-		m.ShortCount = &shorts.Int64
-		hasMetric = true
-	}
-	if lastActive.Valid {
-		t := lastActive.Time.UTC()
-		m.LastActiveAt = &t
-		hasMetric = true
-	}
-	if computedAt.Valid {
-		// Freshness metadata only — never marks the row as having metrics
-		// (BR-07: no data stays null).
-		t := computedAt.Time.UTC()
-		m.ComputedAt = &t
-	}
-	if hasMetric {
+	if m, has := ms.result(); has {
 		w.Metrics = m
 	}
 	return &w, nil
@@ -334,8 +364,9 @@ func scanGroupWalletRow(rows rowScanner) (*GroupWallet, error) {
 	return &GroupWallet{Wallet: *w, AddedAt: addedAt.UTC()}, nil
 }
 
-// GetDetail returns a single wallet, its metrics for the timeframe and the
-// caller's own group memberships only (BE-06).
+// GetDetail returns a single wallet, its metrics for the timeframe, the
+// caller's own group memberships only (BE-06) and the per-market positions
+// breakdown for the same timeframe (POS-*).
 func (r *Repository) GetDetail(ctx context.Context, id, userID uuid.UUID, f *Filters) (*WalletDetail, error) {
 	from, ac := buildScanFrom(f, nil, userID)
 	// id filter (added last → highest $n)
@@ -347,7 +378,7 @@ func (r *Repository) GetDetail(ctx context.Context, id, userID uuid.UUID, f *Fil
 		return nil, err
 	}
 
-	detail := &WalletDetail{Wallet: *w, Memberships: []GroupRef{}}
+	detail := &WalletDetail{Wallet: *w, Memberships: []GroupRef{}, Positions: []Position{}}
 	rows, err := r.db.Query(ctx, `
 		SELECT g.id, g.name
 		FROM user_wallet_groups g
@@ -365,7 +396,54 @@ func (r *Repository) GetDetail(ctx context.Context, id, userID uuid.UUID, f *Fil
 		}
 		detail.Memberships = append(detail.Memberships, g)
 	}
-	return detail, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	positions, err := r.GetPositions(ctx, id, snapshotKey(f))
+	if err != nil {
+		return nil, err
+	}
+	detail.Positions = positions
+	return detail, nil
+}
+
+// GetPositions loads the per-market snapshot breakdown for one
+// wallet/timeframe (POS-I-01): rows sorted by pnl desc with NULL pnl last,
+// then market asc for a deterministic order. Never returns nil.
+func (r *Repository) GetPositions(ctx context.Context, walletID uuid.UUID, timeframe string) ([]Position, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT market, realized_pnl, roi, win_rate, volume, trade_count,
+		       avg_position, avg_leverage, long_count, short_count,
+		       last_active_at, computed_at
+		FROM wallet_metric_snapshots
+		WHERE wallet_id = $1 AND timeframe = $2
+		  AND venue_id IS NULL AND market IS NOT NULL
+		ORDER BY realized_pnl DESC NULLS LAST, market ASC`, walletID, timeframe)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	positions := []Position{}
+	for rows.Next() {
+		var (
+			p    Position
+			ms   metricScan
+			mark string
+		)
+		dests := append([]any{&mark}, ms.dests()...)
+		if err := rows.Scan(dests...); err != nil {
+			return nil, err
+		}
+		p.Market = mark
+		m, has := ms.result()
+		if has {
+			p.Metrics = *m
+		}
+		positions = append(positions, p)
+	}
+	return positions, rows.Err()
 }
 
 // GetGroupOwner returns the owning user of a group (used for scanner
@@ -407,6 +485,24 @@ func (r *Repository) UpsertTag(ctx context.Context, userID, walletID uuid.UUID, 
 func (r *Repository) ClearTag(ctx context.Context, userID, walletID uuid.UUID) error {
 	_, err := r.db.Exec(ctx,
 		`DELETE FROM user_wallet_tags WHERE user_id = $1 AND wallet_id = $2`,
+		userID, walletID)
+	return err
+}
+
+// SetWatchlisted stars (on=true) or unstars (on=false) a wallet for one
+// caller (WL-I-01/WL-I-03): PK upsert makes repeated stars idempotent,
+// unstar deletes the row. Rows are per user, so stars are never shared
+// (WL-I-02).
+func (r *Repository) SetWatchlisted(ctx context.Context, userID, walletID uuid.UUID, on bool) error {
+	if on {
+		_, err := r.db.Exec(ctx, `
+			INSERT INTO user_wallet_watchlist (user_id, wallet_id)
+			VALUES ($1, $2)
+			ON CONFLICT (user_id, wallet_id) DO NOTHING`, userID, walletID)
+		return err
+	}
+	_, err := r.db.Exec(ctx,
+		`DELETE FROM user_wallet_watchlist WHERE user_id = $1 AND wallet_id = $2`,
 		userID, walletID)
 	return err
 }

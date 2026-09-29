@@ -810,6 +810,53 @@ matches address OR the caller's own tag (never another user's tag).
 | SCAN-H-21 | Swagger contract | Enums/defaults in schema | `timeframe`/`sort`/`order` enums + defaults present; all 40 metric-op params documented |
 | SCAN-H-22 | GET /groups/:id/wallets | Any query (plain/filter/include) | Always `GroupWallet[]` (Wallet fields + `added_at`); `metrics` null when no snapshot; caller's tag included |
 
+### 17.13 Frontend API Gaps (FE spec `wallet_scanner_uiux_ai_task_spec.md`)
+
+Three gaps closed for the FE drawer/filters/star toggle.
+
+**G1 — Positions breakdown in detail** (`positions[]` on `GET /wallets/:id`;
+per-market snapshots already persisted by backfill, now exposed).
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| POS-U-01 | GetPositions (repo query builder) | Timeframe applied | Only that timeframe's per-market rows |
+| POS-U-02 | GetPositions | No per-market snapshots | Empty slice (never null) |
+| POS-H-01 | GET /wallets/:id | Wallet with per-market snapshots | `positions[]` with `market` + metrics, sorted by pnl desc nulls last |
+| POS-H-02 | GET /wallets/:id | Wallet without per-market snapshots | `positions: []` |
+| POS-H-03 | GET /wallets/:id | `timeframe=24H` | Only 24H per-market snapshots |
+| POS-I-01 | GetPositions | Two markets, mixed null pnl | Both rows returned; NULL pnl last; 24H/30D isolated |
+| POS-E2E | Backfill → detail | Backfill per-market snapshots | Detail drawer data round-trips |
+
+**G8 — Filter config endpoint** (`GET /wallets/filter-config`: FE renders
+filters dynamically instead of hard-coding enums).
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| CFG-H-01 | GET /wallets/filter-config | Authenticated | 200 `{dexes, chains, markets, timeframes, sort_fields, metrics[]}` |
+| CFG-H-02 | GET /wallets/filter-config | No auth | 401 (JWT middleware) / 403 (handler) rejected |
+| CFG-H-03 | GET /wallets/filter-config | metrics[] content | Every `numericMetrics` key present with `min`/`max`/`ops` |
+| CFG-H-04 | GET /wallets/filter-config | Enums | `timeframes` = 24H/7D/30D/90D/ALL; `sort_fields` = sortable set; `default_timeframe` = 30D |
+| CFG-U-01 | ScannerConfig | Assembled from code tables | Metrics/timeframes/sort fields match parser tables exactly |
+
+**G2 — Watchlist (per-user star)** (`user_wallet_watchlist`, PATCH
+`{watchlisted}`, `?watchlisted=true` on scanner).
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| WL-U-01 | ParseFilters | `watchlisted=true` / `false` / absent | Flag set / false / false |
+| WL-U-02 | ParseFilters | `watchlisted=maybe` | `COMMON-902` |
+| WL-H-01 | PATCH /wallets/:id | `{watchlisted:true}` | 200, detail `watchlisted=true` |
+| WL-H-02 | PATCH /wallets/:id | `{watchlisted:false}` | 200, detail `watchlisted=false` |
+| WL-H-03 | PATCH /wallets/:id | `{}` (neither tag nor watchlisted) | 400 `COMMON-902` |
+| WL-H-04 | PATCH /wallets/:id | `{tag, watchlisted}` both | Both applied in one call |
+| WL-H-05 | PATCH /wallets/:id | Unknown wallet | 404 `WALLET-001` |
+| WL-H-06 | GET /wallets | `?watchlisted=true` | Only starred wallets (caller's stars) |
+| WL-H-07 | GET /wallets | Star set | Row carries `watchlisted=true` |
+| WL-I-01 | SetWatchlisted | Star + repeat star | One row (PK upsert), no dup |
+| WL-I-02 | SetWatchlisted | Per-user isolation | A's star invisible to B (rows + filter) |
+| WL-I-03 | SetWatchlisted(false) | Unstar | Row deleted; filter excludes |
+| WL-E2E | Star → scan filter → unstar | Full flow over HTTP | Round-trips; other user unaffected |
+
 ---
 
 ## Summary
@@ -830,7 +877,7 @@ matches address OR the caller's own tag (never another user's tag).
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
-| Wallet Dashboard (planned) | 34 | 36 | 19 | 8+ | **97** |
+| Wallet Dashboard (planned) | 39 | 50 | 23 | 10+ | **122** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
 | **TOTAL** | **~305** | **~120** | **~59** | **~32** | **~516** |

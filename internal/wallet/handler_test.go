@@ -26,6 +26,7 @@ type mockRepo struct {
 	existsFn    func(ctx context.Context, id uuid.UUID) (bool, error)
 	upsertTagFn func(ctx context.Context, userID, walletID uuid.UUID, tag string) error
 	clearTagFn  func(ctx context.Context, userID, walletID uuid.UUID) error
+	watchFn     func(ctx context.Context, userID, walletID uuid.UUID, on bool) error
 	lastFilters *Filters
 	lastSort    *SortSpec
 	lastLimit   int
@@ -77,6 +78,13 @@ func (m *mockRepo) ClearTag(ctx context.Context, userID, walletID uuid.UUID) err
 		return m.clearTagFn(ctx, userID, walletID)
 	}
 	return errors.New("clearTagFn not set")
+}
+
+func (m *mockRepo) SetWatchlisted(ctx context.Context, userID, walletID uuid.UUID, on bool) error {
+	if m.watchFn != nil {
+		return m.watchFn(ctx, userID, walletID, on)
+	}
+	return errors.New("watchFn not set")
 }
 
 func setupRouter(handler *Handler) *gin.Engine {
@@ -448,8 +456,6 @@ func TestHasScannerParams(t *testing.T) {
 
 var _ = api.Meta{} // keep api import if unused by later edits
 
-func strPtr(s string) *string { return &s }
-
 func patchJSON(t *testing.T, router *gin.Engine, target, userID string, body interface{}) *httptest.ResponseRecorder {
 	t.Helper()
 	raw, err := json.Marshal(body)
@@ -609,5 +615,296 @@ func TestHandler_Scan_RowsCarryTag(t *testing.T) {
 	rows := decode(t, w)["data"].([]interface{})
 	if len(rows) != 1 || rows[0].(map[string]interface{})["tag"] != "tagged" {
 		t.Errorf("tag missing in scan row: %v", rows)
+	}
+}
+
+// CFG-H-01: GET /wallets/filter-config → 200 with the full config payload.
+func TestHandler_FilterConfig_Returns200(t *testing.T) {
+	router := setupRouter(NewHandler(NewService(&mockRepo{}, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/filter-config", testUser)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	data := decode(t, w)["data"].(map[string]interface{})
+	for _, key := range []string{"dexes", "chains", "markets", "timeframes",
+		"sort_fields", "metrics", "operators"} {
+		if _, ok := data[key]; !ok {
+			t.Errorf("config missing key %q", key)
+		}
+	}
+}
+
+// CFG-H-02: unauthenticated → rejected (401 from the JWT middleware in
+// production; the test shim reaches getUserID which answers 403).
+func TestHandler_FilterConfig_NoAuth_Rejected(t *testing.T) {
+	router := setupRouter(NewHandler(NewService(&mockRepo{}, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/filter-config", "")
+	if w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+		t.Errorf("expected 401/403, got %d", w.Code)
+	}
+}
+
+// CFG-H-03: metrics[] carries min/max/ops for every filterable metric.
+func TestHandler_FilterConfig_MetricsContent(t *testing.T) {
+	router := setupRouter(NewHandler(NewService(&mockRepo{}, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/filter-config", testUser)
+	metrics := decode(t, w)["data"].(map[string]interface{})["metrics"].([]interface{})
+	if len(metrics) != len(numericMetrics) {
+		t.Fatalf("expected %d metrics, got %d", len(numericMetrics), len(metrics))
+	}
+	found := map[string]bool{}
+	for _, raw := range metrics {
+		m := raw.(map[string]interface{})
+		found[m["key"].(string)] = true
+		if _, ok := m["ops"]; !ok {
+			t.Errorf("metric %v missing ops", m["key"])
+		}
+		if _, ok := m["sortable"]; !ok {
+			t.Errorf("metric %v missing sortable", m["key"])
+		}
+	}
+	for key := range numericMetrics {
+		if !found[key] {
+			t.Errorf("metrics missing %q", key)
+		}
+	}
+}
+
+// CFG-H-04: timeframe/sort enums and defaults match the parser tables.
+func TestHandler_FilterConfig_EnumsMatchParser(t *testing.T) {
+	router := setupRouter(NewHandler(NewService(&mockRepo{}, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/filter-config", testUser)
+	data := decode(t, w)["data"].(map[string]interface{})
+
+	if data["default_timeframe"] != Timeframe30D {
+		t.Errorf("default_timeframe: got %v", data["default_timeframe"])
+	}
+	if data["default_sort"] != "pnl" {
+		t.Errorf("default_sort: got %v", data["default_sort"])
+	}
+	tfs := data["timeframes"].([]interface{})
+	if len(tfs) != len(validTimeframes) {
+		t.Errorf("timeframes: got %v", tfs)
+	}
+	sfs := data["sort_fields"].([]interface{})
+	if len(sfs) != len(sortableFields) {
+		t.Errorf("sort_fields: got %v", sfs)
+	}
+}
+
+// WL-H-01/WL-H-02: PATCH {watchlisted:true|false} stars/unstars and the
+// refreshed detail reflects it.
+func TestHandler_Patch_Watchlisted_Toggles(t *testing.T) {
+	id := uuid.New()
+	starred := false
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return true, nil },
+		watchFn: func(ctx context.Context, uid, wid uuid.UUID, on bool) error {
+			starred = on
+			return nil
+		},
+		detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+			w := sampleWallet(wid, "0xabc", 10)
+			w.Watchlisted = starred
+			return &WalletDetail{Wallet: *w, Memberships: []GroupRef{}, Positions: []Position{}}, nil
+		},
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+	target := "/api/v1/wallets/" + id.String()
+
+	w := patchJSON(t, router, target, testUser, map[string]bool{"watchlisted": true})
+	if w.Code != http.StatusOK {
+		t.Fatalf("star: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !starred {
+		t.Error("expected SetWatchlisted(true)")
+	}
+	if data := decode(t, w)["data"].(map[string]interface{}); data["watchlisted"] != true {
+		t.Errorf("detail watchlisted: got %v", data["watchlisted"])
+	}
+
+	w = patchJSON(t, router, target, testUser, map[string]bool{"watchlisted": false})
+	if w.Code != http.StatusOK {
+		t.Fatalf("unstar: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if starred {
+		t.Error("expected SetWatchlisted(false)")
+	}
+	if data := decode(t, w)["data"].(map[string]interface{}); data["watchlisted"] != false {
+		t.Errorf("detail watchlisted: got %v", data["watchlisted"])
+	}
+}
+
+// WL-H-03: empty body (neither tag nor watchlisted) → 400 COMMON-902.
+func TestHandler_Patch_EmptyBody_Returns400(t *testing.T) {
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return true, nil },
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := patchJSON(t, router, "/api/v1/wallets/"+uuid.New().String(), testUser, map[string]string{})
+	expectCode(t, w, http.StatusBadRequest, string(domain.ErrCodeValidation))
+}
+
+// WL-H-04: tag and watchlisted in one PATCH both apply.
+func TestHandler_Patch_BothFields_Applied(t *testing.T) {
+	id := uuid.New()
+	var gotTag string
+	var gotStar bool
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return true, nil },
+		upsertTagFn: func(ctx context.Context, uid, wid uuid.UUID, tag string) error {
+			gotTag = tag
+			return nil
+		},
+		watchFn: func(ctx context.Context, uid, wid uuid.UUID, on bool) error {
+			gotStar = on
+			return nil
+		},
+		detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+			w := sampleWallet(wid, "0xabc", 10)
+			w.Tag = strPtr(gotTag)
+			w.Watchlisted = gotStar
+			return &WalletDetail{Wallet: *w, Memberships: []GroupRef{}, Positions: []Position{}}, nil
+		},
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := patchJSON(t, router, "/api/v1/wallets/"+id.String(), testUser,
+		map[string]interface{}{"tag": "combo", "watchlisted": true})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if gotTag != "combo" || !gotStar {
+		t.Errorf("both fields must apply: tag=%q star=%v", gotTag, gotStar)
+	}
+	data := decode(t, w)["data"].(map[string]interface{})
+	if data["tag"] != "combo" || data["watchlisted"] != true {
+		t.Errorf("response: %v", data)
+	}
+}
+
+// WL-H-05: PATCH unknown wallet → 404 WALLET-001.
+func TestHandler_Patch_Watchlisted_UnknownWallet404(t *testing.T) {
+	repo := &mockRepo{
+		existsFn: func(ctx context.Context, wid uuid.UUID) (bool, error) { return false, nil },
+	}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := patchJSON(t, router, "/api/v1/wallets/"+uuid.New().String(), testUser,
+		map[string]bool{"watchlisted": true})
+	expectCode(t, w, http.StatusNotFound, string(domain.ErrCodeWalletNotFound))
+}
+
+// WL-H-06: ?watchlisted=true reaches the repository as a set flag; absent
+// stays nil (no filter).
+func TestHandler_Scan_WatchlistedParam_PassedThrough(t *testing.T) {
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+		return []*Wallet{}, 0, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	if w := get(t, router, "/api/v1/wallets?watchlisted=true", testUser); w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if repo.lastFilters.Watchlisted == nil || !*repo.lastFilters.Watchlisted {
+		t.Errorf("watchlisted=true not forwarded: %v", repo.lastFilters.Watchlisted)
+	}
+
+	if w := get(t, router, "/api/v1/wallets", testUser); w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if repo.lastFilters.Watchlisted != nil {
+		t.Errorf("absent must stay nil, got %v", *repo.lastFilters.Watchlisted)
+	}
+}
+
+// WL-H-07: scan rows carry the caller's star state.
+func TestHandler_Scan_RowsCarryWatchlisted(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{scanFn: func(ctx context.Context, f *Filters, s *SortSpec, g *uuid.UUID, u uuid.UUID, limit, offset int) ([]*Wallet, int64, error) {
+		w := sampleWallet(id, "0xstarred", 500)
+		w.Watchlisted = true
+		return []*Wallet{w}, 1, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets", testUser)
+	rows := decode(t, w)["data"].([]interface{})
+	if len(rows) != 1 || rows[0].(map[string]interface{})["watchlisted"] != true {
+		t.Errorf("watchlisted missing in scan row: %v", rows)
+	}
+}
+
+// POS-H-01: detail carries the per-market positions breakdown.
+func TestHandler_Detail_PositionsIncluded(t *testing.T) {
+	id := uuid.New()
+	pnl := 21000.0
+	repo := &mockRepo{detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+		w := sampleWallet(wid, "0xabc", 100)
+		return &WalletDetail{
+			Wallet:      *w,
+			Memberships: []GroupRef{},
+			Positions: []Position{
+				{Market: "BTC", Metrics: Metrics{RealizedPnl: &pnl}},
+			},
+		}, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/"+id.String(), testUser)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	data := decode(t, w)["data"].(map[string]interface{})
+	positions, ok := data["positions"].([]interface{})
+	if !ok || len(positions) != 1 {
+		t.Fatalf("positions missing: %v", data)
+	}
+	pos := positions[0].(map[string]interface{})
+	if pos["market"] != "BTC" || pos["realized_pnl"] != pnl {
+		t.Errorf("position row: %v", pos)
+	}
+}
+
+// POS-H-02: no per-market snapshots → positions is [] (never null).
+func TestHandler_Detail_PositionsEmpty_NotNull(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+		return &WalletDetail{Wallet: *sampleWallet(wid, "0xabc", 1), Memberships: []GroupRef{}}, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	w := get(t, router, "/api/v1/wallets/"+id.String(), testUser)
+	data := decode(t, w)["data"].(map[string]interface{})
+	positions, ok := data["positions"].([]interface{})
+	if !ok {
+		t.Fatalf("positions must be an array, got %v", data["positions"])
+	}
+	if len(positions) != 0 {
+		t.Errorf("expected empty positions, got %v", positions)
+	}
+}
+
+// POS-H-03: timeframe flows into the positions query through GetDetail.
+func TestHandler_Detail_TimeframeAppliedToPositions(t *testing.T) {
+	id := uuid.UUID{}
+	var gotTF string
+	repo := &mockRepo{detailFn: func(ctx context.Context, wid, uid uuid.UUID, f *Filters) (*WalletDetail, error) {
+		gotTF = snapshotKey(f)
+		return &WalletDetail{Wallet: *sampleWallet(wid, "0xabc", 1),
+			Memberships: []GroupRef{}, Positions: []Position{}}, nil
+	}}
+	router := setupRouter(NewHandler(NewService(repo, testConfig())))
+
+	if w := get(t, router, "/api/v1/wallets/"+id.String()+"?timeframe=24H", testUser); w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotTF != Timeframe24H {
+		t.Errorf("positions timeframe: got %q", gotTF)
 	}
 }

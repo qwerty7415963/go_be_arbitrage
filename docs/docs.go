@@ -4105,6 +4105,16 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "Watchlist star filter: true = starred only, false = unstarred only (caller's own stars)",
+                        "name": "watchlisted",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
                             "24H",
                             "7D",
                             "30D",
@@ -4497,9 +4507,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/wallets/filter-config": {
+            "get": {
+                "description": "Data-driven filter enums (dexes, chains, markets) plus the code-declared timeframe/sort/metric tables so the frontend renders filters dynamically (CFG-*)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallets"
+                ],
+                "summary": "Scanner filter config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_wallet.ScannerConfig"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/wallets/{id}": {
             "get": {
-                "description": "One wallet with timeframe metrics and the caller's own group memberships only (BE-06)",
+                "description": "One wallet with timeframe metrics, per-market positions breakdown (empty array when none) and the caller's own group memberships only (BE-06)",
                 "produces": [
                     "application/json"
                 ],
@@ -4606,7 +4666,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Set (or clear, with an empty string) the caller's private label for a wallet; returns the refreshed detail. Tag is trimmed, max 100 runes; missing/wrong-typed field is COMMON-902, unknown wallet is WALLET-001. Tags never conflict: no 409 exists on this endpoint.",
+                "description": "Updates the caller's private label and/or watchlist star for a wallet; returns the refreshed detail. At least one of tag/watchlisted is required (else COMMON-902). Tag is trimmed, max 100 runes; empty string clears the label. watchlisted=true stars, false unstars (per-user, PK upsert). Unknown wallet is WALLET-001. Never conflicts: no 409 exists on this endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4616,7 +4676,7 @@ const docTemplate = `{
                 "tags": [
                     "wallets"
                 ],
-                "summary": "Set wallet tag",
+                "summary": "Set wallet tag and/or watchlist star",
                 "parameters": [
                     {
                         "type": "string",
@@ -4626,7 +4686,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Tag (empty clears)",
+                        "description": "tag (empty clears) and/or watchlisted",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -4922,6 +4982,9 @@ const docTemplate = `{
                 },
                 "tag": {
                     "type": "string"
+                },
+                "watchlisted": {
+                    "type": "boolean"
                 }
             }
         },
@@ -6274,6 +6337,29 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_wallet.MetricConfig": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "max": {
+                    "type": "number"
+                },
+                "min": {
+                    "type": "number"
+                },
+                "ops": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sortable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "internal_wallet.Metrics": {
             "type": "object",
             "properties": {
@@ -6312,11 +6398,108 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_wallet.Position": {
+            "type": "object",
+            "properties": {
+                "avg_leverage": {
+                    "type": "number"
+                },
+                "avg_position": {
+                    "type": "number"
+                },
+                "computed_at": {
+                    "type": "string"
+                },
+                "last_active_at": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "market": {
+                    "type": "string"
+                },
+                "realized_pnl": {
+                    "type": "number"
+                },
+                "roi": {
+                    "type": "number"
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "trade_count": {
+                    "type": "integer"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "win_rate": {
+                    "type": "number"
+                }
+            }
+        },
+        "internal_wallet.ScannerConfig": {
+            "type": "object",
+            "properties": {
+                "chains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "default_sort": {
+                    "type": "string"
+                },
+                "default_timeframe": {
+                    "type": "string"
+                },
+                "dexes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "markets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "metrics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_wallet.MetricConfig"
+                    }
+                },
+                "operators": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sort_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeframes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "internal_wallet.UpdateTagRequest": {
             "type": "object",
             "properties": {
                 "tag": {
                     "type": "string"
+                },
+                "watchlisted": {
+                    "type": "boolean"
                 }
             }
         },
@@ -6346,6 +6529,9 @@ const docTemplate = `{
                 },
                 "tag": {
                     "type": "string"
+                },
+                "watchlisted": {
+                    "type": "boolean"
                 }
             }
         },
@@ -6379,8 +6565,17 @@ const docTemplate = `{
                 "metrics": {
                     "$ref": "#/definitions/internal_wallet.Metrics"
                 },
+                "positions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_wallet.Position"
+                    }
+                },
                 "tag": {
                     "type": "string"
+                },
+                "watchlisted": {
+                    "type": "boolean"
                 }
             }
         },

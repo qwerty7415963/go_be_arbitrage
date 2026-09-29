@@ -22,6 +22,7 @@ type RepositoryInterface interface {
 	WalletExists(ctx context.Context, id uuid.UUID) (bool, error)
 	UpsertTag(ctx context.Context, userID, walletID uuid.UUID, tag string) error
 	ClearTag(ctx context.Context, userID, walletID uuid.UUID) error
+	SetWatchlisted(ctx context.Context, userID, walletID uuid.UUID, on bool) error
 }
 
 type Service struct {
@@ -92,6 +93,13 @@ func (s *Service) Detail(ctx context.Context, userID, id uuid.UUID, query url.Va
 	if err != nil {
 		return nil, domain.WrapError(domain.ErrCodeInternal, "wallet lookup failed", err)
 	}
+	// JSON readers always get arrays, never null (POS-H-02).
+	if detail.Positions == nil {
+		detail.Positions = []Position{}
+	}
+	if detail.Memberships == nil {
+		detail.Memberships = []GroupRef{}
+	}
 	return detail, nil
 }
 
@@ -99,19 +107,36 @@ func (s *Service) Detail(ctx context.Context, userID, id uuid.UUID, query url.Va
 // private label for a wallet, then returns the refreshed detail (TAG-H-01).
 // Unknown wallets are WALLET-001; a missing tag field is COMMON-902.
 func (s *Service) UpdateTag(ctx context.Context, userID, id uuid.UUID, rawTag *string) (*WalletDetail, error) {
-	if rawTag == nil {
+	return s.UpdateWallet(ctx, userID, id, rawTag, nil)
+}
+
+// UpdateWallet applies a PATCH /wallets/:id body: the tag (nil = leave
+// untouched) and/or the watchlist star (nil = untouched). At least one
+// field is required (WL-H-03 → COMMON-902), unknown wallets are
+// WALLET-001 (WL-H-05), and both fields may be set in one call (WL-H-04).
+// The refreshed detail carries the caller's own tag/star state only.
+func (s *Service) UpdateWallet(ctx context.Context, userID, id uuid.UUID, rawTag *string, watchlisted *bool) (*WalletDetail, error) {
+	if rawTag == nil && watchlisted == nil {
 		return nil, domain.NewError(domain.ErrCodeValidation, "validation failed").
 			WithDetails([]map[string]string{{
 				"field": "tag", "code": string(domain.ErrCodeValidation),
-				"message": "tag is required",
+				"message": "tag or watchlisted is required",
 			}})
 	}
-	tag, clear, ferr := NormalizeTag(*rawTag)
-	if ferr != nil {
-		return nil, domain.NewError(domain.ErrCodeValidation, "validation failed").
-			WithDetails([]map[string]string{{
-				"field": ferr.Field, "code": ferr.Code, "message": ferr.Message,
-			}})
+
+	if rawTag != nil {
+		tag, clear, ferr := NormalizeTag(*rawTag)
+		if ferr != nil {
+			return nil, domain.NewError(domain.ErrCodeValidation, "validation failed").
+				WithDetails([]map[string]string{{
+					"field": ferr.Field, "code": ferr.Code, "message": ferr.Message,
+				}})
+		}
+		if clear {
+			rawTag = strPtr("") // empty after trim = clear (TAG-U-01)
+		} else {
+			rawTag = &tag
+		}
 	}
 
 	exists, err := s.repo.WalletExists(ctx, id)
@@ -122,15 +147,31 @@ func (s *Service) UpdateTag(ctx context.Context, userID, id uuid.UUID, rawTag *s
 		return nil, domain.NewError(domain.ErrCodeWalletNotFound, "wallet not found")
 	}
 
-	if clear {
-		if err := s.repo.ClearTag(ctx, userID, id); err != nil {
+	if rawTag != nil {
+		if *rawTag == "" {
+			if err := s.repo.ClearTag(ctx, userID, id); err != nil {
+				return nil, domain.WrapError(domain.ErrCodeInternal, "tag update failed", err)
+			}
+		} else if err := s.repo.UpsertTag(ctx, userID, id, *rawTag); err != nil {
 			return nil, domain.WrapError(domain.ErrCodeInternal, "tag update failed", err)
 		}
-	} else if err := s.repo.UpsertTag(ctx, userID, id, tag); err != nil {
-		return nil, domain.WrapError(domain.ErrCodeInternal, "tag update failed", err)
+	}
+	if watchlisted != nil {
+		if err := s.repo.SetWatchlisted(ctx, userID, id, *watchlisted); err != nil {
+			return nil, domain.WrapError(domain.ErrCodeInternal, "watchlist update failed", err)
+		}
 	}
 
 	return s.Detail(ctx, userID, id, url.Values{})
+}
+
+func strPtr(s string) *string { return &s }
+
+// Config exposes the scanner's data-driven enums plus the code-declared
+// metric/timeframe/sort tables (CFG-*) so the frontend renders filters
+// dynamically instead of hard-coding them.
+func (s *Service) Config() *ScannerConfig {
+	return buildScannerConfig(s.cfg)
 }
 
 func (s *Service) parse(query url.Values) (*Filters, *SortSpec, int, int, error) {
