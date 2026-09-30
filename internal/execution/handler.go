@@ -72,10 +72,34 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 	return tenantID, true
 }
 
+// List godoc
+// @Summary      List executions
+// @Description  Executions for the caller's tenant (currently always an empty array — storage not wired). Requires JWT + admin role (401 AUTH-003 without token, 403 AUTH-005 for non-admin).
+// @Tags         executions
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=[]Execution}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Router       /api/v1/executions [get]
 func (h *Handler) List(c *gin.Context) {
 	api.RespondList(c, []*Execution{}, nil)
 }
 
+// Create godoc
+// @Summary      Create execution
+// @Description  Creates an execution scoped to the caller's tenant. Requires JWT + admin role.
+// @Tags         executions
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      CreateExecutionRequest  true  "Execution definition"
+// @Success      201  {object}  api.Response{data=Execution}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/executions [post]
 func (h *Handler) Create(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -94,6 +118,19 @@ func (h *Handler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, api.Response{Success: true, Data: exec})
 }
 
+// GetByID godoc
+// @Summary      Get execution
+// @Description  One execution by ID. Requires JWT + admin role.
+// @Tags         executions
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Execution ID"
+// @Success      200  {object}  api.Response{data=Execution}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
+// @Router       /api/v1/executions/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -108,6 +145,19 @@ func (h *Handler) GetByID(c *gin.Context) {
 	api.RespondSuccess(c, exec)
 }
 
+// Submit godoc
+// @Summary      Submit execution
+// @Description  Submits an execution to its venue adapter. Requires JWT + admin role.
+// @Tags         executions
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Execution ID"
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/executions/{id}/submit [post]
 func (h *Handler) Submit(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -121,6 +171,19 @@ func (h *Handler) Submit(c *gin.Context) {
 	api.RespondSuccess(c, gin.H{"message": "execution submitted"})
 }
 
+// Cancel godoc
+// @Summary      Cancel execution
+// @Description  Cancels an execution. Requires JWT + admin role.
+// @Tags         executions
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Execution ID"
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/executions/{id}/cancel [post]
 func (h *Handler) Cancel(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -134,6 +197,19 @@ func (h *Handler) Cancel(c *gin.Context) {
 	api.RespondSuccess(c, gin.H{"message": "execution canceled"})
 }
 
+// ListLegs godoc
+// @Summary      List execution legs
+// @Description  Execution legs (per-venue splits) for one execution; empty array when none. Requires JWT + admin role.
+// @Tags         executions
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Execution ID"
+// @Success      200  {object}  api.Response{data=[]ExecutionLeg}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/executions/{id}/legs [get]
 func (h *Handler) ListLegs(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -151,6 +227,19 @@ func (h *Handler) ListLegs(c *gin.Context) {
 	api.RespondList(c, legs, nil)
 }
 
+// ListFills godoc
+// @Summary      List execution fills
+// @Description  Fills for one execution; empty array when none. Requires JWT + admin role.
+// @Tags         executions
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Execution ID"
+// @Success      200  {object}  api.Response{data=[]Fill}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/executions/{id}/fills [get]
 func (h *Handler) ListFills(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

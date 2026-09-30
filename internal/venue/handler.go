@@ -19,13 +19,16 @@ func NewHandler(service *Service) *Handler {
 
 // Create godoc
 // @Summary      Create venue
-// @Description  Create a new venue
+// @Description  Create a new venue. Requires JWT + admin role (VENUE-001 routes are admin-only)
 // @Tags         venues
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        request  body      CreateVenueRequest  true  "Venue to create"
 // @Success      201      {object}  api.Response{data=Venue}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
+// @Failure      401      {object}  api.Response{error=api.ErrorBody}
+// @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      409      {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/venues [post]
 func (h *Handler) Create(c *gin.Context) {
@@ -49,11 +52,14 @@ func (h *Handler) Create(c *gin.Context) {
 
 // GetByID godoc
 // @Summary      Get venue
-// @Description  Get venue by ID
+// @Description  Get venue by ID. Requires JWT + admin role
 // @Tags         venues
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id   path      string  true  "Venue ID"
 // @Success      200  {object}  api.Response{data=Venue}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/venues/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
@@ -77,10 +83,13 @@ func (h *Handler) GetByID(c *gin.Context) {
 
 // List godoc
 // @Summary      List venues
-// @Description  Get all venues
+// @Description  Get all venues. Requires JWT + admin role
 // @Tags         venues
 // @Produce      json
+// @Security     BearerAuth
 // @Success      200  {object}  api.Response{data=[]Venue}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/venues [get]
 func (h *Handler) List(c *gin.Context) {
@@ -98,14 +107,17 @@ func (h *Handler) List(c *gin.Context) {
 
 // Update godoc
 // @Summary      Update venue
-// @Description  Update venue by ID
+// @Description  Update venue by ID. Requires JWT + admin role
 // @Tags         venues
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id       path      string            true  "Venue ID"
 // @Param        request  body      UpdateVenueRequest  true  "Fields to update"
 // @Success      200      {object}  api.Response{data=Venue}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
+// @Failure      401      {object}  api.Response{error=api.ErrorBody}
+// @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/venues/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
@@ -135,11 +147,14 @@ func (h *Handler) Update(c *gin.Context) {
 
 // Delete godoc
 // @Summary      Delete venue
-// @Description  Delete venue by ID
+// @Description  Delete venue by ID. Requires JWT + admin role
 // @Tags         venues
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id   path      string  true  "Venue ID"
 // @Success      204
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/venues/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {

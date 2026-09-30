@@ -77,6 +77,20 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 	return tenantID, true
 }
 
+// CreateRun godoc
+// @Summary      Start reconciliation run
+// @Description  Starts a reconciliation run for a venue account in the caller's tenant. Requires JWT + admin role (401 AUTH-003 without token, 403 AUTH-005 for non-admin).
+// @Tags         reconciliation
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      CreateRunRequest  true  "Run trigger"
+// @Success      201  {object}  api.Response{data=ReconciliationRun}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/reconciliation/runs [post]
 func (h *Handler) CreateRun(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -95,6 +109,19 @@ func (h *Handler) CreateRun(c *gin.Context) {
 	c.JSON(http.StatusCreated, api.Response{Success: true, Data: run})
 }
 
+// GetRun godoc
+// @Summary      Get reconciliation run
+// @Description  One reconciliation run by ID. Requires JWT + admin role.
+// @Tags         reconciliation
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Run ID"
+// @Success      200  {object}  api.Response{data=ReconciliationRun}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
+// @Router       /api/v1/reconciliation/runs/{id} [get]
 func (h *Handler) GetRun(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -109,6 +136,17 @@ func (h *Handler) GetRun(c *gin.Context) {
 	api.RespondSuccess(c, run)
 }
 
+// ListRuns godoc
+// @Summary      List reconciliation runs
+// @Description  Latest reconciliation runs for the caller's tenant (max 50). Requires JWT + admin role.
+// @Tags         reconciliation
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=[]ReconciliationRun}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/reconciliation/runs [get]
 func (h *Handler) ListRuns(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -125,6 +163,19 @@ func (h *Handler) ListRuns(c *gin.Context) {
 	api.RespondList(c, runs, nil)
 }
 
+// ListItems godoc
+// @Summary      List reconciliation items
+// @Description  Discrepancy items for one run; empty array when none. Requires JWT + admin role.
+// @Tags         reconciliation
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Run ID"
+// @Success      200  {object}  api.Response{data=[]ReconciliationItem}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/reconciliation/runs/{id}/items [get]
 func (h *Handler) ListItems(c *gin.Context) {
 	runID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

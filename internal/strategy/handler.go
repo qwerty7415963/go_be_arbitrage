@@ -77,6 +77,17 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 	return tenantID, true
 }
 
+// List godoc
+// @Summary      List strategy instances
+// @Description  Strategy instances for the caller's tenant. Requires JWT + admin role (group middleware: 401 AUTH-003 without token, 403 AUTH-005 for non-admin).
+// @Tags         strategies
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=[]StrategyInstance}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003 no/invalid token"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005 not admin"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/strategies [get]
 func (h *Handler) List(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -96,6 +107,20 @@ func (h *Handler) List(c *gin.Context) {
 	api.RespondList(c, instances, nil)
 }
 
+// Create godoc
+// @Summary      Create strategy instance
+// @Description  Creates a strategy instance scoped to the caller's tenant. Requires JWT + admin role.
+// @Tags         strategies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      CreateStrategyRequest  true  "Strategy definition"
+// @Success      201  {object}  api.Response{data=StrategyInstance}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902 invalid body"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/strategies [post]
 func (h *Handler) Create(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -120,6 +145,19 @@ func (h *Handler) Create(c *gin.Context) {
 	})
 }
 
+// GetByID godoc
+// @Summary      Get strategy instance
+// @Description  One strategy instance by ID. Requires JWT + admin role.
+// @Tags         strategies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Strategy instance ID"
+// @Success      200  {object}  api.Response{data=StrategyInstance}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902 invalid ID"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
+// @Router       /api/v1/strategies/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -137,6 +175,21 @@ func (h *Handler) GetByID(c *gin.Context) {
 	api.RespondSuccess(c, instance)
 }
 
+// Update godoc
+// @Summary      Update strategy instance
+// @Description  Updates a strategy instance by ID. Requires JWT + admin role.
+// @Tags         strategies
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id       path      string                  true  "Strategy instance ID"
+// @Param        request  body      UpdateStrategyRequest   true  "Fields to update"
+// @Success      200  {object}  api.Response{data=StrategyInstance}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/strategies/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -160,6 +213,19 @@ func (h *Handler) Update(c *gin.Context) {
 	api.RespondSuccess(c, instance)
 }
 
+// Delete godoc
+// @Summary      Delete strategy instance
+// @Description  Deletes a strategy instance by ID. Requires JWT + admin role.
+// @Tags         strategies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Strategy instance ID"
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/strategies/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -176,6 +242,19 @@ func (h *Handler) Delete(c *gin.Context) {
 	api.RespondSuccess(c, gin.H{"message": "strategy deleted"})
 }
 
+// Start godoc
+// @Summary      Start strategy instance
+// @Description  Starts an existing strategy instance. Requires JWT + admin role.
+// @Tags         strategies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Strategy instance ID"
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/strategies/{id}/start [post]
 func (h *Handler) Start(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -192,6 +271,19 @@ func (h *Handler) Start(c *gin.Context) {
 	api.RespondSuccess(c, gin.H{"message": "strategy started"})
 }
 
+// Stop godoc
+// @Summary      Stop strategy instance
+// @Description  Stops a running strategy instance. Requires JWT + admin role.
+// @Tags         strategies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Strategy instance ID"
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/strategies/{id}/stop [post]
 func (h *Handler) Stop(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -208,6 +300,20 @@ func (h *Handler) Stop(c *gin.Context) {
 	api.RespondSuccess(c, gin.H{"message": "strategy stopped"})
 }
 
+// ListDecisions godoc
+// @Summary      List strategy decisions
+// @Description  Recent decisions for one strategy instance. Requires JWT + admin role.
+// @Tags         strategies
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id     path    string  true   "Strategy instance ID"
+// @Param        limit  query   int     false  "Max rows" minimum(1) default(50)
+// @Success      200  {object}  api.Response{data=[]StrategyDecision}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/strategies/{id}/decisions [get]
 func (h *Handler) ListDecisions(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)

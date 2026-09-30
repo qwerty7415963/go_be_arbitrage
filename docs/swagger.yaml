@@ -234,6 +234,181 @@ definitions:
     - message
     - signature
     type: object
+  internal_execution.CreateExecutionRequest:
+    properties:
+      execution_mode:
+        $ref: '#/definitions/internal_execution.ExecutionMode'
+      intent:
+        $ref: '#/definitions/internal_execution.ExecutionIntent'
+      strategy_instance_id:
+        type: string
+    required:
+    - execution_mode
+    - intent
+    - strategy_instance_id
+    type: object
+  internal_execution.Execution:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      execution_mode:
+        $ref: '#/definitions/internal_execution.ExecutionMode'
+      execution_plan_json: {}
+      final_pnl:
+        type: number
+      id:
+        type: string
+      intent_json: {}
+      opportunity_id:
+        type: string
+      risk_decision_id:
+        type: string
+      status:
+        $ref: '#/definitions/internal_execution.ExecutionStatus'
+      strategy_instance_id:
+        type: string
+      tenant_id:
+        type: string
+    type: object
+  internal_execution.ExecutionIntent:
+    properties:
+      legs:
+        items:
+          $ref: '#/definitions/internal_execution.IntentLeg'
+        type: array
+      opportunity_id:
+        type: string
+      strategy_id:
+        type: string
+    type: object
+  internal_execution.ExecutionLeg:
+    properties:
+      completed_at:
+        type: string
+      execution_id:
+        type: string
+      id:
+        type: string
+      instrument_id:
+        type: string
+      leg_index:
+        type: integer
+      leg_role:
+        type: string
+      metadata: {}
+      started_at:
+        type: string
+      status:
+        $ref: '#/definitions/internal_execution.LegStatus'
+      target_notional:
+        type: number
+      target_quantity:
+        type: number
+      target_side:
+        $ref: '#/definitions/internal_execution.Side'
+      venue_account_id:
+        type: string
+    type: object
+  internal_execution.ExecutionMode:
+    enum:
+    - PAPER
+    - LIVE_MANUAL
+    - LIVE_AUTO
+    type: string
+    x-enum-varnames:
+    - ExecutionModePaper
+    - ExecutionModeLiveManual
+    - ExecutionModeLiveAuto
+  internal_execution.ExecutionStatus:
+    enum:
+    - CREATED
+    - RISK_APPROVED
+    - AWAITING_APPROVAL
+    - PLANNED
+    - SUBMITTING
+    - PARTIAL
+    - COMPLETED
+    - RECOVERY
+    - FAILED
+    - CANCELED
+    type: string
+    x-enum-varnames:
+    - ExecutionStatusCreated
+    - ExecutionStatusRiskApproved
+    - ExecutionStatusAwaitingApproval
+    - ExecutionStatusPlanned
+    - ExecutionStatusSubmitting
+    - ExecutionStatusPartial
+    - ExecutionStatusCompleted
+    - ExecutionStatusRecovery
+    - ExecutionStatusFailed
+    - ExecutionStatusCanceled
+  internal_execution.Fill:
+    properties:
+      exchange_fill_id:
+        type: string
+      fee_amount:
+        type: number
+      fee_asset:
+        type: string
+      filled_at:
+        type: string
+      id:
+        type: string
+      liquidity_role:
+        type: string
+      order_id:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: number
+      venue_account_id:
+        type: string
+    type: object
+  internal_execution.IntentLeg:
+    properties:
+      instrument_id:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: number
+      side:
+        $ref: '#/definitions/internal_execution.Side'
+      venue_account_id:
+        type: string
+    type: object
+  internal_execution.LegStatus:
+    enum:
+    - PENDING
+    - SUBMITTING
+    - OPEN
+    - PARTIAL
+    - FILLED
+    - FAILED
+    - CANCELED
+    - RECOVERY
+    type: string
+    x-enum-varnames:
+    - LegStatusPending
+    - LegStatusSubmitting
+    - LegStatusOpen
+    - LegStatusPartial
+    - LegStatusFilled
+    - LegStatusFailed
+    - LegStatusCanceled
+    - LegStatusRecovery
+  internal_execution.Side:
+    enum:
+    - BUY
+    - SELL
+    type: string
+    x-enum-varnames:
+    - SideBuy
+    - SideSell
   internal_fundingarbitrage.ArbitrageToken:
     properties:
       apr_percent:
@@ -599,6 +774,172 @@ definitions:
       venue_id:
         type: string
     type: object
+  internal_opportunity.LegMeta:
+    properties:
+      best_ask:
+        type: string
+      best_bid:
+        type: string
+      health_status:
+        type: string
+      last_update_age_ms:
+        type: integer
+      order_book_depth:
+        type: integer
+      spread:
+        type: string
+    type: object
+  internal_opportunity.LegSide:
+    enum:
+    - BUY
+    - SELL
+    type: string
+    x-enum-varnames:
+    - LegSideBuy
+    - LegSideSell
+  internal_opportunity.MarketQuality:
+    enum:
+    - GOOD
+    - DEGRADED
+    - UNUSABLE
+    type: string
+    x-enum-varnames:
+    - MarketQualityGood
+    - MarketQualityDegraded
+    - MarketQualityUnusable
+  internal_opportunity.Opportunity:
+    properties:
+      buy_venue_code:
+        type: string
+      buy_venue_id:
+        type: string
+      calculation_version:
+        type: string
+      canonical_symbol:
+        type: string
+      confidence:
+        type: number
+      created_at:
+        type: string
+      detected_at:
+        type: string
+      estimated_fees:
+        type: string
+      estimated_other_costs:
+        type: string
+      estimated_slippage:
+        type: string
+      expected_holding_secs:
+        type: integer
+      expected_net_edge:
+        type: string
+      expected_net_edge_bps:
+        type: integer
+      expected_net_pnl:
+        type: string
+      expires_at:
+        type: string
+      gross_edge:
+        type: string
+      gross_edge_bps:
+        type: integer
+      id:
+        type: string
+      instrument_id:
+        type: string
+      legs:
+        items:
+          $ref: '#/definitions/internal_opportunity.OpportunityLeg'
+        type: array
+      market_quality:
+        $ref: '#/definitions/internal_opportunity.MarketQuality'
+      market_state_ref:
+        type: string
+      opportunity_type:
+        $ref: '#/definitions/internal_opportunity.OpportunityType'
+      sell_venue_code:
+        type: string
+      sell_venue_id:
+        type: string
+      status:
+        $ref: '#/definitions/internal_opportunity.OpportunityStatus'
+      suggested_notional:
+        type: string
+      suggested_size:
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_opportunity.OpportunityLeg:
+    properties:
+      estimated_slippage_bps:
+        type: integer
+      expected_funding:
+        type: string
+      expected_price:
+        type: string
+      fee_bps:
+        type: integer
+      id:
+        type: string
+      instrument_id:
+        type: string
+      metadata:
+        $ref: '#/definitions/internal_opportunity.LegMeta'
+      opportunity_id:
+        type: string
+      side:
+        $ref: '#/definitions/internal_opportunity.LegSide'
+      target_notional:
+        type: string
+      target_size:
+        type: string
+      venue_code:
+        type: string
+      venue_id:
+        type: string
+    type: object
+  internal_opportunity.OpportunityStatus:
+    enum:
+    - DETECTED
+    - EXECUTED
+    - EXPIRED
+    - REJECTED
+    - CANCELLED
+    type: string
+    x-enum-varnames:
+    - OpportunityStatusDetected
+    - OpportunityStatusExecuted
+    - OpportunityStatusExpired
+    - OpportunityStatusRejected
+    - OpportunityStatusCancelled
+  internal_opportunity.OpportunityType:
+    enum:
+    - PRICE_ARBITRAGE
+    - FUNDING_ARBITRAGE
+    - BASIS_ARBITRAGE
+    type: string
+    x-enum-varnames:
+    - OpportunityTypePriceArb
+    - OpportunityTypeFundingArb
+    - OpportunityTypeBasisArb
+  internal_opportunity.ScanResult:
+    properties:
+      duration:
+        $ref: '#/definitions/time.Duration'
+      instruments:
+        type: integer
+      opportunities:
+        items:
+          $ref: '#/definitions/internal_opportunity.Opportunity'
+        type: array
+      scanned_at:
+        type: string
+      venues:
+        type: integer
+    type: object
   internal_orderbook.BookState:
     enum:
     - HEALTHY
@@ -678,6 +1019,411 @@ definitions:
     - depth
     - instrument_id
     - venue_id
+    type: object
+  internal_reconciliation.CreateRunRequest:
+    properties:
+      trigger_source:
+        allOf:
+        - $ref: '#/definitions/internal_reconciliation.TriggerSource'
+        enum:
+        - STARTUP
+        - RECONNECT
+        - SCHEDULED
+        - MANUAL
+        - EXECUTION_RECOVERY
+      venue_account_id:
+        type: string
+    required:
+    - trigger_source
+    - venue_account_id
+    type: object
+  internal_reconciliation.EntityType:
+    enum:
+    - BALANCE
+    - POSITION
+    - ORDER
+    - FILL
+    - MARGIN
+    type: string
+    x-enum-varnames:
+    - EntityBalance
+    - EntityPosition
+    - EntityOrder
+    - EntityFill
+    - EntityMargin
+  internal_reconciliation.ItemResult:
+    enum:
+    - MATCH
+    - MISMATCH
+    - MISSING_INTERNAL
+    - MISSING_EXTERNAL
+    - UNRESOLVED
+    type: string
+    x-enum-varnames:
+    - ResultMatch
+    - ResultMismatch
+    - ResultMissingInternal
+    - ResultMissingExternal
+    - ResultUnresolved
+  internal_reconciliation.ReconciliationItem:
+    properties:
+      created_at:
+        type: string
+      diff:
+        items:
+          type: integer
+        type: array
+      entity_id:
+        type: string
+      entity_type:
+        $ref: '#/definitions/internal_reconciliation.EntityType'
+      external_state:
+        items:
+          type: integer
+        type: array
+      id:
+        type: string
+      internal_state:
+        items:
+          type: integer
+        type: array
+      result:
+        $ref: '#/definitions/internal_reconciliation.ItemResult'
+      run_id:
+        type: string
+    type: object
+  internal_reconciliation.ReconciliationRun:
+    properties:
+      completed_at:
+        type: string
+      id:
+        type: string
+      started_at:
+        type: string
+      status:
+        $ref: '#/definitions/internal_reconciliation.RunStatus'
+      summary:
+        items:
+          type: integer
+        type: array
+      tenant_id:
+        type: string
+      trigger_source:
+        $ref: '#/definitions/internal_reconciliation.TriggerSource'
+      venue_account_id:
+        type: string
+    type: object
+  internal_reconciliation.RunStatus:
+    enum:
+    - RUNNING
+    - MATCHED
+    - MISMATCH
+    - FAILED
+    type: string
+    x-enum-varnames:
+    - RunStatusRunning
+    - RunStatusMatched
+    - RunStatusMismatch
+    - RunStatusFailed
+  internal_reconciliation.TriggerSource:
+    enum:
+    - STARTUP
+    - RECONNECT
+    - SCHEDULED
+    - MANUAL
+    - EXECUTION_RECOVERY
+    type: string
+    x-enum-varnames:
+    - TriggerStartup
+    - TriggerReconnect
+    - TriggerScheduled
+    - TriggerManual
+    - TriggerExecutionRecovery
+  internal_risk.CheckResult:
+    enum:
+    - PASS
+    - FAIL
+    - WARN
+    - SKIP
+    type: string
+    x-enum-varnames:
+    - CheckResultPass
+    - CheckResultFail
+    - CheckResultWarn
+    - CheckResultSkip
+  internal_risk.CreatePolicyRequest:
+    properties:
+      config:
+        $ref: '#/definitions/internal_risk.RiskConfig'
+      name:
+        type: string
+      policy_type:
+        $ref: '#/definitions/internal_risk.PolicyType'
+    required:
+    - name
+    - policy_type
+    type: object
+  internal_risk.KillSwitch:
+    properties:
+      enabled:
+        type: boolean
+      enabled_at:
+        type: string
+      reason:
+        type: string
+    type: object
+  internal_risk.PolicyStatus:
+    enum:
+    - ACTIVE
+    - DISABLED
+    type: string
+    x-enum-varnames:
+    - PolicyStatusActive
+    - PolicyStatusDisabled
+  internal_risk.PolicyType:
+    enum:
+    - GLOBAL
+    - STRATEGY
+    - VENUE
+    - ACCOUNT
+    - INSTRUMENT
+    type: string
+    x-enum-varnames:
+    - PolicyTypeGlobal
+    - PolicyTypeStrategy
+    - PolicyTypeVenue
+    - PolicyTypeAccount
+    - PolicyTypeInstrument
+  internal_risk.PreTradeCheckRequest:
+    properties:
+      instrument_id:
+        type: string
+      notional:
+        type: number
+      price:
+        type: number
+      quantity:
+        type: number
+      side:
+        type: string
+      strategy_id:
+        type: string
+      tenant_id:
+        type: string
+      venue_account_id:
+        type: string
+    type: object
+  internal_risk.PreTradeCheckResult:
+    properties:
+      action:
+        $ref: '#/definitions/internal_risk.RiskAction'
+      checks:
+        items:
+          $ref: '#/definitions/internal_risk.RiskCheck'
+        type: array
+      reasons:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_risk.RiskAction:
+    enum:
+    - APPROVE
+    - REJECT
+    - RESTRICT
+    - HALT
+    type: string
+    x-enum-varnames:
+    - RiskActionApprove
+    - RiskActionReject
+    - RiskActionRestrict
+    - RiskActionHalt
+  internal_risk.RiskCheck:
+    properties:
+      check_type:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      observed_value: {}
+      reason_code:
+        type: string
+      result:
+        $ref: '#/definitions/internal_risk.CheckResult'
+      risk_decision_id:
+        type: string
+      threshold_value: {}
+    type: object
+  internal_risk.RiskConfig:
+    properties:
+      kill_switch_enabled:
+        type: boolean
+      max_funding_rate_percent:
+        type: number
+      max_leverage:
+        type: number
+      max_notional_per_trade:
+        type: string
+      max_portfolio_exposure:
+        type: string
+      max_position_per_instrument:
+        type: string
+      max_venue_concentration:
+        type: number
+      min_market_depth_usd:
+        type: string
+    type: object
+  internal_risk.RiskPolicy:
+    properties:
+      config:
+        $ref: '#/definitions/internal_risk.RiskConfig'
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      policy_type:
+        $ref: '#/definitions/internal_risk.PolicyType'
+      status:
+        $ref: '#/definitions/internal_risk.PolicyStatus'
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_risk.UpdatePolicyRequest:
+    properties:
+      config:
+        $ref: '#/definitions/internal_risk.RiskConfig'
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/internal_risk.PolicyStatus'
+    type: object
+  internal_strategy.CreateStrategyRequest:
+    properties:
+      config:
+        $ref: '#/definitions/internal_strategy.StrategyConfig'
+      mode:
+        $ref: '#/definitions/internal_strategy.StrategyMode'
+      name:
+        type: string
+      type:
+        $ref: '#/definitions/internal_strategy.StrategyType'
+    required:
+    - mode
+    - name
+    - type
+    type: object
+  internal_strategy.StrategyConfig:
+    properties:
+      custom_params:
+        additionalProperties:
+          type: string
+        type: object
+      instruments:
+        items:
+          type: string
+        type: array
+      max_leverage:
+        type: number
+      max_notional_per_trade:
+        type: string
+      max_position_usd:
+        type: string
+      min_confidence:
+        type: number
+      min_net_edge_bps:
+        type: integer
+      venues:
+        items:
+          type: string
+        type: array
+    type: object
+  internal_strategy.StrategyDecision:
+    properties:
+      action:
+        type: string
+      created_at:
+        type: string
+      executed_at:
+        type: string
+      id:
+        type: string
+      opportunity_id:
+        type: string
+      status:
+        type: string
+      strategy_id:
+        type: string
+    type: object
+  internal_strategy.StrategyInstance:
+    properties:
+      config:
+        $ref: '#/definitions/internal_strategy.StrategyConfig'
+      created_at:
+        type: string
+      created_by:
+        type: string
+      id:
+        type: string
+      mode:
+        $ref: '#/definitions/internal_strategy.StrategyMode'
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/internal_strategy.StrategyStatus'
+      strategy_type_id:
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_strategy.StrategyMode:
+    enum:
+    - PAPER
+    - LIVE_MANUAL
+    - LIVE_AUTO
+    type: string
+    x-enum-varnames:
+    - StrategyModePaper
+    - StrategyModeLiveManual
+    - StrategyModeLiveAuto
+  internal_strategy.StrategyStatus:
+    enum:
+    - DRAFT
+    - RUNNING
+    - PAUSED
+    - DISABLED
+    - ERROR
+    type: string
+    x-enum-varnames:
+    - StrategyStatusDraft
+    - StrategyStatusRunning
+    - StrategyStatusPaused
+    - StrategyStatusDisabled
+    - StrategyStatusError
+  internal_strategy.StrategyType:
+    enum:
+    - PRICE_ARBITRAGE
+    - FUNDING_ARBITRAGE
+    - BASIS_ARBITRAGE
+    type: string
+    x-enum-varnames:
+    - StrategyTypePriceArb
+    - StrategyTypeFundingArb
+    - StrategyTypeBasisArb
+  internal_strategy.UpdateStrategyRequest:
+    properties:
+      config:
+        $ref: '#/definitions/internal_strategy.StrategyConfig'
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/internal_strategy.StrategyStatus'
     type: object
   internal_unifiedstate.DepthLevel:
     properties:
@@ -1194,6 +1940,27 @@ definitions:
     required:
     - wallets
     type: object
+  time.Duration:
+    enum:
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
+    format: int64
+    type: integer
+    x-enum-varnames:
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
 host: localhost:8080
 info:
   contact:
@@ -1528,6 +2295,434 @@ paths:
       tags:
       - auth
       - web3
+  /api/v1/executions:
+    get:
+      description: Executions for the caller's tenant (currently always an empty array
+        — storage not wired). Requires JWT + admin role (401 AUTH-003 without token,
+        403 AUTH-005 for non-admin).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_execution.Execution'
+                  type: array
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List executions
+      tags:
+      - executions
+    post:
+      consumes:
+      - application/json
+      description: Creates an execution scoped to the caller's tenant. Requires JWT
+        + admin role.
+      parameters:
+      - description: Execution definition
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_execution.CreateExecutionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_execution.Execution'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create execution
+      tags:
+      - executions
+  /api/v1/executions/{id}:
+    get:
+      description: One execution by ID. Requires JWT + admin role.
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_execution.Execution'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: COMMON-903
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get execution
+      tags:
+      - executions
+  /api/v1/executions/{id}/cancel:
+    post:
+      description: Cancels an execution. Requires JWT + admin role.
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel execution
+      tags:
+      - executions
+  /api/v1/executions/{id}/fills:
+    get:
+      description: Fills for one execution; empty array when none. Requires JWT +
+        admin role.
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_execution.Fill'
+                  type: array
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List execution fills
+      tags:
+      - executions
+  /api/v1/executions/{id}/legs:
+    get:
+      description: Execution legs (per-venue splits) for one execution; empty array
+        when none. Requires JWT + admin role.
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_execution.ExecutionLeg'
+                  type: array
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List execution legs
+      tags:
+      - executions
+  /api/v1/executions/{id}/submit:
+    post:
+      description: Submits an execution to its venue adapter. Requires JWT + admin
+        role.
+      parameters:
+      - description: Execution ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Submit execution
+      tags:
+      - executions
   /api/v1/funding/arbitrage:
     get:
       description: Get funding arbitrage table for selected venues
@@ -1631,6 +2826,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: List wallet groups
       tags:
       - groups
@@ -1685,6 +2882,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Create wallet group
       tags:
       - groups
@@ -1711,6 +2910,15 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "403":
           description: Forbidden
           schema:
@@ -1729,6 +2937,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Delete wallet group
       tags:
       - groups
@@ -1761,6 +2971,15 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "403":
           description: Forbidden
           schema:
@@ -1779,6 +2998,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Get wallet group
       tags:
       - groups
@@ -1820,6 +3041,15 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "403":
           description: Forbidden
           schema:
@@ -1847,6 +3077,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Update wallet group
       tags:
       - groups
@@ -1881,6 +3113,15 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "403":
           description: Forbidden
           schema:
@@ -1899,6 +3140,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Remove wallets from group
       tags:
       - groups
@@ -2178,6 +3421,15 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "403":
           description: Forbidden
           schema:
@@ -2196,6 +3448,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: List group wallets
       tags:
       - groups
@@ -2236,6 +3490,15 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "403":
           description: Forbidden
           schema:
@@ -2254,6 +3517,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Add wallets to group
       tags:
       - groups
@@ -2707,6 +3972,198 @@ paths:
       summary: Get recent trades
       tags:
       - market
+  /api/v1/opportunities:
+    get:
+      description: All in-memory opportunities from the live scanner, newest first;
+        empty array when none. Public endpoint — no auth.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_opportunity.Opportunity'
+                  type: array
+              type: object
+      summary: List opportunities (public)
+      tags:
+      - opportunities
+  /api/v1/opportunities/{id}:
+    delete:
+      description: Drops one opportunity from the in-memory store; idempotent. Public
+        endpoint — no auth.
+      parameters:
+      - description: Opportunity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902 invalid ID
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Remove opportunity (public)
+      tags:
+      - opportunities
+    get:
+      description: One opportunity by ID. Public endpoint — no auth.
+      parameters:
+      - description: Opportunity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_opportunity.Opportunity'
+              type: object
+        "400":
+          description: COMMON-902 invalid ID
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: COMMON-903 not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Get opportunity (public)
+      tags:
+      - opportunities
+  /api/v1/opportunities/instrument/{instrument_id}:
+    get:
+      description: Opportunities for one instrument ID. Public endpoint — no auth.
+      parameters:
+      - description: Instrument ID
+        in: path
+        name: instrument_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_opportunity.Opportunity'
+                  type: array
+              type: object
+        "400":
+          description: COMMON-902 invalid ID
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: List opportunities by instrument (public)
+      tags:
+      - opportunities
+  /api/v1/opportunities/scan:
+    post:
+      description: Runs the opportunity scanner synchronously and returns what it
+        found (count, venues, duration). Public endpoint — no auth.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_opportunity.ScanResult'
+              type: object
+      summary: Trigger an immediate scan (public)
+      tags:
+      - opportunities
+  /api/v1/opportunities/type/{type}:
+    get:
+      description: Opportunities filtered by arbitrage type. Public endpoint — no
+        auth.
+      parameters:
+      - description: Opportunity type
+        enum:
+        - PRICE_ARBITRAGE
+        - FUNDING_ARBITRAGE
+        - BASIS_ARBITRAGE
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_opportunity.Opportunity'
+                  type: array
+              type: object
+        "400":
+          description: COMMON-902 invalid type
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: List opportunities by type (public)
+      tags:
+      - opportunities
   /api/v1/orderbook/depth:
     get:
       description: Get L2 order book for a venue instrument
@@ -2960,6 +4417,746 @@ paths:
       summary: List perp venues
       tags:
       - funding-arbitrage
+  /api/v1/reconciliation/runs:
+    get:
+      description: Latest reconciliation runs for the caller's tenant (max 50). Requires
+        JWT + admin role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_reconciliation.ReconciliationRun'
+                  type: array
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List reconciliation runs
+      tags:
+      - reconciliation
+    post:
+      consumes:
+      - application/json
+      description: Starts a reconciliation run for a venue account in the caller's
+        tenant. Requires JWT + admin role (401 AUTH-003 without token, 403 AUTH-005
+        for non-admin).
+      parameters:
+      - description: Run trigger
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_reconciliation.CreateRunRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_reconciliation.ReconciliationRun'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Start reconciliation run
+      tags:
+      - reconciliation
+  /api/v1/reconciliation/runs/{id}:
+    get:
+      description: One reconciliation run by ID. Requires JWT + admin role.
+      parameters:
+      - description: Run ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_reconciliation.ReconciliationRun'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: COMMON-903
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get reconciliation run
+      tags:
+      - reconciliation
+  /api/v1/reconciliation/runs/{id}/items:
+    get:
+      description: Discrepancy items for one run; empty array when none. Requires
+        JWT + admin role.
+      parameters:
+      - description: Run ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_reconciliation.ReconciliationItem'
+                  type: array
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List reconciliation items
+      tags:
+      - reconciliation
+  /api/v1/risk/kill-switch:
+    get:
+      description: Current kill switch status (enabled flag, reason, timestamp). Requires
+        JWT + admin role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_risk.KillSwitch'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get kill switch state
+      tags:
+      - risk
+  /api/v1/risk/kill-switch/disable:
+    post:
+      description: Resets the global kill switch. Requires JWT + admin role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Disable kill switch
+      tags:
+      - risk
+  /api/v1/risk/kill-switch/enable:
+    post:
+      consumes:
+      - application/json
+      description: Trips the global kill switch (blocks new risk) with an optional
+        reason. Requires JWT + admin role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Enable kill switch
+      tags:
+      - risk
+  /api/v1/risk/policies:
+    get:
+      description: Risk policies for the caller's tenant. Requires JWT + admin role
+        (401 AUTH-003 without token, 403 AUTH-005 for non-admin).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_risk.RiskPolicy'
+                  type: array
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List risk policies
+      tags:
+      - risk
+    post:
+      consumes:
+      - application/json
+      description: Creates a risk policy scoped to the caller's tenant. Requires JWT
+        + admin role.
+      parameters:
+      - description: Policy definition
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_risk.CreatePolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_risk.RiskPolicy'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create risk policy
+      tags:
+      - risk
+  /api/v1/risk/policies/{id}:
+    delete:
+      description: Deletes a risk policy by ID. Requires JWT + admin role.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Delete risk policy
+      tags:
+      - risk
+    get:
+      description: One risk policy by ID. Requires JWT + admin role.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_risk.RiskPolicy'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: COMMON-903
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get risk policy
+      tags:
+      - risk
+    put:
+      consumes:
+      - application/json
+      description: Updates a risk policy by ID. Requires JWT + admin role.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_risk.UpdatePolicyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_risk.RiskPolicy'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update risk policy
+      tags:
+      - risk
+  /api/v1/risk/pre-trade-check:
+    post:
+      consumes:
+      - application/json
+      description: Evaluates a hypothetical order against risk policies and returns
+        allow/reject with reasons. Requires JWT + admin role.
+      parameters:
+      - description: Order to check
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_risk.PreTradeCheckRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_risk.PreTradeCheckResult'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Pre-trade risk check
+      tags:
+      - risk
   /api/v1/storage/audit/{tenant_id}:
     get:
       consumes:
@@ -3187,6 +5384,514 @@ paths:
       summary: Cleanup old data
       tags:
       - storage
+  /api/v1/strategies:
+    get:
+      description: 'Strategy instances for the caller''s tenant. Requires JWT + admin
+        role (group middleware: 401 AUTH-003 without token, 403 AUTH-005 for non-admin).'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_strategy.StrategyInstance'
+                  type: array
+              type: object
+        "401":
+          description: AUTH-003 no/invalid token
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005 not admin
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List strategy instances
+      tags:
+      - strategies
+    post:
+      consumes:
+      - application/json
+      description: Creates a strategy instance scoped to the caller's tenant. Requires
+        JWT + admin role.
+      parameters:
+      - description: Strategy definition
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_strategy.CreateStrategyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_strategy.StrategyInstance'
+              type: object
+        "400":
+          description: COMMON-902 invalid body
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create strategy instance
+      tags:
+      - strategies
+  /api/v1/strategies/{id}:
+    delete:
+      description: Deletes a strategy instance by ID. Requires JWT + admin role.
+      parameters:
+      - description: Strategy instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Delete strategy instance
+      tags:
+      - strategies
+    get:
+      description: One strategy instance by ID. Requires JWT + admin role.
+      parameters:
+      - description: Strategy instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_strategy.StrategyInstance'
+              type: object
+        "400":
+          description: COMMON-902 invalid ID
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: COMMON-903
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get strategy instance
+      tags:
+      - strategies
+    put:
+      consumes:
+      - application/json
+      description: Updates a strategy instance by ID. Requires JWT + admin role.
+      parameters:
+      - description: Strategy instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_strategy.UpdateStrategyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_strategy.StrategyInstance'
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update strategy instance
+      tags:
+      - strategies
+  /api/v1/strategies/{id}/decisions:
+    get:
+      description: Recent decisions for one strategy instance. Requires JWT + admin
+        role.
+      parameters:
+      - description: Strategy instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 50
+        description: Max rows
+        in: query
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_strategy.StrategyDecision'
+                  type: array
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List strategy decisions
+      tags:
+      - strategies
+  /api/v1/strategies/{id}/start:
+    post:
+      description: Starts an existing strategy instance. Requires JWT + admin role.
+      parameters:
+      - description: Strategy instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Start strategy instance
+      tags:
+      - strategies
+  /api/v1/strategies/{id}/stop:
+    post:
+      description: Stops a running strategy instance. Requires JWT + admin role.
+      parameters:
+      - description: Strategy instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: COMMON-902
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: AUTH-005
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "500":
+          description: COMMON-901
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Stop strategy instance
+      tags:
+      - strategies
   /api/v1/unified/health:
     get:
       description: Get health overview for all venues
@@ -3422,7 +6127,7 @@ paths:
       - instruments
   /api/v1/venues:
     get:
-      description: Get all venues
+      description: Get all venues. Requires JWT + admin role
       produces:
       - application/json
       responses:
@@ -3437,6 +6142,24 @@ paths:
                     $ref: '#/definitions/internal_venue.Venue'
                   type: array
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "500":
           description: Internal Server Error
           schema:
@@ -3446,13 +6169,16 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: List venues
       tags:
       - venues
     post:
       consumes:
       - application/json
-      description: Create a new venue
+      description: Create a new venue. Requires JWT + admin role (VENUE-001 routes
+        are admin-only)
       parameters:
       - description: Venue to create
         in: body
@@ -3481,6 +6207,24 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "409":
           description: Conflict
           schema:
@@ -3490,12 +6234,14 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Create venue
       tags:
       - venues
   /api/v1/venues/{id}:
     delete:
-      description: Delete venue by ID
+      description: Delete venue by ID. Requires JWT + admin role
       parameters:
       - description: Venue ID
         in: path
@@ -3507,6 +6253,24 @@ paths:
       responses:
         "204":
           description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "404":
           description: Not Found
           schema:
@@ -3516,11 +6280,13 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Delete venue
       tags:
       - venues
     get:
-      description: Get venue by ID
+      description: Get venue by ID. Requires JWT + admin role
       parameters:
       - description: Venue ID
         in: path
@@ -3539,6 +6305,24 @@ paths:
                 data:
                   $ref: '#/definitions/internal_venue.Venue'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "404":
           description: Not Found
           schema:
@@ -3548,13 +6332,15 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Get venue
       tags:
       - venues
     put:
       consumes:
       - application/json
-      description: Update venue by ID
+      description: Update venue by ID. Requires JWT + admin role
       parameters:
       - description: Venue ID
         in: path
@@ -3588,6 +6374,24 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
         "404":
           description: Not Found
           schema:
@@ -3597,6 +6401,8 @@ paths:
                 error:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
+      security:
+      - BearerAuth: []
       summary: Update venue
       tags:
       - venues

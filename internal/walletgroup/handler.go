@@ -126,6 +126,7 @@ func bindingFieldError(field, message string) []api.FieldError {
 // @Tags         groups
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        request  body      CreateGroupRequest  true  "Group to create"
 // @Success      201      {object}  api.Response{data=Group}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
@@ -163,6 +164,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Description  List the current user's wallet groups with wallet counts
 // @Tags         groups
 // @Produce      json
+// @Security     BearerAuth
 // @Success      200  {object}  api.Response{data=[]Group}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/groups [get]
@@ -186,9 +188,11 @@ func (h *Handler) List(c *gin.Context) {
 // @Description  Get one group with its wallet count
 // @Tags         groups
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id   path      string  true  "Group ID"
 // @Success      200  {object}  api.Response{data=Group}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/groups/{id} [get]
@@ -217,10 +221,12 @@ func (h *Handler) Get(c *gin.Context) {
 // @Tags         groups
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id       path      string              true  "Group ID"
 // @Param        request  body      UpdateGroupRequest  true  "Fields to update"
 // @Success      200      {object}  api.Response{data=Group}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
+// @Failure      401      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
 // @Failure      409      {object}  api.Response{error=api.ErrorBody}
@@ -262,9 +268,11 @@ func (h *Handler) Update(c *gin.Context) {
 // @Description  Delete an owned group; memberships are removed, wallets stay
 // @Tags         groups
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id   path      string  true  "Group ID"
 // @Success      204
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/groups/{id} [delete]
@@ -293,10 +301,12 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Tags         groups
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id       path      string           true  "Group ID"
 // @Param        request  body      WalletsRequest   true  "Wallet entries (IDs or addresses)"
 // @Success      200      {object}  api.Response{data=AddWalletsResult}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
+// @Failure      401      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/groups/{id}/wallets [post]
@@ -339,10 +349,12 @@ func (h *Handler) AddWallets(c *gin.Context) {
 // @Tags         groups
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id       path      string           true  "Group ID"
 // @Param        request  body      WalletsRequest   true  "Wallet entries (IDs or addresses)"
 // @Success      204
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
+// @Failure      401      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/groups/{id}/wallets [delete]
@@ -378,6 +390,7 @@ func (h *Handler) RemoveWallets(c *gin.Context) {
 // @Description  Pass include=metrics or any scanner filter param (dex/chain/market/timeframe/metric operators/sort) for metric-enriched rows (BE-09).
 // @Tags         groups
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id       path   string  true   "Group ID"
 // @Param        search   query  string  false  "Partial address or own tag match (case-insensitive)"
 // @Param        page     query  int     false  "Page" minimum(1) default(1)
@@ -434,6 +447,7 @@ func (h *Handler) RemoveWallets(c *gin.Context) {
 // @Param        order               query  string  false  "Sort direction" enums(asc,desc) default(desc)
 // @Success      200     {object}  api.Response{data=[]wallet.GroupWallet,meta=api.Meta}
 // @Failure      400     {object}  api.Response{error=api.ErrorBody}
+// @Failure      401     {object}  api.Response{error=api.ErrorBody}
 // @Failure      403     {object}  api.Response{error=api.ErrorBody}
 // @Failure      404     {object}  api.Response{error=api.ErrorBody}
 // @Router       /api/v1/groups/{id}/wallets [get]

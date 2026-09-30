@@ -74,6 +74,17 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 	return tenantID, true
 }
 
+// ListPolicies godoc
+// @Summary      List risk policies
+// @Description  Risk policies for the caller's tenant. Requires JWT + admin role (401 AUTH-003 without token, 403 AUTH-005 for non-admin).
+// @Tags         risk
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=[]RiskPolicy}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/risk/policies [get]
 func (h *Handler) ListPolicies(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -90,6 +101,20 @@ func (h *Handler) ListPolicies(c *gin.Context) {
 	api.RespondList(c, policies, nil)
 }
 
+// CreatePolicy godoc
+// @Summary      Create risk policy
+// @Description  Creates a risk policy scoped to the caller's tenant. Requires JWT + admin role.
+// @Tags         risk
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      CreatePolicyRequest  true  "Policy definition"
+// @Success      201  {object}  api.Response{data=RiskPolicy}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/risk/policies [post]
 func (h *Handler) CreatePolicy(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -108,6 +133,19 @@ func (h *Handler) CreatePolicy(c *gin.Context) {
 	c.JSON(http.StatusCreated, api.Response{Success: true, Data: policy})
 }
 
+// GetPolicy godoc
+// @Summary      Get risk policy
+// @Description  One risk policy by ID. Requires JWT + admin role.
+// @Tags         risk
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Policy ID"
+// @Success      200  {object}  api.Response{data=RiskPolicy}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
+// @Router       /api/v1/risk/policies/{id} [get]
 func (h *Handler) GetPolicy(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -122,6 +160,21 @@ func (h *Handler) GetPolicy(c *gin.Context) {
 	api.RespondSuccess(c, policy)
 }
 
+// UpdatePolicy godoc
+// @Summary      Update risk policy
+// @Description  Updates a risk policy by ID. Requires JWT + admin role.
+// @Tags         risk
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id       path      string                true  "Policy ID"
+// @Param        request  body      UpdatePolicyRequest   true  "Fields to update"
+// @Success      200  {object}  api.Response{data=RiskPolicy}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/risk/policies/{id} [put]
 func (h *Handler) UpdatePolicy(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -141,6 +194,19 @@ func (h *Handler) UpdatePolicy(c *gin.Context) {
 	api.RespondSuccess(c, policy)
 }
 
+// DeletePolicy godoc
+// @Summary      Delete risk policy
+// @Description  Deletes a risk policy by ID. Requires JWT + admin role.
+// @Tags         risk
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      string  true  "Policy ID"
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
+// @Router       /api/v1/risk/policies/{id} [delete]
 func (h *Handler) DeletePolicy(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -154,6 +220,18 @@ func (h *Handler) DeletePolicy(c *gin.Context) {
 	api.RespondSuccess(c, gin.H{"message": "policy deleted"})
 }
 
+// EnableKillSwitch godoc
+// @Summary      Enable kill switch
+// @Description  Trips the global kill switch (blocks new risk) with an optional reason. Requires JWT + admin role.
+// @Tags         risk
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Router       /api/v1/risk/kill-switch/enable [post]
 func (h *Handler) EnableKillSwitch(c *gin.Context) {
 	var req struct {
 		Reason string `json:"reason"`
@@ -166,15 +244,48 @@ func (h *Handler) EnableKillSwitch(c *gin.Context) {
 	api.RespondSuccess(c, gin.H{"message": "kill switch enabled"})
 }
 
+// DisableKillSwitch godoc
+// @Summary      Disable kill switch
+// @Description  Resets the global kill switch. Requires JWT + admin role.
+// @Tags         risk
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Router       /api/v1/risk/kill-switch/disable [post]
 func (h *Handler) DisableKillSwitch(c *gin.Context) {
 	h.service.DisableKillSwitch()
 	api.RespondSuccess(c, gin.H{"message": "kill switch disabled"})
 }
 
+// GetKillSwitch godoc
+// @Summary      Get kill switch state
+// @Description  Current kill switch status (enabled flag, reason, timestamp). Requires JWT + admin role.
+// @Tags         risk
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=KillSwitch}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Router       /api/v1/risk/kill-switch [get]
 func (h *Handler) GetKillSwitch(c *gin.Context) {
 	api.RespondSuccess(c, h.service.GetKillSwitch())
 }
 
+// PreTradeCheck godoc
+// @Summary      Pre-trade risk check
+// @Description  Evaluates a hypothetical order against risk policies and returns allow/reject with reasons. Requires JWT + admin role.
+// @Tags         risk
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      PreTradeCheckRequest  true  "Order to check"
+// @Success      200  {object}  api.Response{data=PreTradeCheckResult}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
+// @Router       /api/v1/risk/pre-trade-check [post]
 func (h *Handler) PreTradeCheck(c *gin.Context) {
 	var req PreTradeCheckRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
