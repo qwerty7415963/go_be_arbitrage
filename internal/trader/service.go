@@ -77,7 +77,7 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, req *SearchReque
 	if err != nil {
 		return nil, err
 	}
-	res := &SearchResult{}
+	res := &SearchResult{Rows: []*PeriodMetrics{}}
 	if len(rows) > req.Limit {
 		res.HasMore = true
 		rows = rows[:req.Limit]
