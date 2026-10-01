@@ -953,7 +953,7 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 | MET-U-03 | Long/short WR (BE-019) | Long 3/4, short 1/2 | 75% / 50% |
 | MET-U-04 | Drawdown formula (BE-022) | Equity 100→120→90 | 25% from peak (V1.1 job; formula tested V1) |
 | MET-U-05 | Daily idempotency (BE-020) | Recompute same day twice | Identical row after second run |
-| MET-U-06 | ROI rule | LB window match vs no match | Passthrough vs documented formula + version bump |
+| MET-U-06 | ROI/PnL rule | LB window match vs no match | Passthrough (ROI×100, PnL) + realized_pnl always computed + version bump |
 | CUR-U-01 | Cursor codec (BE-026) | Encode → decode roundtrip; tampered cursor | Roundtrip stable; tampered → INVALID_FILTER |
 | VAL-U-01 | Filter validation (BE-027/039) | roi_min>roi_max; pnl=0; volume=−1 | 4xx INVALID_FILTER for range/negative; 0 valid where allowed |
 | OBS-U-01 | Health counters | Fake discover/sync runs (success, error, 429) | done/failed/fetch/rate-limit/latency tracked; streak resets on success |

@@ -192,16 +192,17 @@ func TestSync_UpstreamTimeout(t *testing.T) {
 	}
 }
 
-// ROI passthrough (spec D4): fresh LB ref wins; stale ref falls back.
+// ROI/PnL passthrough (spec D4 + §9): fresh LB ref wins for display;
+// realized_pnl always carries the computed sum for reconciliation.
 func TestSync_ROIPassthrough(t *testing.T) {
 	now := time.Now().UTC()
 	repo, svc, addr := syncFixture(t, &fakeFills{fills: dayFills(now)})
 	ctx := context.Background()
 	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
 
-	lbROI := 0.05
+	lbROI, lbPnL := 0.05, 42000.0
 	if err := repo.UpsertLeaderboardRef(ctx, &LeaderboardRef{VenueID: venueID,
-		WalletAddress: addr, Window: "month", ROI: &lbROI, FetchedAt: now}); err != nil {
+		WalletAddress: addr, Window: "month", ROI: &lbROI, PnL: &lbPnL, FetchedAt: now}); err != nil {
 		t.Fatalf("ref: %v", err)
 	}
 	if err := svc.SyncWallet(ctx, addr, now); err != nil {
@@ -210,6 +211,12 @@ func TestSync_ROIPassthrough(t *testing.T) {
 	m, _ := repo.GetPeriodMetrics(ctx, venueID, addr, Period30D)
 	if m.ROI == nil || *m.ROI != 5.0 {
 		t.Errorf("fresh LB ROI passthrough: %+v", m.ROI)
+	}
+	if m.PnL == nil || *m.PnL != lbPnL {
+		t.Errorf("fresh LB PnL passthrough: %+v", m.PnL)
+	}
+	if m.RealizedPnL == nil || *m.RealizedPnL < 4.59 || *m.RealizedPnL > 4.61 {
+		t.Errorf("realized must stay computed (9.8-5.2): %+v", m.RealizedPnL)
 	}
 }
 

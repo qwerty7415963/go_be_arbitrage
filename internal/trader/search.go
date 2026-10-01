@@ -128,7 +128,7 @@ func buildSearchQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID,
 
 	limit := ac.add(req.Limit + 1)
 	q := fmt.Sprintf(`SELECT p.venue_id, v.code, p.wallet_address, r.display_name, p.period,
-		p.as_of, p.pnl, p.roi, p.win_rate, p.trade_count, p.volume, p.gross_profit,
+		p.as_of, p.pnl, p.realized_pnl, p.roi, p.win_rate, p.trade_count, p.volume, p.gross_profit,
 		p.gross_loss, p.profit_factor, p.avg_trade_pnl, p.long_count, p.long_wins,
 		p.short_count, p.short_wins, p.max_drawdown_pct, p.avg_holding_time_sec,
 		p.last_trade_at, p.data_status, p.is_partial, p.calculation_version

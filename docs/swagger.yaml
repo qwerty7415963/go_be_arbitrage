@@ -1492,6 +1492,8 @@ definitions:
         type: number
       profit_factor:
         type: number
+      realized_pnl:
+        type: number
       roi:
         type: number
       short_count:

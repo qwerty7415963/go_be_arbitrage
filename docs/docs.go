@@ -12039,6 +12039,9 @@ const docTemplate = `{
                 "profit_factor": {
                     "type": "number"
                 },
+                "realized_pnl": {
+                    "type": "number"
+                },
                 "roi": {
                     "type": "number"
                 },

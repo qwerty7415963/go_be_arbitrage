@@ -276,7 +276,11 @@ func (s *SyncService) recalcPeriod(ctx context.Context, addr, period string, now
 	}
 	tc := trades
 	m.TradeCount = &tc
-	m.PnL = &pnl
+	// Display PnL: leaderboard passthrough when fresh, else the computed
+	// realized sum (spec §9). RealizedPnL always carries the computed sum
+	// for reconciliation.
+	m.RealizedPnL = &pnl
+	m.PnL = s.resolvePnL(ctx, addr, period, &pnl, now)
 	m.Volume = &volume
 	m.GrossProfit = &gp
 	m.GrossLoss = &gl
@@ -309,6 +313,21 @@ func (s *SyncService) resolveROI(ctx context.Context, addr, period string, pnl, 
 		}
 	}
 	return FallbackROIPct(pnl, volume)
+}
+
+// resolvePnL mirrors resolveROI for display PnL (spec §9: period PnL shown by
+// the configured source). Fresh leaderboard window PnL wins; otherwise the
+// computed realized sum.
+func (s *SyncService) resolvePnL(ctx context.Context, addr, period string, realized *float64, now time.Time) *float64 {
+	window, ok := LBWindowForPeriod[period]
+	if ok {
+		if ref, err := s.repo.GetLeaderboardRef(ctx, s.venueID, addr, window); err == nil &&
+			ref != nil && ref.PnL != nil && now.Sub(ref.FetchedAt) <= s.opts.LBRefFresh {
+			v := *ref.PnL
+			return &v
+		}
+	}
+	return realized
 }
 
 func maxFillCursor(fills []Fill) (time.Time, *int64) {

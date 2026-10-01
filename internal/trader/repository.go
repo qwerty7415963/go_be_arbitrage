@@ -200,13 +200,14 @@ func (r *Repository) GetDailyStats(ctx context.Context, venueID uuid.UUID, addr 
 func (r *Repository) UpsertPeriodMetrics(ctx context.Context, m *PeriodMetrics) error {
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO trader_period_metrics
-			(venue_id, wallet_address, period, as_of, pnl, roi, win_rate, trade_count,
+			(venue_id, wallet_address, period, as_of, pnl, realized_pnl, roi, win_rate, trade_count,
 			 volume, gross_profit, gross_loss, profit_factor, avg_trade_pnl,
 			 long_count, long_wins, short_count, short_wins, max_drawdown_pct,
 			 avg_holding_time_sec, last_trade_at, data_status, is_partial, calculation_version)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
 		ON CONFLICT (venue_id, wallet_address, period) DO UPDATE SET
-			as_of = EXCLUDED.as_of, pnl = EXCLUDED.pnl, roi = EXCLUDED.roi,
+			as_of = EXCLUDED.as_of, pnl = EXCLUDED.pnl, realized_pnl = EXCLUDED.realized_pnl,
+			roi = EXCLUDED.roi,
 			win_rate = EXCLUDED.win_rate, trade_count = EXCLUDED.trade_count,
 			volume = EXCLUDED.volume, gross_profit = EXCLUDED.gross_profit,
 			gross_loss = EXCLUDED.gross_loss, profit_factor = EXCLUDED.profit_factor,
@@ -217,7 +218,7 @@ func (r *Repository) UpsertPeriodMetrics(ctx context.Context, m *PeriodMetrics) 
 			last_trade_at = EXCLUDED.last_trade_at, data_status = EXCLUDED.data_status,
 			is_partial = EXCLUDED.is_partial,
 			calculation_version = EXCLUDED.calculation_version, updated_at = NOW()`,
-		m.VenueID, m.WalletAddress, m.Period, m.AsOf, m.PnL, m.ROI, m.WinRate,
+		m.VenueID, m.WalletAddress, m.Period, m.AsOf, m.PnL, m.RealizedPnL, m.ROI, m.WinRate,
 		m.TradeCount, m.Volume, m.GrossProfit, m.GrossLoss, m.ProfitFactor,
 		m.AvgTradePnL, m.LongCount, m.LongWins, m.ShortCount, m.ShortWins,
 		m.MaxDrawdownPct, m.AvgHoldingTimeSec, m.LastTradeAt, string(m.DataStatus),
@@ -230,7 +231,7 @@ func (r *Repository) GetPeriodMetrics(ctx context.Context, venueID uuid.UUID, ad
 	var m PeriodMetrics
 	var status string
 	err := r.pool.QueryRow(ctx, `
-		SELECT p.venue_id, v.code, p.wallet_address, p.period, p.as_of, p.pnl, p.roi,
+		SELECT p.venue_id, v.code, p.wallet_address, p.period, p.as_of, p.pnl, p.realized_pnl, p.roi,
 			p.win_rate, p.trade_count, p.volume, p.gross_profit, p.gross_loss,
 			p.profit_factor, p.avg_trade_pnl, p.long_count, p.long_wins,
 			p.short_count, p.short_wins, p.max_drawdown_pct, p.avg_holding_time_sec,
@@ -238,7 +239,7 @@ func (r *Repository) GetPeriodMetrics(ctx context.Context, venueID uuid.UUID, ad
 		FROM trader_period_metrics p JOIN venues v ON v.id = p.venue_id
 		WHERE p.venue_id = $1 AND p.wallet_address = $2 AND p.period = $3`,
 		venueID, addr, period,
-	).Scan(&m.VenueID, &m.Venue, &m.WalletAddress, &m.Period, &m.AsOf, &m.PnL,
+	).Scan(&m.VenueID, &m.Venue, &m.WalletAddress, &m.Period, &m.AsOf, &m.PnL, &m.RealizedPnL,
 		&m.ROI, &m.WinRate, &m.TradeCount, &m.Volume, &m.GrossProfit, &m.GrossLoss,
 		&m.ProfitFactor, &m.AvgTradePnL, &m.LongCount, &m.LongWins, &m.ShortCount,
 		&m.ShortWins, &m.MaxDrawdownPct, &m.AvgHoldingTimeSec, &m.LastTradeAt,
@@ -358,7 +359,7 @@ func (r *Repository) searchRaw(ctx context.Context, query string, args []any) ([
 		var m PeriodMetrics
 		var status string
 		if err := rows.Scan(&m.VenueID, &m.Venue, &m.WalletAddress, &m.DisplayName,
-			&m.Period, &m.AsOf, &m.PnL, &m.ROI, &m.WinRate, &m.TradeCount, &m.Volume,
+			&m.Period, &m.AsOf, &m.PnL, &m.RealizedPnL, &m.ROI, &m.WinRate, &m.TradeCount, &m.Volume,
 			&m.GrossProfit, &m.GrossLoss, &m.ProfitFactor, &m.AvgTradePnL,
 			&m.LongCount, &m.LongWins, &m.ShortCount, &m.ShortWins, &m.MaxDrawdownPct,
 			&m.AvgHoldingTimeSec, &m.LastTradeAt, &status, &m.IsPartial,

@@ -130,6 +130,7 @@ type PeriodMetrics struct {
 	Period             string     `json:"period"`
 	AsOf               time.Time  `json:"metrics_as_of"`
 	PnL                *float64   `json:"pnl"`
+	RealizedPnL        *float64   `json:"realized_pnl"`
 	ROI                *float64   `json:"roi"`
 	WinRate            *float64   `json:"win_rate"`
 	TradeCount         *int64     `json:"trade_count"`
