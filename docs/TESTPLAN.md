@@ -952,6 +952,7 @@ L 100k+ synthetic scanner dataset (perf, V1.1).
 | MET-U-06 | ROI rule | LB window match vs no match | Passthrough vs documented formula + version bump |
 | CUR-U-01 | Cursor codec (BE-026) | Encode → decode roundtrip; tampered cursor | Roundtrip stable; tampered → INVALID_FILTER |
 | VAL-U-01 | Filter validation (BE-027/039) | roi_min>roi_max; pnl=0; volume=−1 | 4xx INVALID_FILTER for range/negative; 0 valid where allowed |
+| OBS-U-01 | Health counters | Fake discover/sync runs (success, error, 429) | done/failed/fetch/rate-limit/latency tracked; streak resets on success |
 
 ### 19.2 Handler
 
@@ -981,6 +982,7 @@ L 100k+ synthetic scanner dataset (perf, V1.1).
 | SYNC-I-03 | Backoff (BE-010) | Upstream 429s | Retries respect backoff; queue drains, no hot-loop |
 | SYNC-I-04 | Timeout (BE-032) | Info API timeout | Recoverable sync state, retry scheduled |
 | SYNC-I-05 | Schema drift (BE-031) | Leaderboard missing expected field | Job fails safe + alert; old data intact |
+| OBS-I-01 | Stale count | Fresh + old + error period rows | Counts old-vintage + error rows, excludes fresh |
 
 ### 19.4 E2E (`//go:build e2e`)
 
@@ -1016,7 +1018,7 @@ perf suite 100k/500k/1M (BE-035, PERF-BE-01..06), nightly upstream checks,
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
 | Wallet Dashboard (planned) | 39 | 50 | 23 | 10+ | **122** |
-| Trader Scanner v1.1 | 19 | 12 | 7 | 2 | **40** |
+| Trader Scanner v1.1 | 20 | 12 | 8 | 2 | **42** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~324** | **~132** | **~66** | **~34** | **~556** |
+| **TOTAL** | **~325** | **~132** | **~67** | **~34** | **~558** |

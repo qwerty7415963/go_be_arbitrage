@@ -179,6 +179,27 @@ numeric filters (BR-07). Ordering is metric-first with a deterministic
 | Limits | ≤2000 fills/response (auto window-split); only 10,000 most recent fills queryable → capped snapshots flagged `is_partial` |
 | Spike note | Extended has no by-address endpoint (self-scoped feeds only); Variational trading API not live — see `WALLET_DASHBOARD_PLAN.md §8` |
 
+### Trader Scanner v1.1 (dual-run with Wallet Scanner until cutover)
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/traders/search` | Public (optional Bearer) | Cursor-paginated scan: `period` 1D/7D/30D/ALL, `venue` (default hyperliquid), min/max filters (roi, win_rate, pnl, volume, trade_count, profit_factor, long/short win_rate), `last_trade_after`, `group_id`, `sort_by` (indexed only) + `sort_direction`, `limit` ≤ 100, opaque `cursor` |
+| GET | `/api/v1/traders/:wallet?venue=&period=` | Public | Registry header + one period's metrics (`metrics_as_of`, `data_status` ready/syncing/stale/error); unknown wallet → 404 |
+| GET/POST | `/api/v1/trader-groups` | **JWT required** | List / create (name unique per user, GROUP-002 on dup) |
+| GET/PATCH/DELETE | `/api/v1/trader-groups/:id` | **JWT required** | Owner-scoped; delete keeps registry rows |
+| GET/POST/DELETE | `/api/v1/trader-groups/:id/members` | **JWT required** | (venue, address) + alias/note; idempotent add; unknown wallet → 404 |
+
+Pipeline: leaderboard discovery (top-500, every 15m) → per-wallet incremental
+fill sync (every 6h, cursor `fills_last_time/tid`, backoff on errors) → daily
+rollup → period cache (the only table search reads). Raw fills are staged then
+purged (never retained). ROI = leaderboard passthrough when fresh, else the
+documented v1 estimate (`calculation_version` stamps the formula).
+
+Operations (spec §15): watch server logs for `discovery ...` / `sync finished
+...` lines (structured `key=value` fields) and the counters behind
+`DiscoveryService.Stats()` / `SyncService.Stats()` — alert on ≥3 consecutive
+discovery errors, sustained sync failure rate, or a growing stale-wallet count
+(`trader_period_metrics` rows with old `as_of` / `data_status='error'`).
+
 ## WebSocket: Order Book Real-time
 
 ### Connect

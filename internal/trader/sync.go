@@ -66,11 +66,12 @@ var periodLookbacks = map[string]time.Duration{
 // recompute-based (never blind increments): reruns are identical (BE-020) and
 // crash recovery only replays (BE-033).
 type SyncService struct {
-	repo    *Repository
-	fetch   FillFetcher
-	venueID uuid.UUID
-	opts    SyncOptions
-	logf    func(format string, args ...any)
+	repo     *Repository
+	fetch    FillFetcher
+	venueID  uuid.UUID
+	opts     SyncOptions
+	logf     func(format string, args ...any)
+	counters syncCounters
 }
 
 func NewSyncService(repo *Repository, fetch FillFetcher, venueID uuid.UUID, opts SyncOptions) *SyncService {
@@ -82,9 +83,13 @@ func NewSyncService(repo *Repository, fetch FillFetcher, venueID uuid.UUID, opts
 // affected days → recalc periods → advance cursor → purge. Fetch failures
 // record error state (BE-010/BE-032) without touching last-good metrics
 // beyond a status flip.
-func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time) error {
+func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, s.opts.WalletTimeout)
 	defer cancel()
+
+	// Every pass (success or failure) feeds the health counters.
+	var fetchLatency time.Duration
+	defer func() { s.recordWallet(fetchLatency, err) }()
 
 	state, err := s.repo.EnsureSyncState(ctx, s.venueID, addr)
 	if err != nil {
@@ -103,8 +108,10 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		}
 	}
 
+	fetchStart := time.Now()
 	fills, truncated, fetchErr := s.fetch.FetchTraderFills(ctx, addr,
 		start.UnixMilli(), now.UnixMilli())
+	fetchLatency = time.Since(fetchStart)
 	if fetchErr != nil {
 		// ctx may be expired (timeout): use a fresh one for state writes.
 		bg, cancelBg := context.WithTimeout(context.Background(), 30*time.Second)
@@ -321,6 +328,8 @@ func maxFillCursor(fills []Fill) (time.Time, *int64) {
 // errored wallets still inside their backoff window (BE-010). Continues past
 // per-wallet failures; returns (done, failed).
 func (s *SyncService) SyncAll(ctx context.Context, now time.Time) (done, failed int) {
+	start := time.Now().UTC()
+	defer s.recordRun(start)
 	addrs, err := s.repo.ListRegistryAddresses(ctx, s.venueID)
 	if err != nil {
 		s.logf("sync list: %v", err)
@@ -338,7 +347,8 @@ func (s *SyncService) SyncAll(ctx context.Context, now time.Time) (done, failed 
 		}
 		done++
 	}
-	s.logf("sync finished venue=%s done=%d failed=%d", s.venueID, done, failed)
+	s.logf("sync finished venue=%s done=%d failed=%d duration_ms=%d",
+		s.venueID, done, failed, time.Since(start).Milliseconds())
 	return done, failed
 }
 

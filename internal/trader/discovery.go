@@ -44,11 +44,12 @@ type DiscoveryResult struct {
 // DiscoveryService upserts discovered wallets into the registry plus their
 // leaderboard window references (ROI passthrough source, spec D4).
 type DiscoveryService struct {
-	repo    *Repository
-	fetch   DiscoveryFetcher
-	venueID uuid.UUID
-	limit   int
-	logf    func(format string, args ...any)
+	repo     *Repository
+	fetch    DiscoveryFetcher
+	venueID  uuid.UUID
+	limit    int
+	logf     func(format string, args ...any)
+	counters discoveryCounters
 }
 
 func NewDiscoveryService(repo *Repository, fetch DiscoveryFetcher, venueID uuid.UUID, limit int) *DiscoveryService {
@@ -78,8 +79,10 @@ func selectTop(rows []DiscoveredWallet, limit int) []DiscoveredWallet {
 // Discover runs one full pass: fetch → normalize → upsert registry + refs.
 // Hard fetch errors abort before any write (BE-031: old data stays intact).
 func (s *DiscoveryService) Discover(ctx context.Context) (*DiscoveryResult, error) {
+	start := time.Now().UTC()
 	rows, err := s.fetch.FetchTop(ctx, s.limit)
 	if err != nil {
+		s.recordRun(start, nil, err)
 		return nil, err
 	}
 	res := &DiscoveryResult{Fetched: len(rows)}
@@ -116,6 +119,7 @@ func (s *DiscoveryService) Discover(ctx context.Context) (*DiscoveryResult, erro
 	}
 	s.logf("discovery venue=%s fetched=%d inserted=%d updated=%d skipped=%d",
 		s.venueID, res.Fetched, res.Inserted, res.Updated, res.Skipped)
+	s.recordRun(start, res, nil)
 	return res, nil
 }
 
