@@ -6,8 +6,11 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 )
 
-// Compile-time guarantee: *Client satisfies the venue-agnostic discovery seam.
-var _ trader.DiscoveryFetcher = (*Client)(nil)
+// Compile-time guarantees: *Client satisfies the venue-agnostic seams.
+var (
+	_ trader.DiscoveryFetcher = (*Client)(nil)
+	_ trader.FillFetcher      = (*Client)(nil)
+)
 
 // FetchTop maps leaderboard rows onto the venue-agnostic discovery
 // shape (limit<=0 returns the whole board; top-N selection is the caller's).

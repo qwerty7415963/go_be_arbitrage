@@ -17,7 +17,7 @@ type fakeFills struct {
 	calls     int
 }
 
-func (f *fakeFills) FetchFills(ctx context.Context, _ string, _, _ int64) ([]Fill, bool, error) {
+func (f *fakeFills) FetchTraderFills(ctx context.Context, _ string, _, _ int64) ([]Fill, bool, error) {
 	f.calls++
 	if f.block {
 		<-ctx.Done()

@@ -237,6 +237,20 @@ func (r *Repository) OwnerOf(ctx context.Context, groupID uuid.UUID) (uuid.UUID,
 	return owner, nil
 }
 
+// VenueIDByCode resolves a venue code to its id (unknown → 404).
+func (r *Repository) VenueIDByCode(ctx context.Context, code string) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := r.pool.QueryRow(ctx,
+		`SELECT id FROM venues WHERE code = $1`, code).Scan(&id)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return uuid.Nil, domain.NewError(domain.ErrCodeNotFound, "unknown venue: "+code)
+		}
+		return uuid.Nil, err
+	}
+	return id, nil
+}
+
 func isUniqueViolation(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "duplicate key")
 }

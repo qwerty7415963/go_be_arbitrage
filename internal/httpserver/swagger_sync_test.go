@@ -107,6 +107,15 @@ var expectedSecured = []string{
 	"GET /api/v1/groups/{id}/wallets",
 	// wallet scanner: PATCH requires a token inside the handler
 	"PATCH /api/v1/wallets/{id}",
+	// trader groups v1.1 (JWT)
+	"POST /api/v1/trader-groups",
+	"GET /api/v1/trader-groups",
+	"GET /api/v1/trader-groups/{id}",
+	"PATCH /api/v1/trader-groups/{id}",
+	"DELETE /api/v1/trader-groups/{id}",
+	"POST /api/v1/trader-groups/{id}/members",
+	"DELETE /api/v1/trader-groups/{id}/members",
+	"GET /api/v1/trader-groups/{id}/members",
 	// strategy engine (JWT + admin role)
 	"GET /api/v1/strategies",
 	"POST /api/v1/strategies",

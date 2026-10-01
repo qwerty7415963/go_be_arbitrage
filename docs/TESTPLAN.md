@@ -891,8 +891,8 @@ fails on drift in either direction).
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
-| DOCS-S-01 | TestDocs_AnnotationsMatchSwaggerPaths | Set-diff `@Router` ↔ `swagger.json` paths (all `internal/` + `cmd/`) | Both directions empty; counts equal (currently 98) |
-| DOCS-S-02 | TestDocs_SecurityMatchesRoutes | Set-diff secured-in-swagger ↔ `expectedSecured` (48 entries: auth×6, venues×5, groups×8, wallets PATCH, strategies×8, risk×9, executions×7, reconciliation×4) | Protected without `@Security` → fail; public marked secured → fail; `securityDefinitions.BearerAuth` present |
+| DOCS-S-01 | TestDocs_AnnotationsMatchSwaggerPaths | Set-diff `@Router` ↔ `swagger.json` paths (all `internal/` + `cmd/`) | Both directions empty; counts equal (currently 108) |
+| DOCS-S-02 | TestDocs_SecurityMatchesRoutes | Set-diff secured-in-swagger ↔ `expectedSecured` (56 entries: auth×6, venues×5, groups×8, wallets PATCH, strategies×8, risk×9, executions×7, reconciliation×4, trader-groups×8) | Protected without `@Security` → fail; public marked secured → fail; `securityDefinitions.BearerAuth` present |
 
 Swagger-only endpoint groups (documented, no code change): venues/groups
 gained `@Security` + 401/403 rows; opportunity (6, public), strategies (8),

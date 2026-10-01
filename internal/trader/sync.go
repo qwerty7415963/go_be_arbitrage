@@ -103,7 +103,7 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		}
 	}
 
-	fills, truncated, fetchErr := s.fetch.FetchFills(ctx, addr,
+	fills, truncated, fetchErr := s.fetch.FetchTraderFills(ctx, addr,
 		start.UnixMilli(), now.UnixMilli())
 	if fetchErr != nil {
 		// ctx may be expired (timeout): use a fresh one for state writes.

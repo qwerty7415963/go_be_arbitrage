@@ -21,6 +21,8 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/risk"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
@@ -46,6 +48,8 @@ func (s *Server) SetupRoutes(
 	reconciliationHandler *reconciliation.Handler,
 	walletGroupHandler *walletgroup.Handler,
 	walletHandler *wallet.Handler,
+	traderHandler *trader.Handler,
+	traderGroupHandler *tradergroup.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -176,6 +180,12 @@ func (s *Server) SetupRoutes(
 		// optional auth (a Bearer token personalizes tag/watchlist; PATCH
 		// still requires a token inside the handler).
 		walletHandler.RegisterRoutes(v1, middleware.OptionalJWT(authService))
+
+		// Trader Scanner v1.1 (dual-run with /wallets + /groups until
+		// cutover): generic routes, venue-scoped. Search/detail are public;
+		// trader-groups require JWT.
+		traderHandler.RegisterRoutes(v1)
+		traderGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
 
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")

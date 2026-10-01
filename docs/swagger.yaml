@@ -1425,6 +1425,228 @@ definitions:
       status:
         $ref: '#/definitions/internal_strategy.StrategyStatus'
     type: object
+  internal_trader.DataStatus:
+    enum:
+    - ready
+    - syncing
+    - stale
+    - error
+    type: string
+    x-enum-varnames:
+    - DataReady
+    - DataSyncing
+    - DataStale
+    - DataError
+  internal_trader.Detail:
+    properties:
+      metrics:
+        $ref: '#/definitions/internal_trader.PeriodMetrics'
+      period:
+        type: string
+      registry:
+        $ref: '#/definitions/internal_trader.RegistryEntry'
+    type: object
+  internal_trader.DiscoverySource:
+    enum:
+    - leaderboard
+    - ws_trade
+    - both
+    - manual
+    type: string
+    x-enum-varnames:
+    - SourceLeaderboard
+    - SourceWSTrade
+    - SourceBoth
+    - SourceManual
+  internal_trader.PeriodMetrics:
+    properties:
+      avg_holding_time_sec:
+        type: number
+      avg_trade_pnl:
+        type: number
+      calculation_version:
+        type: integer
+      data_status:
+        $ref: '#/definitions/internal_trader.DataStatus'
+      display_name:
+        type: string
+      gross_loss:
+        type: number
+      gross_profit:
+        type: number
+      is_partial:
+        type: boolean
+      last_trade_at:
+        type: string
+      long_count:
+        type: integer
+      long_wins:
+        type: integer
+      max_drawdown_pct:
+        type: number
+      metrics_as_of:
+        type: string
+      period:
+        type: string
+      pnl:
+        type: number
+      profit_factor:
+        type: number
+      roi:
+        type: number
+      short_count:
+        type: integer
+      short_wins:
+        type: integer
+      trade_count:
+        type: integer
+      venue:
+        type: string
+      venue_id:
+        type: string
+      volume:
+        type: number
+      wallet_address:
+        type: string
+      win_rate:
+        type: number
+    type: object
+  internal_trader.RegistryEntry:
+    properties:
+      discovery_source:
+        $ref: '#/definitions/internal_trader.DiscoverySource'
+      display_name:
+        type: string
+      first_seen_at:
+        type: string
+      last_seen_at:
+        type: string
+      last_trade_at:
+        type: string
+      leaderboard_seen_at:
+        type: string
+      status:
+        type: string
+      venue:
+        type: string
+      venue_id:
+        type: string
+      wallet_address:
+        type: string
+    type: object
+  internal_trader.SearchRequest:
+    properties:
+      cursor:
+        type: string
+      group_id:
+        type: string
+      last_trade_after:
+        type: string
+      limit:
+        type: integer
+      long_win_rate_max:
+        type: number
+      long_win_rate_min:
+        type: number
+      period:
+        type: string
+      pnl_max:
+        type: number
+      pnl_min:
+        type: number
+      profit_factor_max:
+        type: number
+      profit_factor_min:
+        type: number
+      roi_max:
+        type: number
+      roi_min:
+        type: number
+      short_win_rate_max:
+        type: number
+      short_win_rate_min:
+        type: number
+      sort_by:
+        type: string
+      sort_direction:
+        type: string
+      trade_count_max:
+        type: integer
+      trade_count_min:
+        type: integer
+      venue:
+        type: string
+      volume_max:
+        type: number
+      volume_min:
+        type: number
+      win_rate_max:
+        type: number
+      win_rate_min:
+        type: number
+    type: object
+  internal_tradergroup.AddMembersRequest:
+    properties:
+      members:
+        items:
+          $ref: '#/definitions/internal_tradergroup.MemberInput'
+        type: array
+    type: object
+  internal_tradergroup.CreateGroupRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  internal_tradergroup.Group:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      member_count:
+        type: integer
+      name:
+        type: string
+      user_id:
+        type: string
+    type: object
+  internal_tradergroup.Member:
+    properties:
+      alias:
+        type: string
+      display_name:
+        type: string
+      group_id:
+        type: string
+      note:
+        type: string
+      venue:
+        type: string
+      venue_id:
+        type: string
+      wallet_address:
+        type: string
+    type: object
+  internal_tradergroup.MemberInput:
+    properties:
+      alias:
+        type: string
+      note:
+        type: string
+      venue:
+        type: string
+      wallet_address:
+        type: string
+    type: object
+  internal_tradergroup.UpdateGroupRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
   internal_unifiedstate.DepthLevel:
     properties:
       notional:
@@ -5892,6 +6114,646 @@ paths:
       summary: Stop strategy instance
       tags:
       - strategies
+  /api/v1/trader-groups:
+    get:
+      description: The caller's groups with member counts. Requires JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_tradergroup.Group'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List trader groups
+      tags:
+      - trader-groups
+    post:
+      consumes:
+      - application/json
+      description: Creates a group owned by the caller; duplicate name is GROUP-002.
+        Requires JWT.
+      parameters:
+      - description: Group to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_tradergroup.CreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_tradergroup.Group'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create trader group
+      tags:
+      - trader-groups
+  /api/v1/trader-groups/{id}:
+    delete:
+      description: Deletes an owned group; memberships cascade, registry rows stay.
+        Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Delete trader group
+      tags:
+      - trader-groups
+    get:
+      description: One owned group with member count. Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_tradergroup.Group'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get trader group
+      tags:
+      - trader-groups
+    patch:
+      consumes:
+      - application/json
+      description: Renames/edits an owned group; owner immutable; rename collision
+        is GROUP-002. Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_tradergroup.UpdateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_tradergroup.Group'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update trader group
+      tags:
+      - trader-groups
+  /api/v1/trader-groups/{id}/members:
+    delete:
+      consumes:
+      - application/json
+      description: Removes memberships (relationship only); absent rows are a no-op.
+        Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Members to remove (venue + address used)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_tradergroup.AddMembersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    format: int64
+                    type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Remove group members
+      tags:
+      - trader-groups
+    get:
+      description: Owned-group memberships with venue codes and display names. Requires
+        JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_tradergroup.Member'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List group members
+      tags:
+      - trader-groups
+    post:
+      consumes:
+      - application/json
+      description: Adds (venue, address) memberships with optional alias/note; idempotent
+        (existing rows keep alias/note). Unknown wallet is 404. Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Members to add
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_tradergroup.AddMembersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    format: int64
+                    type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Add group members
+      tags:
+      - trader-groups
+  /api/v1/traders/{wallet}:
+    get:
+      description: Registry header + one period's metrics by wallet address (period
+        query, default 30D; venue query, default hyperliquid). Unknown wallet is 404.
+        Never calls upstream inline.
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30D
+        description: Metric window
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - ALL
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.Detail'
+              type: object
+        "400":
+          description: INVALID_FILTER / validation
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader detail (public)
+      tags:
+      - traders
+  /api/v1/traders/search:
+    post:
+      consumes:
+      - application/json
+      description: 'Cursor-paginated trader scan over period metrics (spec v1.1).
+        Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics
+        only, never upstream.'
+      parameters:
+      - description: period, venue, min/max filters, sort, limit, cursor
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_trader.SearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_trader.PeriodMetrics'
+                  type: array
+                meta:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta'
+              type: object
+        "400":
+          description: INVALID_FILTER
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: AUTH-003 group filter without token
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: GROUP-003 foreign group
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown group
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Search traders (public)
+      tags:
+      - traders
   /api/v1/unified/health:
     get:
       description: Get health overview for all venues

@@ -26,7 +26,7 @@ type Fill struct {
 // [startMs, endMs]; truncated means the venue capped the window (older data
 // hidden) and downstream snapshots must be flagged partial.
 type FillFetcher interface {
-	FetchFills(ctx context.Context, address string, startMs, endMs int64) ([]Fill, bool, error)
+	FetchTraderFills(ctx context.Context, address string, startMs, endMs int64) ([]Fill, bool, error)
 }
 
 // UpsertBufferFills stages fills idempotently; returns the new-row count.

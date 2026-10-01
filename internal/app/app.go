@@ -26,6 +26,8 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/risk"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
@@ -49,6 +51,8 @@ type App struct {
 	collector          *collector.Collector
 	opportunityService *opportunity.Service
 	backfillService    *wallet.BackfillService
+	discoveryService   *trader.DiscoveryService
+	traderSyncService  *trader.SyncService
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -156,6 +160,27 @@ func New(cfg *config.Config) (*App, error) {
 	walletHandler := wallet.NewHandler(walletService)
 	walletGroupHandler.SetScanner(walletService)
 
+	// Trader Scanner v1.1 (dual-run with the legacy wallet scanner until
+	// cutover): generic routes + venue-scoped tables. Discovery refreshes
+	// the registry from the leaderboard; the sync engine maintains the
+	// period metric cache. Started in Run.
+	traderRepo := trader.NewRepository(db.Pool())
+	traderGroupRepo := tradergroup.NewRepository(db.Pool())
+	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
+	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret)
+	traderHandler := trader.NewHandler(traderService)
+	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
+
+	var discoverySvc *trader.DiscoveryService
+	var traderSyncSvc *trader.SyncService
+	if venueID, verr := traderRepo.VenueIDByCode(ctx, hyperliquid.VenueCode); verr != nil {
+		log.Warn("hyperliquid venue missing; trader discovery/sync disabled", "error", verr)
+	} else {
+		hlClient := hyperliquid.NewClient("", 30*time.Second, 2*time.Second)
+		discoverySvc = trader.NewDiscoveryService(traderRepo, hlClient, venueID, traderDiscoveryLimit)
+		traderSyncSvc = trader.NewSyncService(traderRepo, hlClient, venueID, trader.DefaultSyncOptions())
+	}
+
 	// Hyperliquid backfill worker (Wallet Dashboard Phase 3): ingest fills
 	// for EVM tracked wallets; started in Run, per-wallet failures are
 	// logged and retried on the next tick.
@@ -178,7 +203,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, walletGroupHandler, walletHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, walletGroupHandler, walletHandler, traderHandler, traderGroupHandler)
 
 	return &App{
 		config:             cfg,
@@ -197,8 +222,18 @@ func New(cfg *config.Config) (*App, error) {
 		collector:          fundingCollector,
 		opportunityService: opportunityService,
 		backfillService:    backfillSvc,
+		discoveryService:   discoverySvc,
+		traderSyncService:  traderSyncSvc,
 	}, nil
 }
+
+// Trader Scanner v1.1 worker tuning: leaderboard refresh (39MB dump) every
+// 15 minutes; metric sync every 6 hours (parity with the legacy backfill).
+const (
+	traderDiscoveryLimit    = 500
+	traderDiscoveryInterval = 15 * time.Minute
+	traderSyncInterval      = 6 * time.Hour
+)
 
 func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -216,6 +251,15 @@ func (a *App) Run() error {
 	// Start wallet backfill workers (every 6 hours); add one per venue.
 	if a.backfillService != nil {
 		go runBackfillWorker(ctx, a.logger, hyperliquid.VenueCode, a.backfillService)
+	}
+
+	// Start Trader Scanner v1.1 workers: leaderboard discovery refreshes the
+	// registry; the sync engine maintains the period metric cache.
+	if a.discoveryService != nil {
+		go a.discoveryService.Start(ctx, traderDiscoveryInterval)
+	}
+	if a.traderSyncService != nil {
+		go a.traderSyncService.Start(ctx, traderSyncInterval)
 	}
 
 	quit := make(chan os.Signal, 1)

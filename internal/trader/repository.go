@@ -320,11 +320,16 @@ func (r *Repository) ListDailyStats(ctx context.Context, venueID uuid.UUID, addr
 }
 
 // ListRegistryAddresses returns active registry addresses for a venue (sync
-// scheduling input).
+// scheduling input). Pending wallets first: detail views EnsureSyncState, so
+// on-demand interest is picked up earlier (spec BE-038).
 func (r *Repository) ListRegistryAddresses(ctx context.Context, venueID uuid.UUID) ([]string, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT wallet_address FROM trader_registry
-		WHERE venue_id = $1 AND status = 'active' ORDER BY wallet_address ASC`, venueID)
+		SELECT r.wallet_address FROM trader_registry r
+		LEFT JOIN trader_sync_state s ON s.venue_id = r.venue_id
+			AND s.wallet_address = r.wallet_address
+		WHERE r.venue_id = $1 AND r.status = 'active'
+		ORDER BY CASE WHEN s.sync_status IS NULL OR s.sync_status = 'pending'
+			THEN 0 ELSE 1 END, s.updated_at ASC NULLS FIRST, r.wallet_address ASC`, venueID)
 	if err != nil {
 		return nil, err
 	}
@@ -336,6 +341,32 @@ func (r *Repository) ListRegistryAddresses(ctx context.Context, venueID uuid.UUI
 			return nil, err
 		}
 		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// searchRaw executes a query built by buildSearchQuery and scans period rows
+// with venue code + registry display name.
+func (r *Repository) searchRaw(ctx context.Context, query string, args []any) ([]*PeriodMetrics, error) {
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*PeriodMetrics
+	for rows.Next() {
+		var m PeriodMetrics
+		var status string
+		if err := rows.Scan(&m.VenueID, &m.Venue, &m.WalletAddress, &m.DisplayName,
+			&m.Period, &m.AsOf, &m.PnL, &m.ROI, &m.WinRate, &m.TradeCount, &m.Volume,
+			&m.GrossProfit, &m.GrossLoss, &m.ProfitFactor, &m.AvgTradePnL,
+			&m.LongCount, &m.LongWins, &m.ShortCount, &m.ShortWins, &m.MaxDrawdownPct,
+			&m.AvgHoldingTimeSec, &m.LastTradeAt, &status, &m.IsPartial,
+			&m.CalculationVersion); err != nil {
+			return nil, err
+		}
+		m.DataStatus = DataStatus(status)
+		out = append(out, &m)
 	}
 	return out, rows.Err()
 }

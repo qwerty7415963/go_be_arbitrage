@@ -6947,6 +6947,1174 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/trader-groups": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The caller's groups with member counts. Requires JWT.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "List trader groups",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_tradergroup.Group"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a group owned by the caller; duplicate name is GROUP-002. Requires JWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Create trader group",
+                "parameters": [
+                    {
+                        "description": "Group to create",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_tradergroup.CreateGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_tradergroup.Group"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/trader-groups/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "One owned group with member count. Requires JWT.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Get trader group",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_tradergroup.Group"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an owned group; memberships cascade, registry rows stay. Requires JWT.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Delete trader group",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Renames/edits an owned group; owner immutable; rename collision is GROUP-002. Requires JWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Update trader group",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_tradergroup.UpdateGroupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_tradergroup.Group"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/trader-groups/{id}/members": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Owned-group memberships with venue codes and display names. Requires JWT.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "List group members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_tradergroup.Member"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds (venue, address) memberships with optional alias/note; idempotent (existing rows keep alias/note). Unknown wallet is 404. Requires JWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Add group members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Members to add",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_tradergroup.AddMembersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer",
+                                                "format": "int64"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Removes memberships (relationship only); absent rows are a no-op. Requires JWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Remove group members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Members to remove (venue + address used)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_tradergroup.AddMembersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer",
+                                                "format": "int64"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/search": {
+            "post": {
+                "description": "Cursor-paginated trader scan over period metrics (spec v1.1). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Search traders (public)",
+                "parameters": [
+                    {
+                        "description": "period, venue, min/max filters, sort, limit, cursor",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_trader.SearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_trader.PeriodMetrics"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "AUTH-003 group filter without token",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "GROUP-003 foreign group",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown group",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}": {
+            "get": {
+                "description": "Registry header + one period's metrics by wallet address (period query, default 30D; venue query, default hyperliquid). Unknown wallet is 404. Never calls upstream inline.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader detail (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Metric window",
+                        "name": "period",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/unified/health": {
             "get": {
                 "description": "Get health overview for all venues",
@@ -10773,6 +11941,338 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/internal_strategy.StrategyStatus"
+                }
+            }
+        },
+        "internal_trader.DataStatus": {
+            "type": "string",
+            "enum": [
+                "ready",
+                "syncing",
+                "stale",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "DataReady",
+                "DataSyncing",
+                "DataStale",
+                "DataError"
+            ]
+        },
+        "internal_trader.Detail": {
+            "type": "object",
+            "properties": {
+                "metrics": {
+                    "$ref": "#/definitions/internal_trader.PeriodMetrics"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "registry": {
+                    "$ref": "#/definitions/internal_trader.RegistryEntry"
+                }
+            }
+        },
+        "internal_trader.DiscoverySource": {
+            "type": "string",
+            "enum": [
+                "leaderboard",
+                "ws_trade",
+                "both",
+                "manual"
+            ],
+            "x-enum-varnames": [
+                "SourceLeaderboard",
+                "SourceWSTrade",
+                "SourceBoth",
+                "SourceManual"
+            ]
+        },
+        "internal_trader.PeriodMetrics": {
+            "type": "object",
+            "properties": {
+                "avg_holding_time_sec": {
+                    "type": "number"
+                },
+                "avg_trade_pnl": {
+                    "type": "number"
+                },
+                "calculation_version": {
+                    "type": "integer"
+                },
+                "data_status": {
+                    "$ref": "#/definitions/internal_trader.DataStatus"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "gross_loss": {
+                    "type": "number"
+                },
+                "gross_profit": {
+                    "type": "number"
+                },
+                "is_partial": {
+                    "type": "boolean"
+                },
+                "last_trade_at": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "long_wins": {
+                    "type": "integer"
+                },
+                "max_drawdown_pct": {
+                    "type": "number"
+                },
+                "metrics_as_of": {
+                    "type": "string"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "pnl": {
+                    "type": "number"
+                },
+                "profit_factor": {
+                    "type": "number"
+                },
+                "roi": {
+                    "type": "number"
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "short_wins": {
+                    "type": "integer"
+                },
+                "trade_count": {
+                    "type": "integer"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "wallet_address": {
+                    "type": "string"
+                },
+                "win_rate": {
+                    "type": "number"
+                }
+            }
+        },
+        "internal_trader.RegistryEntry": {
+            "type": "object",
+            "properties": {
+                "discovery_source": {
+                    "$ref": "#/definitions/internal_trader.DiscoverySource"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "first_seen_at": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string"
+                },
+                "last_trade_at": {
+                    "type": "string"
+                },
+                "leaderboard_seen_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                },
+                "wallet_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_trader.SearchRequest": {
+            "type": "object",
+            "properties": {
+                "cursor": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "string"
+                },
+                "last_trade_after": {
+                    "type": "string"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "long_win_rate_max": {
+                    "type": "number"
+                },
+                "long_win_rate_min": {
+                    "type": "number"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "pnl_max": {
+                    "type": "number"
+                },
+                "pnl_min": {
+                    "type": "number"
+                },
+                "profit_factor_max": {
+                    "type": "number"
+                },
+                "profit_factor_min": {
+                    "type": "number"
+                },
+                "roi_max": {
+                    "type": "number"
+                },
+                "roi_min": {
+                    "type": "number"
+                },
+                "short_win_rate_max": {
+                    "type": "number"
+                },
+                "short_win_rate_min": {
+                    "type": "number"
+                },
+                "sort_by": {
+                    "type": "string"
+                },
+                "sort_direction": {
+                    "type": "string"
+                },
+                "trade_count_max": {
+                    "type": "integer"
+                },
+                "trade_count_min": {
+                    "type": "integer"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "volume_max": {
+                    "type": "number"
+                },
+                "volume_min": {
+                    "type": "number"
+                },
+                "win_rate_max": {
+                    "type": "number"
+                },
+                "win_rate_min": {
+                    "type": "number"
+                }
+            }
+        },
+        "internal_tradergroup.AddMembersRequest": {
+            "type": "object",
+            "properties": {
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_tradergroup.MemberInput"
+                    }
+                }
+            }
+        },
+        "internal_tradergroup.CreateGroupRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_tradergroup.Group": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_tradergroup.Member": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                },
+                "wallet_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_tradergroup.MemberInput": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "wallet_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_tradergroup.UpdateGroupRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
