@@ -59,9 +59,10 @@ type Fill struct {
 // Client queries the public Hyperliquid info API (no auth). Calls are paced
 // by minInterval to respect the venue weight limits.
 type Client struct {
-	baseURL     string
-	http        *http.Client
-	minInterval time.Duration
+	baseURL      string
+	statsBaseURL string
+	http         *http.Client
+	minInterval  time.Duration
 
 	mu   sync.Mutex
 	last time.Time
@@ -72,9 +73,10 @@ func NewClient(baseURL string, timeout, minInterval time.Duration) *Client {
 		baseURL = DefaultBaseURL
 	}
 	return &Client{
-		baseURL:     baseURL,
-		http:        &http.Client{Timeout: timeout},
-		minInterval: minInterval,
+		baseURL:      baseURL,
+		statsBaseURL: StatsBaseURL,
+		http:         &http.Client{Timeout: timeout},
+		minInterval:  minInterval,
 	}
 }
 
