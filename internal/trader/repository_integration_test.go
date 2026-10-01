@@ -79,7 +79,7 @@ func cleanupAddrs(t *testing.T, pool *pgxpool.Pool, venueID uuid.UUID, addrs ...
 func TestRepo_UpsertRegistry_Idempotent(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	venueID := testVenue(t, pool)
 	addr := testAddr()
@@ -142,7 +142,7 @@ func TestRepo_UpsertRegistry_Idempotent(t *testing.T) {
 func TestRepo_SyncState_EnsureAndProgress(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	venueID := testVenue(t, pool)
 	addr := testAddr()
@@ -187,7 +187,7 @@ func TestRepo_SyncState_EnsureAndProgress(t *testing.T) {
 func TestRepo_DailyStats_Idempotent(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	venueID := testVenue(t, pool)
 	addr := testAddr()
@@ -226,7 +226,7 @@ func TestRepo_DailyStats_Idempotent(t *testing.T) {
 func TestRepo_PeriodMetrics_Roundtrip(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	venueID := testVenue(t, pool)
 	addr := testAddr()
@@ -263,7 +263,7 @@ func TestRepo_PeriodMetrics_Roundtrip(t *testing.T) {
 func TestRepo_LeaderboardRef_Roundtrip(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	venueID := testVenue(t, pool)
 	addr := testAddr()

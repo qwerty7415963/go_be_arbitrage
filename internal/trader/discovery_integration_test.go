@@ -21,7 +21,7 @@ func (f *fakeFetcher) FetchTop(_ context.Context, _ int) ([]DiscoveredWallet, er
 func TestDiscovery_DiscoverAndRerun(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	venueID := testVenue(t, pool)
 

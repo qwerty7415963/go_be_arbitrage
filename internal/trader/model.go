@@ -94,28 +94,30 @@ type SyncState struct {
 	SyncStatus          string     `json:"sync_status"`
 	RetryCount          int        `json:"retry_count"`
 	LastError           *string    `json:"last_error"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 // DailyStats is one row of trader_daily_stats: 1 wallet/day/venue.
 type DailyStats struct {
-	VenueID             uuid.UUID `json:"venue_id"`
-	WalletAddress       string    `json:"wallet_address"`
-	StatDate            time.Time `json:"stat_date"`
-	TradeCount          int64     `json:"trade_count"`
-	WinCount            int64     `json:"win_count"`
-	LossCount           int64     `json:"loss_count"`
-	BreakevenCount      int64     `json:"breakeven_count"`
-	RealizedPnL         *float64  `json:"realized_pnl"`
-	Fees                float64   `json:"fees"`
-	Volume              *float64  `json:"volume"`
-	GrossProfit         *float64  `json:"gross_profit"`
-	GrossLoss           *float64  `json:"gross_loss"`
-	LongCount           int64     `json:"long_count"`
-	LongWins            int64     `json:"long_wins"`
-	ShortCount          int64     `json:"short_count"`
-	ShortWins           int64     `json:"short_wins"`
-	HoldingTimeSecSum   float64   `json:"holding_time_sec_sum"`
-	HoldingTimeSecCount int64     `json:"holding_time_sec_count"`
+	VenueID             uuid.UUID  `json:"venue_id"`
+	WalletAddress       string     `json:"wallet_address"`
+	StatDate            time.Time  `json:"stat_date"`
+	TradeCount          int64      `json:"trade_count"`
+	WinCount            int64      `json:"win_count"`
+	LossCount           int64      `json:"loss_count"`
+	BreakevenCount      int64      `json:"breakeven_count"`
+	RealizedPnL         *float64   `json:"realized_pnl"`
+	Fees                float64    `json:"fees"`
+	Volume              *float64   `json:"volume"`
+	GrossProfit         *float64   `json:"gross_profit"`
+	GrossLoss           *float64   `json:"gross_loss"`
+	LongCount           int64      `json:"long_count"`
+	LongWins            int64      `json:"long_wins"`
+	ShortCount          int64      `json:"short_count"`
+	ShortWins           int64      `json:"short_wins"`
+	HoldingTimeSecSum   float64    `json:"holding_time_sec_sum"`
+	HoldingTimeSecCount int64      `json:"holding_time_sec_count"`
+	LastTradeAt         *time.Time `json:"last_trade_at"`
 }
 
 // PeriodMetrics is one row of trader_period_metrics: 1 wallet/period/venue.
@@ -144,6 +146,7 @@ type PeriodMetrics struct {
 	AvgHoldingTimeSec  *float64   `json:"avg_holding_time_sec"`
 	LastTradeAt        *time.Time `json:"last_trade_at"`
 	DataStatus         DataStatus `json:"data_status"`
+	IsPartial          bool       `json:"is_partial"`
 	CalculationVersion int        `json:"calculation_version"`
 }
 

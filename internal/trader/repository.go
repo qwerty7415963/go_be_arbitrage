@@ -109,12 +109,12 @@ func (r *Repository) GetSyncState(ctx context.Context, venueID uuid.UUID, addr s
 	err := r.pool.QueryRow(ctx, `
 		SELECT venue_id, wallet_address, fills_last_time, fills_last_tid,
 			last_fills_sync_at, last_portfolio_sync_at, backfill_start_time,
-			backfill_completed_at, sync_status, retry_count, last_error
+			backfill_completed_at, sync_status, retry_count, last_error, updated_at
 		FROM trader_sync_state WHERE venue_id = $1 AND wallet_address = $2`,
 		venueID, addr,
 	).Scan(&s.VenueID, &s.WalletAddress, &s.FillsLastTime, &s.FillsLastTID,
 		&s.LastFillsSyncAt, &s.LastPortfolioSyncAt, &s.BackfillStartTime,
-		&s.BackfillCompletedAt, &s.SyncStatus, &s.RetryCount, &s.LastError)
+		&s.BackfillCompletedAt, &s.SyncStatus, &s.RetryCount, &s.LastError, &s.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -150,8 +150,8 @@ func (r *Repository) UpsertDailyStats(ctx context.Context, s *DailyStats) error 
 			(venue_id, wallet_address, stat_date, trade_count, win_count, loss_count,
 			 breakeven_count, realized_pnl, fees, volume, gross_profit, gross_loss,
 			 long_count, long_wins, short_count, short_wins,
-			 holding_time_sec_sum, holding_time_sec_count)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+			 holding_time_sec_sum, holding_time_sec_count, last_trade_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 		ON CONFLICT (venue_id, wallet_address, stat_date) DO UPDATE SET
 			trade_count = EXCLUDED.trade_count, win_count = EXCLUDED.win_count,
 			loss_count = EXCLUDED.loss_count, breakeven_count = EXCLUDED.breakeven_count,
@@ -162,11 +162,12 @@ func (r *Repository) UpsertDailyStats(ctx context.Context, s *DailyStats) error 
 			short_wins = EXCLUDED.short_wins,
 			holding_time_sec_sum = EXCLUDED.holding_time_sec_sum,
 			holding_time_sec_count = EXCLUDED.holding_time_sec_count,
+			last_trade_at = EXCLUDED.last_trade_at,
 			updated_at = NOW()`,
 		s.VenueID, s.WalletAddress, s.StatDate, s.TradeCount, s.WinCount, s.LossCount,
 		s.BreakevenCount, s.RealizedPnL, s.Fees, s.Volume, s.GrossProfit, s.GrossLoss,
 		s.LongCount, s.LongWins, s.ShortCount, s.ShortWins,
-		s.HoldingTimeSecSum, s.HoldingTimeSecCount)
+		s.HoldingTimeSecSum, s.HoldingTimeSecCount, s.LastTradeAt)
 	return err
 }
 
@@ -177,14 +178,14 @@ func (r *Repository) GetDailyStats(ctx context.Context, venueID uuid.UUID, addr 
 		SELECT venue_id, wallet_address, stat_date, trade_count, win_count, loss_count,
 			breakeven_count, realized_pnl, fees, volume, gross_profit, gross_loss,
 			long_count, long_wins, short_count, short_wins,
-			holding_time_sec_sum, holding_time_sec_count
+			holding_time_sec_sum, holding_time_sec_count, last_trade_at
 		FROM trader_daily_stats
 		WHERE venue_id = $1 AND wallet_address = $2 AND stat_date = $3`,
 		venueID, addr, day.Format("2006-01-02"),
 	).Scan(&s.VenueID, &s.WalletAddress, &s.StatDate, &s.TradeCount, &s.WinCount,
 		&s.LossCount, &s.BreakevenCount, &s.RealizedPnL, &s.Fees, &s.Volume,
 		&s.GrossProfit, &s.GrossLoss, &s.LongCount, &s.LongWins, &s.ShortCount,
-		&s.ShortWins, &s.HoldingTimeSecSum, &s.HoldingTimeSecCount)
+		&s.ShortWins, &s.HoldingTimeSecSum, &s.HoldingTimeSecCount, &s.LastTradeAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -202,8 +203,8 @@ func (r *Repository) UpsertPeriodMetrics(ctx context.Context, m *PeriodMetrics) 
 			(venue_id, wallet_address, period, as_of, pnl, roi, win_rate, trade_count,
 			 volume, gross_profit, gross_loss, profit_factor, avg_trade_pnl,
 			 long_count, long_wins, short_count, short_wins, max_drawdown_pct,
-			 avg_holding_time_sec, last_trade_at, data_status, calculation_version)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+			 avg_holding_time_sec, last_trade_at, data_status, is_partial, calculation_version)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 		ON CONFLICT (venue_id, wallet_address, period) DO UPDATE SET
 			as_of = EXCLUDED.as_of, pnl = EXCLUDED.pnl, roi = EXCLUDED.roi,
 			win_rate = EXCLUDED.win_rate, trade_count = EXCLUDED.trade_count,
@@ -214,12 +215,13 @@ func (r *Repository) UpsertPeriodMetrics(ctx context.Context, m *PeriodMetrics) 
 			short_wins = EXCLUDED.short_wins, max_drawdown_pct = EXCLUDED.max_drawdown_pct,
 			avg_holding_time_sec = EXCLUDED.avg_holding_time_sec,
 			last_trade_at = EXCLUDED.last_trade_at, data_status = EXCLUDED.data_status,
+			is_partial = EXCLUDED.is_partial,
 			calculation_version = EXCLUDED.calculation_version, updated_at = NOW()`,
 		m.VenueID, m.WalletAddress, m.Period, m.AsOf, m.PnL, m.ROI, m.WinRate,
 		m.TradeCount, m.Volume, m.GrossProfit, m.GrossLoss, m.ProfitFactor,
 		m.AvgTradePnL, m.LongCount, m.LongWins, m.ShortCount, m.ShortWins,
 		m.MaxDrawdownPct, m.AvgHoldingTimeSec, m.LastTradeAt, string(m.DataStatus),
-		m.CalculationVersion)
+		m.IsPartial, m.CalculationVersion)
 	return err
 }
 
@@ -232,7 +234,7 @@ func (r *Repository) GetPeriodMetrics(ctx context.Context, venueID uuid.UUID, ad
 			p.win_rate, p.trade_count, p.volume, p.gross_profit, p.gross_loss,
 			p.profit_factor, p.avg_trade_pnl, p.long_count, p.long_wins,
 			p.short_count, p.short_wins, p.max_drawdown_pct, p.avg_holding_time_sec,
-			p.last_trade_at, p.data_status, p.calculation_version
+			p.last_trade_at, p.data_status, p.is_partial, p.calculation_version
 		FROM trader_period_metrics p JOIN venues v ON v.id = p.venue_id
 		WHERE p.venue_id = $1 AND p.wallet_address = $2 AND p.period = $3`,
 		venueID, addr, period,
@@ -240,7 +242,7 @@ func (r *Repository) GetPeriodMetrics(ctx context.Context, venueID uuid.UUID, ad
 		&m.ROI, &m.WinRate, &m.TradeCount, &m.Volume, &m.GrossProfit, &m.GrossLoss,
 		&m.ProfitFactor, &m.AvgTradePnL, &m.LongCount, &m.LongWins, &m.ShortCount,
 		&m.ShortWins, &m.MaxDrawdownPct, &m.AvgHoldingTimeSec, &m.LastTradeAt,
-		&status, &m.CalculationVersion)
+		&status, &m.IsPartial, &m.CalculationVersion)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -283,4 +285,57 @@ func (r *Repository) GetLeaderboardRef(ctx context.Context, venueID uuid.UUID, a
 		return nil, err
 	}
 	return &ref, nil
+}
+
+// ListDailyStats returns day rows in [from, to] (inclusive dates) oldest-first
+// for period aggregation.
+func (r *Repository) ListDailyStats(ctx context.Context, venueID uuid.UUID, addr string, from, to time.Time) ([]*DailyStats, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT venue_id, wallet_address, stat_date, trade_count, win_count, loss_count,
+			breakeven_count, realized_pnl, fees, volume, gross_profit, gross_loss,
+			long_count, long_wins, short_count, short_wins,
+			holding_time_sec_sum, holding_time_sec_count, last_trade_at
+		FROM trader_daily_stats
+		WHERE venue_id = $1 AND wallet_address = $2
+		  AND stat_date >= $3 AND stat_date <= $4
+		ORDER BY stat_date ASC`,
+		venueID, addr, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*DailyStats
+	for rows.Next() {
+		var s DailyStats
+		if err := rows.Scan(&s.VenueID, &s.WalletAddress, &s.StatDate, &s.TradeCount,
+			&s.WinCount, &s.LossCount, &s.BreakevenCount, &s.RealizedPnL, &s.Fees,
+			&s.Volume, &s.GrossProfit, &s.GrossLoss, &s.LongCount, &s.LongWins,
+			&s.ShortCount, &s.ShortWins, &s.HoldingTimeSecSum, &s.HoldingTimeSecCount,
+			&s.LastTradeAt); err != nil {
+			return nil, err
+		}
+		out = append(out, &s)
+	}
+	return out, rows.Err()
+}
+
+// ListRegistryAddresses returns active registry addresses for a venue (sync
+// scheduling input).
+func (r *Repository) ListRegistryAddresses(ctx context.Context, venueID uuid.UUID) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT wallet_address FROM trader_registry
+		WHERE venue_id = $1 AND status = 'active' ORDER BY wallet_address ASC`, venueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var a string
+		if err := rows.Scan(&a); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }

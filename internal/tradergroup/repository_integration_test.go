@@ -104,7 +104,7 @@ func mustCode(t *testing.T, err error) domain.ErrorCode {
 func TestRepo_GroupLifecycle(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	_, userA := testUser(t, pool)
 	venueID := testVenueID(t, pool)
@@ -183,7 +183,7 @@ func TestRepo_GroupLifecycle(t *testing.T) {
 func TestRepo_GroupIsolation(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
 	_, userA := testUser(t, pool)
 	_, userB := testUser(t, pool)
