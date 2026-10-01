@@ -191,8 +191,10 @@ numeric filters (BR-07). Ordering is metric-first with a deterministic
 Pipeline: leaderboard discovery (top-500, every 15m) → per-wallet incremental
 fill sync (every 6h, cursor `fills_last_time/tid`, backoff on errors) → daily
 rollup → period cache (the only table search reads). Raw fills are staged then
-purged (never retained). ROI = leaderboard passthrough when fresh, else the
-documented v1 estimate (`calculation_version` stamps the formula).
+purged (never retained). Display PnL and ROI = leaderboard window passthrough
+when fresh, else computed (realized sum / documented v1 ROI estimate);
+`realized_pnl` always carries the computed fills-based sum for reconciliation
+(`calculation_version` stamps the formula).
 
 Operations (spec §15): watch server logs for `discovery ...` / `sync finished
 ...` lines (structured `key=value` fields) and the counters behind

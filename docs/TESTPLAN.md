@@ -913,7 +913,9 @@ Scope decisions: V1 = leaderboard discovery + incremental sync + metrics +
 scanner/detail/groups (WS discovery, portfolio/equity/drawdown → V1.1).
 Schema: new tables keyed by `(venue, address)` in parallel; old tables dropped
 at cutover. ROI = leaderboard window passthrough where the window matches,
-else the documented computed formula (never silent substitution).
+else the documented computed formula (never silent substitution). Display PnL
+follows the same passthrough; `realized_pnl` column (migration 000024) always
+stores the computed fills-based sum for reconciliation.
 
 Contract spike (verified live 2026-10-01): `GET
 https://stats-data.hyperliquid.xyz/Mainnet/leaderboard` → 200,
