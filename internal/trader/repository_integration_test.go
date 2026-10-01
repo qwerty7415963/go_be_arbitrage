@@ -40,18 +40,22 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// testVenueCode is a dedicated venue so suites stay hermetic: the live
+// server's workers only ever write venue=hyperliquid rows.
+const testVenueCode = "trader-test-venue"
+
 func testVenue(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO venues (code, name, venue_type)
-		VALUES ('hyperliquid', 'hyperliquid', 'PERP_DEX')
+		VALUES ('trader-test-venue', 'Trader Test Venue', 'PERP_DEX')
 		ON CONFLICT (code) DO NOTHING`); err != nil {
 		t.Fatalf("venue: %v", err)
 	}
 	var id uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`SELECT id FROM venues WHERE code = 'hyperliquid'`).Scan(&id); err != nil {
+		`SELECT id FROM venues WHERE code = 'trader-test-venue'`).Scan(&id); err != nil {
 		t.Fatalf("venue id: %v", err)
 	}
 	return id
@@ -253,7 +257,7 @@ func TestRepo_PeriodMetrics_Roundtrip(t *testing.T) {
 	if got.ProfitFactor != nil {
 		t.Errorf("null profit_factor must roundtrip as null: %+v", got.ProfitFactor)
 	}
-	if got.Venue != "hyperliquid" || got.DataStatus != DataReady ||
+	if got.Venue != testVenueCode || got.DataStatus != DataReady ||
 		got.CalculationVersion != CurrentCalculationVersion {
 		t.Errorf("meta mismatch: %+v", got)
 	}

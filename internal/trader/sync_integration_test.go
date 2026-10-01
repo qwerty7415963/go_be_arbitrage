@@ -60,7 +60,7 @@ func TestSync_FullPipeline(t *testing.T) {
 	d2 := now.Add(-24 * time.Hour).Truncate(24 * time.Hour)
 	repo, svc, addr := syncFixture(t, &fakeFills{fills: dayFills(now)})
 	ctx := context.Background()
-	venueID, _ := repo.VenueIDByCode(ctx, "hyperliquid")
+	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
 
 	if err := svc.SyncWallet(ctx, addr, now); err != nil {
 		t.Fatalf("sync: %v", err)
@@ -110,7 +110,7 @@ func TestSync_CrashRecovery(t *testing.T) {
 	now := time.Now().UTC()
 	repo, svc, addr := syncFixture(t, &fakeFills{fills: dayFills(now)})
 	ctx := context.Background()
-	venueID, _ := repo.VenueIDByCode(ctx, "hyperliquid")
+	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
 
 	if err := svc.SyncWallet(ctx, addr, now); err != nil {
 		t.Fatalf("sync: %v", err)
@@ -136,7 +136,7 @@ func TestSync_BackoffAndRetry(t *testing.T) {
 	fetch := &fakeFills{err: errors.New("upstream 429")}
 	repo, svc, addr := syncFixture(t, fetch)
 	ctx := context.Background()
-	venueID, _ := repo.VenueIDByCode(ctx, "hyperliquid")
+	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
 
 	if err := svc.SyncWallet(ctx, addr, now); err == nil {
 		t.Fatal("expected fetch error")
@@ -181,7 +181,7 @@ func TestSync_UpstreamTimeout(t *testing.T) {
 	repo, svc, addr := syncFixture(t, &fakeFills{block: true})
 	svc.opts.WalletTimeout = 200 * time.Millisecond
 	ctx := context.Background()
-	venueID, _ := repo.VenueIDByCode(ctx, "hyperliquid")
+	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
 
 	if err := svc.SyncWallet(ctx, addr, now); err == nil {
 		t.Fatal("expected timeout error")
@@ -197,7 +197,7 @@ func TestSync_ROIPassthrough(t *testing.T) {
 	now := time.Now().UTC()
 	repo, svc, addr := syncFixture(t, &fakeFills{fills: dayFills(now)})
 	ctx := context.Background()
-	venueID, _ := repo.VenueIDByCode(ctx, "hyperliquid")
+	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
 
 	lbROI := 0.05
 	if err := repo.UpsertLeaderboardRef(ctx, &LeaderboardRef{VenueID: venueID,
@@ -223,7 +223,7 @@ func TestSync_StaleRule(t *testing.T) {
 		false, &old, false); err != nil {
 		t.Fatalf("recalc: %v", err)
 	}
-	venueID, _ := repo.VenueIDByCode(ctx, "hyperliquid")
+	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
 	m, _ := repo.GetPeriodMetrics(ctx, venueID, addr, Period30D)
 	if m == nil || m.DataStatus != DataStale {
 		t.Errorf("want stale: %+v", m)

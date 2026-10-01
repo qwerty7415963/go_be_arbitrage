@@ -62,8 +62,14 @@ func testUser(t *testing.T, pool *pgxpool.Pool) (tenantID, userID uuid.UUID) {
 
 func testVenueID(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO venues (code, name, venue_type)
+		VALUES ('trader-test-venue', 'Trader Test Venue', 'PERP_DEX')
+		ON CONFLICT (code) DO NOTHING`); err != nil {
+		t.Fatalf("venue: %v", err)
+	}
 	tr := trader.NewRepository(pool)
-	id, err := tr.VenueIDByCode(context.Background(), "hyperliquid")
+	id, err := tr.VenueIDByCode(context.Background(), "trader-test-venue")
 	if err != nil {
 		t.Fatalf("venue: %v", err)
 	}
@@ -121,15 +127,15 @@ func TestRepo_GroupLifecycle(t *testing.T) {
 	}
 
 	added, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
-		{Venue: "hyperliquid", WalletAddress: addrs[0], Alias: "whale-1", Note: "watch"},
-		{Venue: "hyperliquid", WalletAddress: addrs[1]},
+		{Venue: "trader-test-venue", WalletAddress: addrs[0], Alias: "whale-1", Note: "watch"},
+		{Venue: "trader-test-venue", WalletAddress: addrs[1]},
 	})
 	if err != nil || added != 2 {
 		t.Fatalf("add: %v added=%d", err, added)
 	}
 	// Idempotent re-add keeps alias/note (BE-029).
 	added, err = repo.AddMembers(ctx, g.ID, userA, []MemberInput{
-		{Venue: "hyperliquid", WalletAddress: addrs[0], Alias: "CHANGED", Note: "CHANGED"},
+		{Venue: "trader-test-venue", WalletAddress: addrs[0], Alias: "CHANGED", Note: "CHANGED"},
 	})
 	if err != nil || added != 0 {
 		t.Fatalf("re-add: %v added=%d", err, added)
@@ -202,7 +208,7 @@ func TestRepo_GroupIsolation(t *testing.T) {
 		"delete": func() error { return repo.Delete(ctx, g.ID, userB) },
 		"add": func() error {
 			_, err := repo.AddMembers(ctx, g.ID, userB,
-				[]MemberInput{{Venue: "hyperliquid", WalletAddress: addrs[0]}})
+				[]MemberInput{{Venue: "trader-test-venue", WalletAddress: addrs[0]}})
 			return err
 		},
 		"members": func() error { _, err := repo.ListMembers(ctx, g.ID, userB); return err },

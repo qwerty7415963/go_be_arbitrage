@@ -99,6 +99,7 @@ func TestService_Search_FilterSort(t *testing.T) {
 
 	req := &SearchRequest{}
 	req.Normalize()
+	req.Venue = testVenueCode
 	req.PnLMin = f64(10000)
 	req.WinRateMin = f64(50)
 	res, err := svc.Search(ctx, user, req)
@@ -136,7 +137,7 @@ func TestService_Search_Pagination(t *testing.T) {
 	cursor := ""
 	pages := 0
 	for {
-		req := &SearchRequest{Limit: 2, Cursor: cursor}
+		req := &SearchRequest{Limit: 2, Cursor: cursor, Venue: testVenueCode}
 		res, err := svc.Search(ctx, user, req)
 		if err != nil {
 			t.Fatalf("page: %v", err)
@@ -172,7 +173,7 @@ func TestService_Search_Pagination(t *testing.T) {
 func TestService_Search_NullMetrics(t *testing.T) {
 	svc, _, _, _, user, _ := searchFixture(t)
 	ctx := context.Background()
-	req := &SearchRequest{Limit: 10}
+	req := &SearchRequest{Limit: 10, Venue: testVenueCode}
 	res, err := svc.Search(ctx, user, req)
 	if err != nil {
 		t.Fatalf("search: %v", err)
@@ -242,13 +243,13 @@ func TestService_Search_GroupFilter(t *testing.T) {
 		_, _ = repo.pool.Exec(ctx, `DELETE FROM trader_groups WHERE id = $1`, g.ID)
 	})
 	if _, err := groups.AddMembers(ctx, g.ID, user, []tradergroup.MemberInput{
-		{Venue: "hyperliquid", WalletAddress: addrs[0]},
-		{Venue: "hyperliquid", WalletAddress: addrs[1]},
+		{Venue: testVenueCode, WalletAddress: addrs[0]},
+		{Venue: testVenueCode, WalletAddress: addrs[1]},
 	}); err != nil {
 		t.Fatalf("members: %v", err)
 	}
 
-	req := &SearchRequest{Limit: 10, GroupID: g.ID.String()}
+	req := &SearchRequest{Limit: 10, GroupID: g.ID.String(), Venue: testVenueCode}
 	res, err := svc.Search(ctx, user, req)
 	if err != nil {
 		t.Fatalf("group search: %v", err)
@@ -282,7 +283,7 @@ func TestService_Detail(t *testing.T) {
 	svc, repo, _, venueID, _, addrs := searchFixture(t)
 	ctx := context.Background()
 
-	d, err := svc.Detail(ctx, "hyperliquid", addrs[0], "30D")
+	d, err := svc.Detail(ctx, testVenueCode, addrs[0], "30D")
 	if err != nil {
 		t.Fatalf("detail: %v", err)
 	}
@@ -293,13 +294,13 @@ func TestService_Detail(t *testing.T) {
 		t.Errorf("metrics: %+v", d.Metrics)
 	}
 
-	if _, err := svc.Detail(ctx, "hyperliquid", testAddr(), "30D"); err == nil {
+	if _, err := svc.Detail(ctx, testVenueCode, testAddr(), "30D"); err == nil {
 		t.Error("unknown wallet must 404")
 	}
-	if _, err := svc.Detail(ctx, "hyperliquid", "zzz", "30D"); err == nil {
+	if _, err := svc.Detail(ctx, testVenueCode, "zzz", "30D"); err == nil {
 		t.Error("bad address must 400")
 	}
-	if _, err := svc.Detail(ctx, "hyperliquid", addrs[0], "90D"); err == nil {
+	if _, err := svc.Detail(ctx, testVenueCode, addrs[0], "90D"); err == nil {
 		t.Error("bad period must 400")
 	}
 
@@ -311,7 +312,7 @@ func TestService_Detail(t *testing.T) {
 		_, _ = repo.pool.Exec(ctx,
 			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, fresh)
 	})
-	d2, err := svc.Detail(ctx, "hyperliquid", fresh, "")
+	d2, err := svc.Detail(ctx, testVenueCode, fresh, "")
 	if err != nil {
 		t.Fatalf("fresh detail: %v", err)
 	}
@@ -326,7 +327,7 @@ func TestService_Detail(t *testing.T) {
 func TestService_Search_LastTradeSort(t *testing.T) {
 	svc, _, _, _, user, _ := searchFixture(t)
 	ctx := context.Background()
-	req := &SearchRequest{SortBy: "last_trade", SortDirection: "desc", Limit: 10}
+	req := &SearchRequest{SortBy: "last_trade", SortDirection: "desc", Limit: 10, Venue: testVenueCode}
 	res, err := svc.Search(ctx, user, req)
 	if err != nil {
 		t.Fatalf("search: %v", err)

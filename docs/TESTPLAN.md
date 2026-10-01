@@ -929,6 +929,10 @@ interleave; G duplicate events/fills; H same-timestamp different tid; I
 fees+funding; J deposits/withdrawals; K leaderboard+WS merge source=both;
 L 100k+ synthetic scanner dataset (perf, V1.1).
 
+Test hermeticity: integration/e2e suites use dedicated venues
+(`trader-test-venue`, `trader-e2e-venue`) so counts stay deterministic while
+the live server's workers write `venue=hyperliquid` rows into the shared DB.
+
 ### 19.1 Unit
 
 | Case | Function | Input | Expected |

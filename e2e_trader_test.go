@@ -70,8 +70,14 @@ func setupTraderSuite(t *testing.T) *traderSuite {
 			t.Fatalf("user: %v", err)
 		}
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO venues (code, name, venue_type)
+		VALUES ('trader-e2e-venue', 'Trader E2E Venue', 'PERP_DEX')
+		ON CONFLICT (code) DO NOTHING`); err != nil {
+		t.Fatalf("venue upsert: %v", err)
+	}
 	if err := pool.QueryRow(ctx,
-		`SELECT id FROM venues WHERE code = 'hyperliquid'`).Scan(&s.venueID); err != nil {
+		`SELECT id FROM venues WHERE code = 'trader-e2e-venue'`).Scan(&s.venueID); err != nil {
 		t.Fatalf("venue: %v", err)
 	}
 
@@ -153,7 +159,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 	userA := s.userA.String()
 
 	code, resp := s.doJSON(t, "POST", "/api/v1/traders/search", userA,
-		`{"period":"30D","pnl_min":10000,"sort_by":"pnl","sort_direction":"desc","limit":1}`)
+		`{"period":"30D","venue":"trader-e2e-venue","pnl_min":10000,"sort_by":"pnl","sort_direction":"desc","limit":1}`)
 	if code != http.StatusOK {
 		t.Fatalf("search: %d %v", code, resp)
 	}
@@ -169,7 +175,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 	cursor := meta["cursor"].(string)
 	for i := 0; i < 5; i++ {
 		code, resp = s.doJSON(t, "POST", "/api/v1/traders/search", userA,
-			`{"period":"30D","pnl_min":10000,"limit":1,"cursor":"`+cursor+`"}`)
+			`{"period":"30D","venue":"trader-e2e-venue","pnl_min":10000,"limit":1,"cursor":"`+cursor+`"}`)
 		if code != http.StatusOK {
 			t.Fatalf("page: %d %v", code, resp)
 		}
@@ -191,7 +197,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 		t.Errorf("pnl>=10000 must yield 2 wallets, got %v", seen)
 	}
 
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+s.addrs[0]+"?period=30D", userA, "")
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+s.addrs[0]+"?venue=trader-e2e-venue&period=30D", userA, "")
 	if code != http.StatusOK {
 		t.Fatalf("detail: %d %v", code, resp)
 	}
@@ -206,7 +212,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 	gid := resp["data"].(map[string]any)["id"].(string)
 
 	code, resp = s.doJSON(t, "POST", "/api/v1/trader-groups/"+gid+"/members", userA,
-		`{"members":[{"venue":"hyperliquid","wallet_address":"`+s.addrs[0]+`","alias":"w1"}]}`)
+		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1"}]}`)
 	if code != http.StatusOK {
 		t.Fatalf("add: %d %v", code, resp)
 	}
@@ -215,12 +221,12 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 		t.Fatalf("members: %d %v", code, resp)
 	}
 	code, resp = s.doJSON(t, "POST", "/api/v1/traders/search", userA,
-		`{"period":"30D","group_id":"`+gid+`"}`)
+		`{"period":"30D","venue":"trader-e2e-venue","group_id":"`+gid+`"}`)
 	if code != http.StatusOK || len(rowsOf(t, resp)) != 1 {
 		t.Fatalf("group search: %d %v", code, resp)
 	}
 	code, _ = s.doJSON(t, "DELETE", "/api/v1/trader-groups/"+gid+"/members", userA,
-		`{"members":[{"venue":"hyperliquid","wallet_address":"`+s.addrs[0]+`"}]}`)
+		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`"}]}`)
 	if code != http.StatusOK {
 		t.Fatalf("remove: %d", code)
 	}
@@ -228,7 +234,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 	if code != http.StatusNoContent {
 		t.Fatalf("delete: %d", code)
 	}
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+s.addrs[0], userA, "")
+	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+s.addrs[0]+"?venue=trader-e2e-venue", userA, "")
 	if code != http.StatusOK {
 		t.Fatalf("registry must survive group delete: %d", code)
 	}
@@ -260,11 +266,11 @@ func TestE2E_Trader_Isolation(t *testing.T) {
 		}
 	}
 	if code, _ := s.doJSON(t, "POST", "/api/v1/traders/search", userB,
-		`{"period":"30D","group_id":"`+gid+`"}`); code != http.StatusForbidden {
+		`{"period":"30D","venue":"trader-e2e-venue","group_id":"`+gid+`"}`); code != http.StatusForbidden {
 		t.Errorf("B group search: want 403, got %d", code)
 	}
 	if code, _ := s.doJSON(t, "POST", "/api/v1/traders/search", "",
-		`{"period":"30D","limit":2}`); code != http.StatusOK {
+		`{"period":"30D","venue":"trader-e2e-venue","limit":2}`); code != http.StatusOK {
 		t.Errorf("anonymous search: want 200, got %d", code)
 	}
 	if code, _ := s.doJSON(t, "POST", "/api/v1/trader-groups", "",
