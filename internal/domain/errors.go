@@ -136,6 +136,9 @@ const (
 	ErrCodeTimeout          ErrorCode = "COMMON-906"
 	ErrCodeTooLarge         ErrorCode = "COMMON-907"
 	ErrCodeMethodNotAllowed ErrorCode = "COMMON-908"
+
+	// Scanner — trader search filter violations (spec v1.1: INVALID_FILTER).
+	ErrCodeInvalidFilter ErrorCode = "INVALID_FILTER"
 )
 
 type AppError struct {
@@ -301,6 +304,8 @@ var errorStatusMap = map[ErrorCode]int{
 	ErrCodeTimeout:          http.StatusGatewayTimeout,
 	ErrCodeTooLarge:         http.StatusRequestEntityTooLarge,
 	ErrCodeMethodNotAllowed: http.StatusMethodNotAllowed,
+
+	ErrCodeInvalidFilter: http.StatusBadRequest,
 }
 
 func (e *AppError) StatusCodeFromCode() int {

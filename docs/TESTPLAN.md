@@ -901,6 +901,102 @@ tags `opportunities/strategies/risk/executions/reconciliation`.
 
 ---
 
+## 19. Trader Scanner v1.1 (`internal/trader/`, `internal/tradergroup/`)
+
+Rewrite of the wallet scanner per `Hyperliquid_Trader_Scanner_BE_Spec_v1.1.docx`
+(spec v1.0 + approved deltas D1–D9). Contract: `POST /api/v1/traders/search`,
+`GET /api/v1/traders/{wallet}?venue=`, `/api/v1/trader-groups/...` (generic
+routes + `venue` param; multi-venue ready, V1 ships `venue=hyperliquid` only).
+Dual-run with §17 (`/wallets`, `/groups`) until the cutover release drops them.
+
+Scope decisions: V1 = leaderboard discovery + incremental sync + metrics +
+scanner/detail/groups (WS discovery, portfolio/equity/drawdown → V1.1).
+Schema: new tables keyed by `(venue, address)` in parallel; old tables dropped
+at cutover. ROI = leaderboard window passthrough where the window matches,
+else the documented computed formula (never silent substitution).
+
+Contract spike (verified live 2026-10-01): `GET
+https://stats-data.hyperliquid.xyz/Mainnet/leaderboard` → 200,
+`{"leaderboardRows": [...]}` (46,991 rows, no auth, single dump, ~39MB).
+Row: `ethAddress`, `accountValue` (string), `displayName` (nullable), `prize`,
+`windowPerformances: [[window, {pnl, roi, vlm}], ...]` with windows
+`day/week/month/allTime`; ROI is a fraction (×100 for pct). Pinned fixture:
+`internal/hyperliquid/testdata/leaderboard_sample.json` (5 rows, BE-031).
+
+Spec fixtures A–L (trade reconstruction + scale): A simple long win; B short
+loss; C partial entries+exits; D long→short flip; E breakeven; F multi-coin
+interleave; G duplicate events/fills; H same-timestamp different tid; I
+fees+funding; J deposits/withdrawals; K leaderboard+WS merge source=both;
+L 100k+ synthetic scanner dataset (perf, V1.1).
+
+### 19.1 Unit
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| DISC-U-01 | Leaderboard parse | Pinned 5-row sample | N rows, lowercase addresses, roi×100, month window mapped |
+| DISC-U-02 | Missing window entry | Row without month performance | Row kept, month stats null, no crash |
+| DISC-U-03 | Malformed address (BE-006) | `ethAddress: "0xZZZ"` | Row skipped + counted, no DB write |
+| DISC-U-04 | Payload guard | 39MB+ / truncated JSON | Size-capped reader, no OOM, clean error |
+| SYNC-U-01 | Cursor advance (BE-011) | Same fills window processed twice | Second run no-op; cursor monotonic |
+| TRD-U-01 | Reconstruction (BE-012/013) | Fixture C: 3 partial entries, 2 partial exits | One completed trade; size/PnL aggregate |
+| TRD-U-02 | Flip (BE-014) | Fixture D: long→flat→short | Two cycles, no mixed-direction trade |
+| TRD-U-03 | Breakeven (BE-015) | Fixture E: net PnL = 0 | Breakeven +1; win/loss unchanged |
+| TRD-U-04 | Interleave (BE-040) | Fixture F + midnight-crossing close | Per-coin cycles; UTC date attribution |
+| TRD-U-05 | Duplicates (BE-011) | Fixture G/H: dup fills, same-ts tids | Each fill contributes exactly once |
+| TRD-U-06 | Fees/funding (BE-009-spec) | Fixture I: fees + funding activity | Net = closedPnl − fees; funding tracked separately, never decides win/loss |
+| MET-U-01 | Win rate (BE-016) | 2 wins, 1 loss, 1 breakeven | 66.67%; breakeven excluded |
+| MET-U-02 | Profit factor (BE-017/018) | Gross 300/−100; then loss 0 | 3.0; null (never Infinity/NaN) |
+| MET-U-03 | Long/short WR (BE-019) | Long 3/4, short 1/2 | 75% / 50% |
+| MET-U-04 | Drawdown formula (BE-022) | Equity 100→120→90 | 25% from peak (V1.1 job; formula tested V1) |
+| MET-U-05 | Daily idempotency (BE-020) | Recompute same day twice | Identical row after second run |
+| MET-U-06 | ROI rule | LB window match vs no match | Passthrough vs documented formula + version bump |
+| CUR-U-01 | Cursor codec (BE-026) | Encode → decode roundtrip; tampered cursor | Roundtrip stable; tampered → INVALID_FILTER |
+| VAL-U-01 | Filter validation (BE-027/039) | roi_min>roi_max; pnl=0; volume=−1 | 4xx INVALID_FILTER for range/negative; 0 valid where allowed |
+
+### 19.2 Handler
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SRCH-H-01 | POST /traders/search (BE-024) | period 30D + pnl_min + roi_min | 200; only AND-matching rows |
+| SRCH-H-02 | Sorting (BE-025) | sort_by=pnl desc then asc | Server order flips; stable tiebreak |
+| SRCH-H-03 | Pagination (BE-026) | 3 pages over fixture L-small | No duplicates/skips within stable query |
+| SRCH-H-04 | Invalid filter (BE-027) | roi_min>roi_max | 4xx INVALID_FILTER, no query executed |
+| SRCH-H-05 | Venue (D7) | Missing venue → default; unknown venue | Default hyperliquid; unknown → 4xx |
+| SRCH-H-06 | Freshness (BE-037) | Wallet older than stale threshold | 200 with data_status=stale per row |
+| TRD-H-01 | GET /traders/{wallet} | Known + unknown address | 200 header+metrics+as_of; unknown → 404 |
+| TRD-H-02 | No inline sync (BE-038) | Detail for inactive wallet, HL mocked | Zero upstream calls; sync priority queued |
+| GRP-H-01 | trader-groups CRUD | Create/rename/delete | 201/200/204; delete keeps registry rows (BE-030) |
+| GRP-H-02 | Members (BE-029) | POST same wallet twice | Second idempotent, no duplicate row |
+| GRP-H-03 | Isolation (BE-028) | User A touches B's group/member paths | 404/403, no leak |
+| AUTH-H-01 | Auth (BE-034) | Scanner without token; groups without token | Scanner 200; groups 401/403 |
+
+### 19.3 Integration (`//go:build integration`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| DISC-I-01 | Leaderboard sync ×2 (BE-001/002) | Same payload twice | One row per wallet; display_name updated; first_seen_at unchanged |
+| DISC-I-02 | Source merge (BE-005) | Leaderboard row + WS-sourced row (simulated insert) | discovery_source=both |
+| SYNC-I-01 | Full pipeline | Seed registry → sync fills → daily → period → search | Search returns the row with computed metrics |
+| SYNC-I-02 | Crash recovery (BE-033) | Commit data, die before cursor update | Reprocess, no double-count |
+| SYNC-I-03 | Backoff (BE-010) | Upstream 429s | Retries respect backoff; queue drains, no hot-loop |
+| SYNC-I-04 | Timeout (BE-032) | Info API timeout | Recoverable sync state, retry scheduled |
+| SYNC-I-05 | Schema drift (BE-031) | Leaderboard missing expected field | Job fails safe + alert; old data intact |
+
+### 19.4 E2E (`//go:build e2e`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| E2E-T-01 | Discover→groups flow | Fake leaderboard (20 wallets) → discover → sync (mock fills) → search → detail → group add/remove | Counts consistent end-to-end; member aliases persist |
+| E2E-T-02 | Isolation | Two users, trader-groups | Cross-user access rejected (BE-028) |
+
+### 19.5 Deferred to V1.1
+
+WS discovery (BE-003/004/007/008/009/036), equity/drawdown job (BE-021/022),
+perf suite 100k/500k/1M (BE-035, PERF-BE-01..06), nightly upstream checks,
+90D period (not in spec enum).
+
+---
+
 ## Summary
 
 | Module | Unit | Handler | Integration | E2E | Total |
@@ -920,6 +1016,7 @@ tags `opportunities/strategies/risk/executions/reconciliation`.
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
 | Wallet Dashboard (planned) | 39 | 50 | 23 | 10+ | **122** |
+| Trader Scanner v1.1 | 19 | 12 | 7 | 2 | **40** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~305** | **~120** | **~59** | **~32** | **~516** |
+| **TOTAL** | **~324** | **~132** | **~66** | **~34** | **~556** |
