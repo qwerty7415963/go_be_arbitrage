@@ -718,6 +718,9 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | WS-U-04 | Resubscribe set | Reconnect with 3 coins | All 3 resubscribed, no duplicates |
 | WS-U-05 | Batch dedupe | Same address ×50 events, mixed times | One upsert with max trade time |
 | WS-U-06 | Harvest validation | Empty/malformed batch entries | Skipped safely, reported in counts |
+| EQ-U-01 | Portfolio parse | Pinned upstream shape + bad entries | Per-window points; broken entries skipped loudly |
+| EQ-U-02 | Equity aggregation (BE-021) | Intraday points across 2 days | start/end/peak/return per UTC day |
+| EQ-U-03 | Drawdown formula (BE-022) | 100→120→90; monotonic; empty | 25%; 0; nil |
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
@@ -727,6 +730,8 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | WS-I-04 | Reconnect (BE-007) | Kill server mid-stream, restart | Manager reconnects + resubscribes, harvesting resumes |
 | WS-I-05 | Dynamic coin (BE-008) | Meta gains a coin, refresh | New coin subscribed without restart |
 | WS-I-06 | Burst (BE-036) | 20k events in seconds | Bounded queue, drops counted, all unique wallets land |
+| EQ-I-01 | Equity sync (BE-021) | Fake portfolio over 3 days | Equity rows stored exactly; last_portfolio_sync_at set |
+| EQ-I-02 | Drawdown wiring (BE-022) | Same run, 30D recalc | max_drawdown_pct = 25% from the curve |
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
@@ -752,7 +757,7 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
-| Trader Scanner v1.1 | 26 | 12 | 14 | 3 | **55** |
+| Trader Scanner v1.1 | 29 | 12 | 16 | 3 | **60** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~292** | **~82** | **~50** | **~25** | **~449** |
+| **TOTAL** | **~295** | **~82** | **~52** | **~25** | **~454** |

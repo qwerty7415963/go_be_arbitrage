@@ -66,17 +66,24 @@ var periodLookbacks = map[string]time.Duration{
 // recompute-based (never blind increments): reruns are identical (BE-020) and
 // crash recovery only replays (BE-033).
 type SyncService struct {
-	repo     *Repository
-	fetch    FillFetcher
-	venueID  uuid.UUID
-	opts     SyncOptions
-	logf     func(format string, args ...any)
-	counters syncCounters
+	repo      *Repository
+	fetch     FillFetcher
+	portfolio PortfolioFetcher // optional; nil skips equity (V1.1 wiring sets it)
+	venueID   uuid.UUID
+	opts      SyncOptions
+	logf      func(format string, args ...any)
+	counters  syncCounters
 }
 
 func NewSyncService(repo *Repository, fetch FillFetcher, venueID uuid.UUID, opts SyncOptions) *SyncService {
 	return &SyncService{repo: repo, fetch: fetch, venueID: venueID,
 		opts: opts.withDefaults(), logf: log.Printf}
+}
+
+// WithPortfolio enables the equity-curve job (V1.1); nil disables it.
+func (s *SyncService) WithPortfolio(p PortfolioFetcher) *SyncService {
+	s.portfolio = p
+	return s
 }
 
 // SyncWallet runs one full pass for an address: fetch → stage → recompute
@@ -156,6 +163,9 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		return err
 	}
 
+	if s.portfolio != nil {
+		s.syncEquity(ctx, addr, now)
+	}
 	if err := s.recalcAll(ctx, addr, now, truncated, &now, false); err != nil {
 		return err
 	}
@@ -163,6 +173,35 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		return err
 	}
 	return nil
+}
+
+// syncEquity refreshes the daily equity curve from the portfolio endpoint.
+// Failures are auxiliary: logged, counted in sync state, never failing the
+// wallet pass (fills metrics are authoritative for readiness).
+func (s *SyncService) syncEquity(ctx context.Context, addr string, now time.Time) {
+	windows, err := s.portfolio.FetchPortfolio(ctx, addr)
+	if err != nil {
+		s.logf("sync %s: portfolio failed: %v", addr, err)
+		return
+	}
+	var points []EquityPoint
+	for _, w := range []string{"day", "week", "month", "allTime"} {
+		points = append(points, windows[w]...)
+	}
+	cutoff := now.Add(-s.opts.PurgeRetention)
+	for _, day := range AggregateEquityDaily(points) {
+		if day.Date.Before(cutoff.Truncate(24*time.Hour)) || day.Date.After(now) {
+			continue
+		}
+		if err := s.repo.UpsertEquityDaily(ctx, s.venueID, addr, day); err != nil {
+			s.logf("sync %s: equity upsert failed: %v", addr, err)
+			return
+		}
+	}
+	_, _ = s.repo.pool.Exec(ctx, `
+		UPDATE trader_sync_state SET last_portfolio_sync_at = $3, updated_at = NOW()
+		WHERE venue_id = $1 AND wallet_address = $2`,
+		s.venueID, addr, now.UTC())
 }
 
 // recomputeAffected rebuilds every day touched by this run from full buffer
@@ -298,6 +337,9 @@ func (s *SyncService) recalcPeriod(ctx context.Context, addr, period string, now
 	}
 	m.LongWins, m.ShortWins, m.LongCount, m.ShortCount = &lw, &sw, &lc, &sc
 	m.ROI = s.resolveROI(ctx, addr, period, &pnl, &volume, now)
+	if curve, err := s.repo.ListEquityDaily(ctx, s.venueID, addr, from, now); err == nil {
+		m.MaxDrawdownPct = MaxDrawdownPct(curve)
+	}
 	return s.repo.UpsertPeriodMetrics(ctx, m)
 }
 

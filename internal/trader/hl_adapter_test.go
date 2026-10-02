@@ -51,3 +51,20 @@ func TestHLFillAdapter_Mapping(t *testing.T) {
 		t.Errorf("closedPnl: %+v", fills[1])
 	}
 }
+
+func TestHLPortfolioAdapter_SkipsBadValues(t *testing.T) {
+	body := `[["day", {"accountValueHistory": [[1727745600000, "100.5"], [1727749200000, "oops"], [0, "5"]]}]]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+	adapter := HLPortfolioAdapter{C: hyperliquid.NewClient(srv.URL, 0, 0)}
+
+	got, err := adapter.FetchPortfolio(context.Background(), "0xabc")
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if len(got["day"]) != 1 || got["day"][0].Value != 100.5 {
+		t.Errorf("bad values skipped: %+v", got["day"])
+	}
+}

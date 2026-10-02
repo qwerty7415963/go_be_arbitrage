@@ -109,3 +109,31 @@ func (a HLFillAdapter) FetchTraderFills(ctx context.Context, address string, sta
 	_ = skipped
 	return out, truncated, nil
 }
+
+// HLPortfolioAdapter maps Hyperliquid portfolio histories onto equity points,
+// keeping base windows only (day/week/month/allTime; perp* variants ignored).
+type HLPortfolioAdapter struct {
+	C *hyperliquid.Client
+}
+
+var _ PortfolioFetcher = HLPortfolioAdapter{}
+
+func (a HLPortfolioAdapter) FetchPortfolio(ctx context.Context, address string) (map[string][]EquityPoint, error) {
+	raw, err := a.C.FetchPortfolio(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]EquityPoint{}
+	for _, window := range []string{"day", "week", "month", "allTime"} {
+		for _, p := range raw[window] {
+			v, err := strconv.ParseFloat(strings.TrimSpace(p.Value), 64)
+			if err != nil || p.Time <= 0 {
+				continue
+			}
+			out[window] = append(out[window], EquityPoint{
+				Time: time.UnixMilli(p.Time).UTC(), Value: v,
+			})
+		}
+	}
+	return out, nil
+}

@@ -50,6 +50,60 @@ func parseNum(s string) *float64 {
 	return &f
 }
 
+// PortfolioPoint is one account-value sample (ms epoch + decimal string upstream).
+type PortfolioPoint struct {
+	Time  int64
+	Value string
+}
+
+// FetchPortfolio returns account-value histories per window (day/week/month/
+// allTime plus perp* variants; callers pick the base four). Single call,
+// no pagination.
+func (c *Client) FetchPortfolio(ctx context.Context, address string) (map[string][]PortfolioPoint, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	body, _ := json.Marshal(map[string]string{"type": "portfolio", "user": address})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/info", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("hyperliquid portfolio request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("hyperliquid portfolio: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("hyperliquid portfolio: status %d", resp.StatusCode)
+	}
+	var doc [][2]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		return nil, fmt.Errorf("hyperliquid portfolio decode: %w", err)
+	}
+	out := map[string][]PortfolioPoint{}
+	for _, entry := range doc {
+		var name string
+		if err := json.Unmarshal(entry[0], &name); err != nil {
+			continue
+		}
+		var payload struct {
+			History [][2]json.RawMessage `json:"accountValueHistory"`
+		}
+		if err := json.Unmarshal(entry[1], &payload); err != nil {
+			continue
+		}
+		for _, p := range payload.History {
+			var ms int64
+			var val string
+			if json.Unmarshal(p[0], &ms) != nil || json.Unmarshal(p[1], &val) != nil {
+				continue
+			}
+			out[name] = append(out[name], PortfolioPoint{Time: ms, Value: val})
+		}
+	}
+	return out, nil
+}
+
 // FetchLeaderboard downloads the full board (single dump, no pagination).
 // Top-level shape violations are hard errors (BE-031: fail safe, keep old
 // data); per-row problems are reported as skips by the caller via the
