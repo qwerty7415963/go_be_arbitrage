@@ -45,6 +45,7 @@ type App struct {
 	orderbookService   *orderbook.Service
 	unifiedService     *unifiedstate.Service
 	storageHandler     *storage.Handler
+	retentionService   *storage.RetentionService
 	authHandler        *auth.Handler
 	collector          *collector.Collector
 	opportunityService *opportunity.Service
@@ -198,6 +199,7 @@ func New(cfg *config.Config) (*App, error) {
 		orderbookService:   orderbookService,
 		unifiedService:     unifiedService,
 		storageHandler:     storageHandler,
+		retentionService:   retentionSvc,
 		authHandler:        authHandler,
 		collector:          fundingCollector,
 		opportunityService: opportunityService,
@@ -217,7 +219,42 @@ const (
 	traderDiscoveryInterval = 15 * time.Minute
 	traderSyncInterval      = 6 * time.Hour
 	traderWSRefreshInterval = time.Hour
+	retentionInterval       = 24 * time.Hour
 )
+
+// runRetentionWorker runs full retention cleanup on start and every interval
+// until ctx ends. Deletions are idempotent; per-table counts go to the log.
+func runRetentionWorker(ctx context.Context, log *logger.Logger, svc *storage.RetentionService) {
+	run := func() {
+		res, err := svc.RunFullCleanup(ctx, storage.DefaultRetentionConfig())
+		if err != nil {
+			log.Warn("retention cleanup failed", "error", err)
+			return
+		}
+		log.Info("retention cleanup finished",
+			"raw_market_events", res.RawMarketEvents,
+			"market_trades", res.MarketTrades,
+			"market_tickers", res.MarketTickers,
+			"funding_rates", res.FundingRates,
+			"orderbook_snapshots", res.OrderbookSnapshots,
+			"orderbook_deltas", res.OrderbookDeltas,
+			"opportunities", res.Opportunities,
+			"system_events", res.SystemEvents,
+			"trader_daily", res.TraderDaily,
+			"trader_equity", res.TraderEquity)
+	}
+	run()
+	ticker := time.NewTicker(retentionInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
 
 // runWSTradeDiscovery bootstraps coin subscriptions from venue metadata,
 // refreshes them hourly for new listings (BE-008), and streams trades into
@@ -271,6 +308,13 @@ func (a *App) Run() error {
 
 	// Start refresh token cleanup worker (every 1 hour)
 	go a.auth.StartCleanupWorker(ctx, 1*time.Hour)
+
+	// Start retention cleanup (every 24 hours): market tables with short
+	// windows plus trader daily/equity past 400d. Manual trigger remains at
+	// POST /api/v1/storage/retention/cleanup.
+	if a.retentionService != nil {
+		go runRetentionWorker(ctx, a.logger, a.retentionService)
+	}
 
 	// Start Trader Scanner v1.1 workers: leaderboard discovery refreshes the
 	// registry; the sync engine maintains the period metric cache.

@@ -703,6 +703,7 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
 | RET-I-01 | Buffer purge | Staged fills older than retention + recent | Old gone after sync, recent kept |
+| RET-I-02 | Daily/equity retention | Rows older than window + recent | Old deleted, recent kept (400d default) |
 
 ### 19.5 Deferred (still)
 
@@ -763,7 +764,7 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
-| Trader Scanner v1.1 | 29 | 12 | 17 | 3 | **61** |
+| Trader Scanner v1.1 | 29 | 12 | 18 | 3 | **62** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~295** | **~82** | **~53** | **~25** | **~455** |
+| **TOTAL** | **~295** | **~82** | **~54** | **~25** | **~456** |

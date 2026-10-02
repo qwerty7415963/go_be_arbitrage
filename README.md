@@ -131,10 +131,13 @@ ROI = leaderboard window passthrough when fresh, else computed (realized sum
 fills-based sum for reconciliation (`calculation_version` stamps the formula).
 
 Operations (spec §15): watch server logs for `discovery ...` / `sync finished
-...` lines (structured `key=value` fields) and the counters behind
-`DiscoveryService.Stats()` / `SyncService.Stats()` — alert on ≥3 consecutive
-discovery errors, sustained sync failure rate, or a growing stale-wallet count
-(`trader_period_metrics` rows with old `as_of` / `data_status='error'`).
+...` / `retention cleanup finished ...` lines (structured `key=value` fields)
+and the counters behind `DiscoveryService.Stats()` / `SyncService.Stats()` —
+alert on ≥3 consecutive discovery errors, sustained sync failure rate, or a
+growing stale-wallet count (`trader_period_metrics` rows with old `as_of` /
+`data_status='error'`). Retention runs on boot + every 24h (market tables per
+short windows, trader daily/equity past 400d, fill buffer past 60d per sync);
+manual trigger: `POST /api/v1/storage/retention/cleanup`.
 
 ## WebSocket: Order Book Real-time
 

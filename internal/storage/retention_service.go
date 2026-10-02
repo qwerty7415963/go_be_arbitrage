@@ -24,6 +24,8 @@ type RetentionResult struct {
 	OrderbookDeltas    int64 `json:"orderbook_deltas"`
 	Opportunities      int64 `json:"opportunities"`
 	SystemEvents       int64 `json:"system_events"`
+	TraderDaily        int64 `json:"trader_daily"`
+	TraderEquity       int64 `json:"trader_equity"`
 }
 
 func (s *RetentionService) CleanupRawMarketEvents(ctx context.Context, maxAge time.Duration) (int64, error) {
@@ -98,6 +100,28 @@ func (s *RetentionService) CleanupOldSystemEvents(ctx context.Context, maxAge ti
 	return result.RowsAffected(), nil
 }
 
+// CleanupTraderDaily deletes daily aggregates older than maxAge. Periods only
+// read the last 365d (ALL), so anything older is never queried (RET).
+func (s *RetentionService) CleanupTraderDaily(ctx context.Context, maxAge time.Duration) (int64, error) {
+	query := `DELETE FROM trader_daily_stats WHERE stat_date < CURRENT_DATE - $1::interval`
+	result, err := s.db.Exec(ctx, query, maxAge.String())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+// CleanupTraderEquity deletes equity-curve days older than maxAge (drawdown is
+// computed per period from the in-window curve only).
+func (s *RetentionService) CleanupTraderEquity(ctx context.Context, maxAge time.Duration) (int64, error) {
+	query := `DELETE FROM trader_equity_daily WHERE stat_date < CURRENT_DATE - $1::interval`
+	result, err := s.db.Exec(ctx, query, maxAge.String())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionConfig) (*RetentionResult, error) {
 	result := &RetentionResult{}
 
@@ -143,6 +167,16 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 		return nil, err
 	}
 
+	result.TraderDaily, err = s.CleanupTraderDaily(ctx, config.TraderDailyMaxAge)
+	if err != nil {
+		return nil, err
+	}
+
+	result.TraderEquity, err = s.CleanupTraderEquity(ctx, config.TraderEquityMaxAge)
+	if err != nil {
+		return nil, err
+	}
+
 	return result, nil
 }
 
@@ -154,6 +188,8 @@ type RetentionConfig struct {
 	OrderbookSnapshotsMaxAge time.Duration
 	OrderbookDeltasMaxAge    time.Duration
 	SystemEventsMaxAge       time.Duration
+	TraderDailyMaxAge        time.Duration
+	TraderEquityMaxAge       time.Duration
 }
 
 func DefaultRetentionConfig() RetentionConfig {
@@ -165,5 +201,7 @@ func DefaultRetentionConfig() RetentionConfig {
 		OrderbookSnapshotsMaxAge: 7 * 24 * time.Hour,
 		OrderbookDeltasMaxAge:    7 * 24 * time.Hour,
 		SystemEventsMaxAge:       90 * 24 * time.Hour,
+		TraderDailyMaxAge:        400 * 24 * time.Hour,
+		TraderEquityMaxAge:       400 * 24 * time.Hour,
 	}
 }
