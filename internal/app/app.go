@@ -166,7 +166,8 @@ func New(cfg *config.Config) (*App, error) {
 		discoverySvc = trader.NewDiscoveryService(traderRepo,
 			trader.HLDiscoveryAdapter{C: hlClient}, venueID, traderDiscoveryLimit)
 		traderSyncSvc = trader.NewSyncService(traderRepo,
-			trader.HLFillAdapter{C: hlClient}, venueID, trader.DefaultSyncOptions())
+			trader.HLFillAdapter{C: hlClient}, venueID, trader.DefaultSyncOptions()).
+			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient})
 		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
 		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
 			func(evs []hyperliquid.WSTradeEvent) { wsHarvest.Submit(trader.AdaptWSBatch(evs)) })
