@@ -15,7 +15,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 )
@@ -276,5 +278,85 @@ func TestE2E_Trader_Isolation(t *testing.T) {
 	if code, _ := s.doJSON(t, "POST", "/api/v1/trader-groups", "",
 		`{"name":"Anon"}`); code != http.StatusForbidden {
 		t.Errorf("anonymous create: want 403, got %d", code)
+	}
+}
+
+// E2E-T-03: fake WS trade feed → harvest → registry → detail shows
+// source=ws_trade with null metrics.
+func TestE2E_Trader_WSdiscovery(t *testing.T) {
+	s := setupTraderSuite(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	addr := fmt.Sprintf("0x%040x", uint64(time.Now().UnixNano())%0xffffff+0x100000)
+	t.Cleanup(func() {
+		_, _ = s.db.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr)
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		up := websocket.Upgrader{}
+		conn, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for {
+			_, raw, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			var msg struct {
+				Method       string `json:"method"`
+				Subscription struct {
+					Coin string `json:"coin"`
+				} `json:"subscription"`
+			}
+			if json.Unmarshal(raw, &msg) != nil || msg.Method != "subscribe" {
+				continue
+			}
+			frame := fmt.Sprintf(`{"channel":"trades","data":[{"coin":"BTC","side":"B",`+
+				`"px":"1","sz":"1","time":%d,"hash":"h","tid":1,"users":["%s","%s"]}]}`,
+				time.Now().UTC().UnixMilli(), addr, addr)
+			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_ = conn.WriteJSON(json.RawMessage(frame))
+		}
+	}))
+	defer srv.Close()
+
+	repo := trader.NewRepository(s.db)
+	harvest := trader.NewWSHarvestService(repo, s.venueID, 100, 50*time.Millisecond)
+	stream := hyperliquid.NewTradeStream("ws"+strings.TrimPrefix(srv.URL, "http"), 10,
+		func(events []hyperliquid.WSTradeEvent) { harvest.Submit(trader.AdaptWSBatch(events)) })
+	if err := stream.SetCoins([]string{"BTC"}); err != nil {
+		t.Fatalf("coins: %v", err)
+	}
+	go harvest.Start(ctx)
+	go func() { _ = stream.Run(ctx) }()
+
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		var source string
+		_ = s.db.QueryRow(ctx, `SELECT discovery_source FROM trader_registry
+			WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr).Scan(&source)
+		if source == "ws_trade" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("ws wallet never harvested (source=%q)", source)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"?venue=trader-e2e-venue", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("detail: %d %v", code, resp)
+	}
+	data := resp["data"].(map[string]any)
+	if data["registry"].(map[string]any)["discovery_source"] != "ws_trade" {
+		t.Errorf("source: %v", data)
+	}
+	if data["metrics"] != nil {
+		t.Errorf("never-synced wallet must have null metrics: %v", data)
 	}
 }

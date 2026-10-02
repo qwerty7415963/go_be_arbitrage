@@ -121,13 +121,14 @@ Server runs on `http://localhost:8080` by default.
 | GET/PATCH/DELETE | `/api/v1/trader-groups/:id` | **JWT required** | Owner-scoped; delete keeps registry rows |
 | GET/POST/DELETE | `/api/v1/trader-groups/:id/members` | **JWT required** | (venue, address) + alias/note; idempotent add; unknown wallet → 404 |
 
-Pipeline: leaderboard discovery (top-500, every 15m) → per-wallet incremental
-fill sync (every 6h, cursor `fills_last_time/tid`, backoff on errors) → daily
-rollup → period cache (the only table search reads). Raw fills are staged then
-purged (never retained). Display PnL and ROI = leaderboard window passthrough
-when fresh, else computed (realized sum / documented v1 ROI estimate);
-`realized_pnl` always carries the computed fills-based sum for reconciliation
-(`calculation_version` stamps the formula).
+Pipeline: leaderboard discovery (top-500, every 15m) + WS trade discovery
+(234 perp feeds, hourly meta refresh; counterparties harvested continuously)
+→ per-wallet incremental fill sync (every 6h, cursor `fills_last_time/tid`,
+backoff on errors) → daily rollup → period cache (the only table search
+reads). Raw fills are staged then purged (never retained). Display PnL and
+ROI = leaderboard window passthrough when fresh, else computed (realized sum
+/ documented v1 ROI estimate); `realized_pnl` always carries the computed
+fills-based sum for reconciliation (`calculation_version` stamps the formula).
 
 Operations (spec §15): watch server logs for `discovery ...` / `sync finished
 ...` lines (structured `key=value` fields) and the counters behind

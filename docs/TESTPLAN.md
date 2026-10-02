@@ -698,11 +698,39 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 | E2E-T-01 | Discover→groups flow | Fake leaderboard (20 wallets) → discover → sync (mock fills) → search → detail → group add/remove | Counts consistent end-to-end; member aliases persist |
 | E2E-T-02 | Isolation | Two users, trader-groups | Cross-user access rejected (BE-028) |
 
-### 19.5 Deferred to V1.1
+### 19.5 Deferred (still)
 
-WS discovery (BE-003/004/007/008/009/036), equity/drawdown job (BE-021/022),
-perf suite 100k/500k/1M (BE-035, PERF-BE-01..06), nightly upstream checks,
-90D period (not in spec enum).
+Equity/drawdown job (BE-021/022), perf suite 100k/500k/1M (BE-035,
+PERF-BE-01..06), nightly upstream checks, 90D period (not in spec enum).
+
+### 19.6 V1.1 WS trade discovery
+
+Spike-verified contract: `wss://api.hyperliquid.xyz/ws`, subscribe
+`{"method":"subscribe","subscription":{"type":"trades","coin":"BTC"}}`;
+frames `{"channel":"trades","data":[{..., "time":ms, "users":[buyer, seller]}]}`.
+Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| WS-U-01 | Trade frame parse | trades frame + subscriptionResponse + malformed JSON + unknown channel | Buyer/seller extracted; rest ignored/skipped, no crash |
+| WS-U-02 | Address validation | users[] with malformed entry | Malformed skipped, valid kept |
+| WS-U-03 | Subscription cap (BE-009) | 300 coins, cap 250 | Refused over cap, counted, alert field set |
+| WS-U-04 | Resubscribe set | Reconnect with 3 coins | All 3 resubscribed, no duplicates |
+| WS-U-05 | Batch dedupe | Same address ×50 events, mixed times | One upsert with max trade time |
+| WS-U-06 | Harvest validation | Empty/malformed batch entries | Skipped safely, reported in counts |
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| WS-I-01 | Local WS server → harvest (BE-003) | Server emits trades with unseen buyer/seller | Both registry rows, source=ws_trade, last_trade_at set |
+| WS-I-02 | Duplicate delivery (BE-004) | Same frame twice | One row per wallet; idempotent |
+| WS-I-03 | Source merge (BE-005) | Leaderboard-seeded wallet seen on WS | source=both, first_seen_at unchanged |
+| WS-I-04 | Reconnect (BE-007) | Kill server mid-stream, restart | Manager reconnects + resubscribes, harvesting resumes |
+| WS-I-05 | Dynamic coin (BE-008) | Meta gains a coin, refresh | New coin subscribed without restart |
+| WS-I-06 | Burst (BE-036) | 20k events in seconds | Bounded queue, drops counted, all unique wallets land |
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| E2E-T-03 | WS → detail | Fake WS emits trade for unknown wallet | GET /traders/{wallet} 200, source=ws_trade, metrics null |
 
 ---
 
@@ -724,7 +752,7 @@ perf suite 100k/500k/1M (BE-035, PERF-BE-01..06), nightly upstream checks,
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
-| Trader Scanner v1.1 | 20 | 12 | 8 | 2 | **42** |
+| Trader Scanner v1.1 | 26 | 12 | 14 | 3 | **55** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~286** | **~82** | **~44** | **~24** | **~436** |
+| **TOTAL** | **~292** | **~82** | **~50** | **~25** | **~449** |

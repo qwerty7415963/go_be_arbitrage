@@ -1,13 +1,15 @@
-package hyperliquid
+package trader
 
 import (
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 )
 
-func TestFetchTraderFills_Mapping(t *testing.T) {
+func TestHLFillAdapter_Mapping(t *testing.T) {
 	body := `[
 		{"coin": "BTC", "px": "100", "sz": "1", "side": "B", "time": 1727745600000,
 		 "startPosition": "0", "dir": "Open Long", "closedPnl": "0", "hash": "h1",
@@ -26,9 +28,9 @@ func TestFetchTraderFills_Mapping(t *testing.T) {
 		_, _ = w.Write([]byte(body))
 	}))
 	defer srv.Close()
-	c := NewClient(srv.URL, 0, 0)
+	adapter := HLFillAdapter{C: hyperliquid.NewClient(srv.URL, 0, 0)}
 
-	fills, truncated, err := c.FetchTraderFills(context.Background(),
+	fills, truncated, err := adapter.FetchTraderFills(context.Background(),
 		"0xabc", 1727745500000, 1727745900000)
 	if err != nil {
 		t.Fatalf("fetch: %v", err)

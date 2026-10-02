@@ -50,6 +50,9 @@ type App struct {
 	opportunityService *opportunity.Service
 	discoveryService   *trader.DiscoveryService
 	traderSyncService  *trader.SyncService
+	hlClient           *hyperliquid.Client
+	wsStream           *hyperliquid.TradeStream
+	wsHarvest          *trader.WSHarvestService
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -153,12 +156,20 @@ func New(cfg *config.Config) (*App, error) {
 
 	var discoverySvc *trader.DiscoveryService
 	var traderSyncSvc *trader.SyncService
+	var hlClient *hyperliquid.Client
+	var wsStream *hyperliquid.TradeStream
+	var wsHarvest *trader.WSHarvestService
 	if venueID, verr := traderRepo.VenueIDByCode(ctx, hyperliquid.VenueCode); verr != nil {
 		log.Warn("hyperliquid venue missing; trader discovery/sync disabled", "error", verr)
 	} else {
-		hlClient := hyperliquid.NewClient("", 30*time.Second, 2*time.Second)
-		discoverySvc = trader.NewDiscoveryService(traderRepo, hlClient, venueID, traderDiscoveryLimit)
-		traderSyncSvc = trader.NewSyncService(traderRepo, hlClient, venueID, trader.DefaultSyncOptions())
+		hlClient = hyperliquid.NewClient("", 30*time.Second, 2*time.Second)
+		discoverySvc = trader.NewDiscoveryService(traderRepo,
+			trader.HLDiscoveryAdapter{C: hlClient}, venueID, traderDiscoveryLimit)
+		traderSyncSvc = trader.NewSyncService(traderRepo,
+			trader.HLFillAdapter{C: hlClient}, venueID, trader.DefaultSyncOptions())
+		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
+		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
+			func(evs []hyperliquid.WSTradeEvent) { wsHarvest.Submit(trader.AdaptWSBatch(evs)) })
 	}
 
 	// Collector (lazy start - will start on first request context)
@@ -191,16 +202,61 @@ func New(cfg *config.Config) (*App, error) {
 		opportunityService: opportunityService,
 		discoveryService:   discoverySvc,
 		traderSyncService:  traderSyncSvc,
+		hlClient:           hlClient,
+		wsStream:           wsStream,
+		wsHarvest:          wsHarvest,
 	}, nil
 }
 
 // Trader Scanner v1.1 worker tuning: leaderboard refresh (39MB dump) every
-// 15 minutes; metric sync every 6 hours (parity with the legacy backfill).
+// 15 minutes; metric sync every 6 hours (parity with the legacy backfill);
+// WS trade discovery subscribes the perp universe with hourly meta refresh.
 const (
 	traderDiscoveryLimit    = 500
 	traderDiscoveryInterval = 15 * time.Minute
 	traderSyncInterval      = 6 * time.Hour
+	traderWSRefreshInterval = time.Hour
 )
+
+// runWSTradeDiscovery bootstraps coin subscriptions from venue metadata,
+// refreshes them hourly for new listings (BE-008), and streams trades into
+// the harvest service until ctx ends.
+func runWSTradeDiscovery(ctx context.Context, log *logger.Logger, client *hyperliquid.Client, stream *hyperliquid.TradeStream, harvest *trader.WSHarvestService) {
+	refresh := func() {
+		coins, err := client.FetchPerpCoins(ctx)
+		if err != nil {
+			log.Warn("ws discovery: coin refresh failed", "error", err)
+			return
+		}
+		added, err := stream.RefreshCoins(coins)
+		if err != nil {
+			log.Warn("ws discovery: subscription cap hit", "error", err)
+			return
+		}
+		if len(added) > 0 {
+			log.Info("ws discovery: subscribed new coins", "added", len(added))
+		}
+	}
+	if coins, err := client.FetchPerpCoins(ctx); err != nil {
+		log.Warn("ws discovery: initial coin fetch failed; retrying on schedule", "error", err)
+	} else if err := stream.SetCoins(coins); err != nil {
+		log.Warn("ws discovery: initial subscribe failed", "error", err)
+	} else {
+		log.Info("ws discovery: subscribed coins", "coins", len(coins))
+	}
+	go harvest.Start(ctx)
+	go func() { _ = stream.Run(ctx) }()
+	ticker := time.NewTicker(traderWSRefreshInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			refresh()
+		}
+	}
+}
 
 func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -222,6 +278,12 @@ func (a *App) Run() error {
 	}
 	if a.traderSyncService != nil {
 		go a.traderSyncService.Start(ctx, traderSyncInterval)
+	}
+
+	// Start WS trade discovery (V1.1): harvest trade counterparties into the
+	// registry continuously.
+	if a.wsStream != nil {
+		go runWSTradeDiscovery(ctx, a.logger, a.hlClient, a.wsStream, a.wsHarvest)
 	}
 
 	quit := make(chan os.Signal, 1)

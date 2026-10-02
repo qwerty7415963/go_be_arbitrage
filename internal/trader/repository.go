@@ -320,6 +320,34 @@ func (r *Repository) ListDailyStats(ctx context.Context, venueID uuid.UUID, addr
 	return out, rows.Err()
 }
 
+// UpsertRegistryWS bulk-upserts WS-harvested addresses in ONE statement (no
+// per-event transactions, spec §6/§11): insert source=ws_trade, refresh
+// last_seen_at, keep max last_trade_at, merge leaderboard→both, manual stays.
+// Returns touched row count.
+func (r *Repository) UpsertRegistryWS(ctx context.Context, venueID uuid.UUID, addrs []string, times []time.Time) (int64, error) {
+	if len(addrs) == 0 {
+		return 0, nil
+	}
+	tag, err := r.pool.Exec(ctx, `
+		INSERT INTO trader_registry
+			(venue_id, wallet_address, discovery_source, last_trade_at, last_seen_at)
+		SELECT $1, addr, 'ws_trade', t, NOW()
+		FROM UNNEST($2::text[], $3::timestamptz[]) AS v(addr, t)
+		ON CONFLICT (venue_id, wallet_address) DO UPDATE SET
+			last_seen_at = NOW(),
+			updated_at = NOW(),
+			last_trade_at = (SELECT MAX(t) FROM (VALUES
+				(trader_registry.last_trade_at), (EXCLUDED.last_trade_at)) v(t)),
+			discovery_source = CASE
+				WHEN trader_registry.discovery_source = 'leaderboard' THEN 'both'
+				ELSE trader_registry.discovery_source END`,
+		venueID, addrs, times)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // ListRegistryAddresses returns active registry addresses for a venue (sync
 // scheduling input). Pending wallets first: detail views EnsureSyncState, so
 // on-demand interest is picked up earlier (spec BE-038).
