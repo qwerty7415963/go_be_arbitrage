@@ -700,6 +700,10 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 
 ### 19.7 Retention (DB size control)
 
+Retention tests run against the shared test DB alongside live workers:
+assert only rows the test seeded (address-scoped), never global counts —
+live backfills legitimately write historical days.
+
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
 | RET-I-01 | Buffer purge | Staged fills older than retention + recent | Old gone after sync, recent kept |

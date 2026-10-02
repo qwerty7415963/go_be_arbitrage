@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -156,69 +158,47 @@ func (s *RetentionService) CleanupTraderEquity(ctx context.Context, maxAge time.
 	return result.RowsAffected(), nil
 }
 
+// RunFullCleanup runs every table cleanup, continuing past per-table
+// failures (a missing/unavailable table must not block the rest). Returns
+// partial counts plus the joined errors, if any.
 func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionConfig) (*RetentionResult, error) {
 	result := &RetentionResult{}
-
-	var err error
-
-	result.RawMarketEvents, err = s.CleanupRawMarketEvents(ctx, config.RawMarketEventsMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.MarketTrades, err = s.CleanupMarketTrades(ctx, config.MarketTradesMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.MarketTickers, err = s.CleanupMarketTickers(ctx, config.MarketTickersMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.FundingRates, err = s.CleanupFundingRates(ctx, config.FundingRatesMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.OrderbookSnapshots, err = s.CleanupOrderbookSnapshots(ctx, config.OrderbookSnapshotsMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.OrderbookDeltas, err = s.CleanupOrderbookDeltas(ctx, config.OrderbookDeltasMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.Opportunities, err = s.CleanupExpiredOpportunities(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	result.SystemEvents, err = s.CleanupOldSystemEvents(ctx, config.SystemEventsMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.TraderDaily, err = s.CleanupTraderDaily(ctx, config.TraderDailyMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	result.TraderEquity, err = s.CleanupTraderEquity(ctx, config.TraderEquityMaxAge)
-	if err != nil {
-		return nil, err
-	}
-
-	if config.TraderPruneEnabled {
-		result.DeadTraders, err = s.CleanupDeadTraders(ctx, config.TraderPruneStaleAfter)
+	var errs []error
+	run := func(name string, set func(int64), fn func() (int64, error)) {
+		n, err := fn()
 		if err != nil {
-			return nil, err
+			errs = append(errs, fmt.Errorf("%s: %w", name, err))
+			return
 		}
+		set(n)
 	}
 
-	return result, nil
+	run("raw_market_events", func(n int64) { result.RawMarketEvents = n },
+		func() (int64, error) { return s.CleanupRawMarketEvents(ctx, config.RawMarketEventsMaxAge) })
+	run("market_trades", func(n int64) { result.MarketTrades = n },
+		func() (int64, error) { return s.CleanupMarketTrades(ctx, config.MarketTradesMaxAge) })
+	run("market_tickers", func(n int64) { result.MarketTickers = n },
+		func() (int64, error) { return s.CleanupMarketTickers(ctx, config.MarketTickersMaxAge) })
+	run("funding_rates", func(n int64) { result.FundingRates = n },
+		func() (int64, error) { return s.CleanupFundingRates(ctx, config.FundingRatesMaxAge) })
+	run("orderbook_snapshots", func(n int64) { result.OrderbookSnapshots = n },
+		func() (int64, error) { return s.CleanupOrderbookSnapshots(ctx, config.OrderbookSnapshotsMaxAge) })
+	run("orderbook_deltas", func(n int64) { result.OrderbookDeltas = n },
+		func() (int64, error) { return s.CleanupOrderbookDeltas(ctx, config.OrderbookDeltasMaxAge) })
+	run("opportunities", func(n int64) { result.Opportunities = n },
+		func() (int64, error) { return s.CleanupExpiredOpportunities(ctx) })
+	run("system_events", func(n int64) { result.SystemEvents = n },
+		func() (int64, error) { return s.CleanupOldSystemEvents(ctx, config.SystemEventsMaxAge) })
+	run("trader_daily", func(n int64) { result.TraderDaily = n },
+		func() (int64, error) { return s.CleanupTraderDaily(ctx, config.TraderDailyMaxAge) })
+	run("trader_equity", func(n int64) { result.TraderEquity = n },
+		func() (int64, error) { return s.CleanupTraderEquity(ctx, config.TraderEquityMaxAge) })
+	if config.TraderPruneEnabled {
+		run("dead_traders", func(n int64) { result.DeadTraders = n },
+			func() (int64, error) { return s.CleanupDeadTraders(ctx, config.TraderPruneStaleAfter) })
+	}
+
+	return result, errors.Join(errs...)
 }
 
 type RetentionConfig struct {

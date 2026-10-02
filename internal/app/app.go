@@ -227,11 +227,7 @@ const (
 func runRetentionWorker(ctx context.Context, log *logger.Logger, svc *storage.RetentionService) {
 	run := func() {
 		res, err := svc.RunFullCleanup(ctx, storage.DefaultRetentionConfig())
-		if err != nil {
-			log.Warn("retention cleanup failed", "error", err)
-			return
-		}
-		log.Info("retention cleanup finished",
+		fields := []any{
 			"raw_market_events", res.RawMarketEvents,
 			"market_trades", res.MarketTrades,
 			"market_tickers", res.MarketTickers,
@@ -241,7 +237,14 @@ func runRetentionWorker(ctx context.Context, log *logger.Logger, svc *storage.Re
 			"opportunities", res.Opportunities,
 			"system_events", res.SystemEvents,
 			"trader_daily", res.TraderDaily,
-			"trader_equity", res.TraderEquity)
+			"trader_equity", res.TraderEquity,
+			"dead_traders", res.DeadTraders,
+		}
+		if err != nil {
+			log.Warn("retention cleanup partial", append(fields, "error", err)...)
+			return
+		}
+		log.Info("retention cleanup finished", fields...)
 	}
 	run()
 	ticker := time.NewTicker(retentionInterval)
