@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,6 +36,103 @@ func retentionPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("ping: %v", err)
 	}
 	return pool
+}
+
+var retAddrSeq atomic.Uint64
+
+func retAddr() string {
+	return fmt.Sprintf("0x%040x", uint64(time.Now().UnixNano())%0xffff+retAddrSeq.Add(1)*0x100000)
+}
+
+// RET-I-03: dead wallets pruned (children cascade); traded, grouped and
+// never-synced wallets kept; a pruned address re-enters cleanly (self-healing).
+func TestRetention_DeadTraders(t *testing.T) {
+	ctx := context.Background()
+	pool := retentionPool(t)
+	svc := NewRetentionService(pool)
+
+	var venueID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM venues WHERE code = 'hyperliquid'`).Scan(&venueID); err != nil {
+		t.Fatalf("venue: %v", err)
+	}
+	dead, traded, grouped, fresh := retAddr(), retAddr(), retAddr(), retAddr()
+	old := time.Now().UTC().Add(-60 * 24 * time.Hour)
+	for _, a := range []string{dead, traded, grouped, fresh} {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO trader_registry (venue_id, wallet_address, discovery_source, first_seen_at, last_seen_at)
+			VALUES ($1, $2, 'ws_trade', $3, $3)`, venueID, a, old); err != nil {
+			t.Fatalf("registry: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, a := range []string{dead, traded, grouped, fresh} {
+			_, _ = pool.Exec(context.Background(),
+				`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, a)
+		}
+	})
+	// Sync completed for all but fresh (never attempted → kept).
+	for _, a := range []string{dead, traded, grouped} {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO trader_sync_state (venue_id, wallet_address, sync_status, backfill_completed_at)
+			VALUES ($1, $2, 'ready', $3)`, venueID, a, old); err != nil {
+			t.Fatalf("sync: %v", err)
+		}
+	}
+	// Traded history keeps the wallet.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO trader_daily_stats (venue_id, wallet_address, stat_date, trade_count)
+		VALUES ($1, $2, CURRENT_DATE - 40, 5)`, venueID, traded); err != nil {
+		t.Fatalf("daily: %v", err)
+	}
+	// Grouped wallet: user + group + member.
+	tenantID, userID := uuid.New(), uuid.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants (id, name) VALUES ($1, 'ret-test')`, tenantID); err != nil {
+		t.Fatalf("tenant: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO users (id, tenant_id, email, password_hash) VALUES ($1, $2, 'r@t.co', 'x')`,
+		userID, tenantID); err != nil {
+		t.Fatalf("user: %v", err)
+	}
+	var groupID uuid.UUID
+	if err := pool.QueryRow(ctx, `INSERT INTO trader_groups (user_id, name) VALUES ($1, 'g') RETURNING id`,
+		userID).Scan(&groupID); err != nil {
+		t.Fatalf("group: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM trader_groups WHERE id = $1`, groupID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, userID)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM tenants WHERE id = $1`, tenantID)
+	})
+	if _, err := pool.Exec(ctx, `INSERT INTO trader_group_members (group_id, venue_id, wallet_address)
+		VALUES ($1, $2, $3)`, groupID, venueID, grouped); err != nil {
+		t.Fatalf("member: %v", err)
+	}
+
+	n, err := svc.CleanupDeadTraders(ctx, 30*24*time.Hour)
+	if err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("want exactly the dead wallet pruned, got %d", n)
+	}
+	for addr, wantGone := range map[string]bool{dead: true, traded: false, grouped: false, fresh: false} {
+		var exists bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM trader_registry
+			WHERE venue_id = $1 AND wallet_address = $2)`, venueID, addr).Scan(&exists); err != nil {
+			t.Fatalf("check: %v", err)
+		}
+		if exists == wantGone {
+			t.Errorf("%s: gone=%v, want gone=%v", addr, !exists, wantGone)
+		}
+	}
+	// Self-healing: the address re-enters as a fresh discovery.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO trader_registry (venue_id, wallet_address, discovery_source)
+		VALUES ($1, $2, 'ws_trade')`, venueID, dead); err != nil {
+		t.Errorf("re-entry: %v", err)
+	}
 }
 
 // RET-I-02: trader daily/equity rows past retention are deleted, recent kept.

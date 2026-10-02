@@ -136,7 +136,8 @@ and the counters behind `DiscoveryService.Stats()` / `SyncService.Stats()` —
 alert on ≥3 consecutive discovery errors, sustained sync failure rate, or a
 growing stale-wallet count (`trader_period_metrics` rows with old `as_of` /
 `data_status='error'`). Retention runs on boot + every 24h (market tables per
-short windows, trader daily/equity past 400d, fill buffer past 60d per sync);
+short windows, trader daily/equity past 400d, fill buffer past 60d per sync); dead-wallet prune
+(backfilled + zero fills/trades + no group + quiet 30d; re-enters via discovery);
 manual trigger: `POST /api/v1/storage/retention/cleanup`.
 
 ## WebSocket: Order Book Real-time

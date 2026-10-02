@@ -26,6 +26,7 @@ type RetentionResult struct {
 	SystemEvents       int64 `json:"system_events"`
 	TraderDaily        int64 `json:"trader_daily"`
 	TraderEquity       int64 `json:"trader_equity"`
+	DeadTraders        int64 `json:"dead_traders"`
 }
 
 func (s *RetentionService) CleanupRawMarketEvents(ctx context.Context, maxAge time.Duration) (int64, error) {
@@ -98,6 +99,39 @@ func (s *RetentionService) CleanupOldSystemEvents(ctx context.Context, maxAge ti
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+// CleanupDeadTraders prunes registry wallets that proved empty AND went
+// quiet: fully backfilled, no staged fills, no traded days, no group, and
+// last seen before the threshold. Children cascade via FK; memberships are
+// deleted first (no FK to registry — avoids orphans). A pruned wallet that
+// trades again re-enters via discovery (self-healing; source restarts fresh).
+func (s *RetentionService) CleanupDeadTraders(ctx context.Context, staleAfter time.Duration) (int64, error) {
+	var n int64
+	err := s.db.QueryRow(ctx, `
+		WITH pruned AS (
+			DELETE FROM trader_registry r
+			WHERE r.status = 'active'
+			  AND r.last_seen_at < NOW() - $1::interval
+			  AND EXISTS (SELECT 1 FROM trader_sync_state s
+				WHERE s.venue_id = r.venue_id AND s.wallet_address = r.wallet_address
+				  AND s.backfill_completed_at IS NOT NULL)
+			  AND NOT EXISTS (SELECT 1 FROM trader_fill_buffer f
+				WHERE f.venue_id = r.venue_id AND f.wallet_address = r.wallet_address)
+			  AND NOT EXISTS (SELECT 1 FROM trader_daily_stats d
+				WHERE d.venue_id = r.venue_id AND d.wallet_address = r.wallet_address
+				  AND d.trade_count > 0)
+			  AND NOT EXISTS (SELECT 1 FROM trader_group_members m
+				WHERE m.venue_id = r.venue_id AND m.wallet_address = r.wallet_address)
+			RETURNING venue_id, wallet_address
+		),
+		del_members AS (
+			DELETE FROM trader_group_members m USING pruned p
+			WHERE m.venue_id = p.venue_id AND m.wallet_address = p.wallet_address
+		)
+		SELECT COUNT(*) FROM pruned`,
+		staleAfter.String()).Scan(&n)
+	return n, err
 }
 
 // CleanupTraderDaily deletes daily aggregates older than maxAge. Periods only
@@ -177,6 +211,13 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 		return nil, err
 	}
 
+	if config.TraderPruneEnabled {
+		result.DeadTraders, err = s.CleanupDeadTraders(ctx, config.TraderPruneStaleAfter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return result, nil
 }
 
@@ -190,6 +231,8 @@ type RetentionConfig struct {
 	SystemEventsMaxAge       time.Duration
 	TraderDailyMaxAge        time.Duration
 	TraderEquityMaxAge       time.Duration
+	TraderPruneEnabled       bool
+	TraderPruneStaleAfter    time.Duration
 }
 
 func DefaultRetentionConfig() RetentionConfig {
@@ -203,5 +246,7 @@ func DefaultRetentionConfig() RetentionConfig {
 		SystemEventsMaxAge:       90 * 24 * time.Hour,
 		TraderDailyMaxAge:        400 * 24 * time.Hour,
 		TraderEquityMaxAge:       400 * 24 * time.Hour,
+		TraderPruneEnabled:       true,
+		TraderPruneStaleAfter:    30 * 24 * time.Hour,
 	}
 }
