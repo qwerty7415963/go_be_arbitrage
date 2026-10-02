@@ -30,8 +30,6 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/walletgroup"
 )
 
 type App struct {
@@ -50,7 +48,6 @@ type App struct {
 	authHandler        *auth.Handler
 	collector          *collector.Collector
 	opportunityService *opportunity.Service
-	backfillService    *wallet.BackfillService
 	discoveryService   *trader.DiscoveryService
 	traderSyncService  *trader.SyncService
 }
@@ -144,26 +141,9 @@ func New(cfg *config.Config) (*App, error) {
 	reconciliationService := reconciliation.NewService(reconciliationRepo)
 	reconciliationHandler := reconciliation.NewHandler(reconciliationService)
 
-	// Wallet Groups (Wallet Dashboard Phase 1)
-	walletGroupRepo := walletgroup.NewRepository(db.Pool())
-	walletGroupService := walletgroup.NewService(walletGroupRepo)
-	walletGroupHandler := walletgroup.NewHandler(walletGroupService, log)
-
-	// Wallet Scanner (Wallet Dashboard Phase 2)
-	walletRepo := wallet.NewRepository(db.Pool())
-	filterCfg, err := walletRepo.LoadFilterConfig(ctx)
-	if err != nil {
-		log.Warn("failed to load wallet filter enums; scanning without enum validation", "error", err)
-		filterCfg = &wallet.FilterConfig{}
-	}
-	walletService := wallet.NewService(walletRepo, *filterCfg)
-	walletHandler := wallet.NewHandler(walletService)
-	walletGroupHandler.SetScanner(walletService)
-
-	// Trader Scanner v1.1 (dual-run with the legacy wallet scanner until
-	// cutover): generic routes + venue-scoped tables. Discovery refreshes
-	// the registry from the leaderboard; the sync engine maintains the
-	// period metric cache. Started in Run.
+	// Trader Scanner v1.1: generic routes + venue-scoped tables. Discovery
+	// refreshes the registry from the leaderboard; the sync engine maintains
+	// the period metric cache. Started in Run.
 	traderRepo := trader.NewRepository(db.Pool())
 	traderGroupRepo := tradergroup.NewRepository(db.Pool())
 	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
@@ -181,18 +161,6 @@ func New(cfg *config.Config) (*App, error) {
 		traderSyncSvc = trader.NewSyncService(traderRepo, hlClient, venueID, trader.DefaultSyncOptions())
 	}
 
-	// Hyperliquid backfill worker (Wallet Dashboard Phase 3): ingest fills
-	// for EVM tracked wallets; started in Run, per-wallet failures are
-	// logged and retried on the next tick.
-	fillRepo := wallet.NewFillRepository(db.Pool())
-	var backfillSvc *wallet.BackfillService
-	if venueID, verr := fillRepo.VenueIDByCode(ctx, hyperliquid.VenueCode); verr != nil {
-		log.Warn("hyperliquid venue missing; backfill worker disabled", "error", verr)
-	} else {
-		backfillSvc = wallet.NewBackfillService(fillRepo,
-			hyperliquid.NewClient("", 30*time.Second, 2*time.Second), venueID)
-	}
-
 	// Collector (lazy start - will start on first request context)
 	fundingCollector := collector.NewCollector(
 		db.Pool(),
@@ -203,7 +171,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, walletGroupHandler, walletHandler, traderHandler, traderGroupHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler)
 
 	return &App{
 		config:             cfg,
@@ -221,7 +189,6 @@ func New(cfg *config.Config) (*App, error) {
 		authHandler:        authHandler,
 		collector:          fundingCollector,
 		opportunityService: opportunityService,
-		backfillService:    backfillSvc,
 		discoveryService:   discoverySvc,
 		traderSyncService:  traderSyncSvc,
 	}, nil
@@ -247,11 +214,6 @@ func (a *App) Run() error {
 
 	// Start refresh token cleanup worker (every 1 hour)
 	go a.auth.StartCleanupWorker(ctx, 1*time.Hour)
-
-	// Start wallet backfill workers (every 6 hours); add one per venue.
-	if a.backfillService != nil {
-		go runBackfillWorker(ctx, a.logger, hyperliquid.VenueCode, a.backfillService)
-	}
 
 	// Start Trader Scanner v1.1 workers: leaderboard discovery refreshes the
 	// registry; the sync engine maintains the period metric cache.
@@ -299,32 +261,4 @@ func (a *App) Shutdown(ctx context.Context) error {
 
 	a.logger.Info("application shutdown complete")
 	return nil
-}
-
-// runBackfillWorker ingests venue fills for all tracked wallets on start
-// and every interval until ctx is done.
-func runBackfillWorker(ctx context.Context, log *logger.Logger, venueCode string, svc *wallet.BackfillService) {
-	const interval = 6 * time.Hour
-
-	run := func() {
-		done, failed, err := svc.BackfillAll(ctx, time.Now().UTC())
-		if err != nil {
-			log.Warn("backfill finished with failures",
-				"venue", venueCode, "done", done, "failed", failed, "error", err)
-			return
-		}
-		log.Info("backfill finished", "venue", venueCode, "done", done, "failed", failed)
-	}
-
-	run()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			run()
-		}
-	}
 }

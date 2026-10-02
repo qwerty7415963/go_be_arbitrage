@@ -6,12 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/qwerty7415963/go_be_arbitrage/internal/wallet"
 )
 
 const (
@@ -32,10 +29,6 @@ const (
 
 // VenueCode is the venues.code row seeded by migration 000015.
 const VenueCode = "hyperliquid"
-
-// Compile-time guarantee: *Client satisfies the venue-agnostic ingestion
-// seam, so BackfillService never depends on Hyperliquid shapes.
-var _ wallet.FillFetcher = (*Client)(nil)
 
 // Fill is one row of the public userFillsByTime response. Numeric fields
 // arrive as decimal strings; unknown fields are ignored by encoding/json.
@@ -223,18 +216,4 @@ func lessFill(a, b Fill) bool {
 		return a.Time < b.Time
 	}
 	return a.Tid < b.Tid
-}
-
-// FetchFills implements wallet.FillFetcher: paginated fetch plus
-// normalization to engine-ready inputs.
-func (c *Client) FetchFills(ctx context.Context, address string, startMs, endMs int64) ([]wallet.FillInput, bool, error) {
-	raw, truncated, err := c.FetchAll(ctx, address, startMs, endMs)
-	if err != nil {
-		return nil, false, err
-	}
-	inputs, skipped := NormalizeFills(raw)
-	if skipped > 0 {
-		log.Printf("hyperliquid fetch %s: skipped %d unparseable fills", address, skipped)
-	}
-	return inputs, truncated, nil
 }

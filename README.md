@@ -111,75 +111,8 @@ Server runs on `http://localhost:8080` by default.
 | GET | `/api/v1/unified/instruments/:id` | Unified state for instrument |
 | WS | `/api/v1/unified/ws` | Real-time unified state updates |
 
-### Wallet Groups (JWT required; per-user ownership)
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/v1/groups` | Create group (201; blank name → 400, duplicate → 409 `GROUP-002`) |
-| GET | `/api/v1/groups` | List current user's groups (with `wallet_count`) |
-| GET | `/api/v1/groups/:id` | Get group with `wallet_count` |
-| PATCH | `/api/v1/groups/:id` | Update name/description/color |
-| DELETE | `/api/v1/groups/:id` | Delete group (memberships removed, wallets kept) |
-| POST | `/api/v1/groups/:id/wallets` | Add wallets — IDs or addresses, idempotent (`WALLET-001` unknown); 200 `{"added": N, "skipped": M}` (failures abort the batch as errors, never partial) |
-| DELETE | `/api/v1/groups/:id/wallets` | Remove wallets — idempotent no-op |
-| GET | `/api/v1/groups/:id/wallets` | List wallets — always `GroupWallet[]` (every Wallet field + `added_at`); `include=metrics` or any scanner filter → metric-enriched rows, else `metrics` null (BE-09) |
 
-Group mutations (create/update/delete/add/remove wallets) emit structured logs
-with `actor` (user id) + `request_id` (BE-13); IDs and counts only, never secrets.
-
-### Wallet Scanner (public reads; optional auth personalizes; TEST-01 grammar)
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/v1/wallets` | Public (optional Bearer) | Offset-paginated scanner: filters, timeframe, metric operators, sort, watchlist star filter |
-| GET | `/api/v1/wallets/filter-config` | Public | Filter config for dynamic UI: `dexes`/`chains`/`markets` (data-driven) + `timeframes`/`sort_fields`/`metrics[]` (code tables, with `min`/`max`/`ops`/`sortable`) |
-| GET | `/api/v1/wallets/:id` | Public (optional Bearer) | Wallet detail: identity + timeframe metrics + per-market `positions[]` (empty array when none) + own group memberships only |
-| PATCH | `/api/v1/wallets/:id` | **JWT required** | Update caller's private tag and/or watchlist star (`{"tag": "..."}` empty clears, max 100 chars; `{"watchlisted": true}` star, `false` unstar; at least one field, both allowed) |
-
-Without a token the reads work anonymously: rows carry `tag=null` and
-`watchlisted=false`, memberships `[]`. Supplying a Bearer token adds the
-caller's own tag/star/memberships. `?watchlisted=...` without a token → 401
-`AUTH-003`; PATCH without a token → 403 `AUTH-005`. Invalid/expired tokens →
-401 on every wallet route.
-
-Scanner query grammar (shared by both endpoints):
-
-```
-search=0xabc                    # partial address OR own tag (case-insensitive)
-dex=hyperliquid,gmx             # multi-select OR: repeat key or comma form;
-                                #   data-driven enum (ACTIVE venues in DB), unknown → COMMON-902
-chain=evm&chain=starknet        # same for chain (observed chains) / market (ingested markets)
-watchlisted=true                # caller's own watchlist stars: true = starred only,
-                                #   false = unstarred only; absent = no filter
-timeframe=24H|7D|30D|90D|ALL    # default 30D; unavailable metrics = null, never 0 (BR-07)
-start=2026-01-01T00:00:00Z&end=2026-02-01T00:00:00Z   # custom range (RFC3339, start<end)
-pnl_gt=1000                     # every metric × every op: _gt _gte _lt _lte _between (lo,hi)
-win_rate_gte=60                 # metrics: pnl roi win_rate volume trade_count
-long_short_ratio_gt=1.5         #          avg_position avg_leverage long_short_ratio
-last_active_within=24h          # or last_active_from / last_active_to (RFC3339)
-sort=pnl&order=desc             # sort: pnl roi win_rate volume trade_count
-                                #       avg_position avg_leverage last_active (default pnl desc)
-page=1&limit=50                 # offset pagination, limit max 200
-```
-
-Response `meta` carries `total` (full count) alongside `total_pages`/`has_more`.
-Each row's `metrics.computed_at` is the snapshot computation time (freshness;
-null when the wallet has no snapshot for the timeframe).
-
-Invalid enum/operator/sort/timeframe → 400 `COMMON-902`. Numeric filters AND
-across metrics; multi-select OR within a key (BR-11). Null metrics never match
-numeric filters (BR-07). Ordering is metric-first with a deterministic
-`(chain, address)` tiebreak (BR-12).
-
-### Metric Ingestion — Hyperliquid (background worker)
-| Item | Description |
-|------|-------------|
-| Source | Hyperliquid public `POST /info` (`userFillsByTime`, no auth, any address) |
-| Scope | EVM tracked wallets (`chain='evm'`); snapshots per timeframe 24H/7D/30D/90D/ALL |
-| Mapping | `closedPnl − fee` → net realized PnL; `dir`+`startPosition` → logical-position legs; leverage unavailable → `avg_leverage` null |
-| Schedule | On startup + every 6h (`runHyperliquidBackfill`); per-wallet failures logged, retried next tick |
-| Limits | ≤2000 fills/response (auto window-split); only 10,000 most recent fills queryable → capped snapshots flagged `is_partial` |
-| Spike note | Extended has no by-address endpoint (self-scoped feeds only); Variational trading API not live — see `WALLET_DASHBOARD_PLAN.md §8` |
-
-### Trader Scanner v1.1 (dual-run with Wallet Scanner until cutover)
+### Trader Scanner v1.1
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/traders/search` | Public (optional Bearer) | Cursor-paginated scan: `period` 1D/7D/30D/ALL, `venue` (default hyperliquid), min/max filters (roi, win_rate, pnl, volume, trade_count, profit_factor, long/short win_rate), `last_trade_after`, `group_id`, `sort_by` (indexed only) + `sort_direction`, `limit` ≤ 100, opaque `cursor` |
