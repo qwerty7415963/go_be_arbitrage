@@ -78,7 +78,9 @@ Server runs on `http://localhost:8080` by default.
 > (`venue_instruments`) with **fresh** funding (<15 min, else `include_stale=true`).
 > Funding sources: Binance, Extended, Variational (WS/REST adapters) +
 > Hyperliquid (REST `metaAndAssetCtxs` poll, hourly) via the
-> background collector.
+> background collector. Collector stores on change (new row only when the rate
+> differs or the last row is older than the 1h heartbeat); 90d retention trims
+> the rest.
 
 #### Query Parameters
 
@@ -135,7 +137,9 @@ Operations (spec §15): watch server logs for `discovery ...` / `sync finished
 and the counters behind `DiscoveryService.Stats()` / `SyncService.Stats()` —
 alert on ≥3 consecutive discovery errors, sustained sync failure rate, or a
 growing stale-wallet count (`trader_period_metrics` rows with old `as_of` /
-`data_status='error'`). Retention runs on boot + every 24h (market tables per
+`data_status='error'`). Sync scales via worker pool (default 4, shared venue
+rate limiter), adaptive pacing on 429s, and hot/cold tiers (hot ≤7d trades →
+normal cycle, cold → 24h). Retention runs on boot + every 24h (market tables per
 short windows, trader daily/equity past 400d, fill buffer past 60d per sync); dead-wallet prune
 (backfilled + zero fills/trades + no group + quiet 30d; re-enters via discovery);
 manual trigger: `POST /api/v1/storage/retention/cleanup`.
@@ -273,6 +277,12 @@ go test ./...
 
 # Run specific package tests
 go test ./internal/orderbook/...
+
+# Perf suite (100k synthetic wallets; PERF_WALLETS=500000 for more)
+go test -tags=perf -run TestPerf_ ./internal/trader/
+
+# Nightly upstream contract checks (live Hyperliquid APIs, read-only)
+go test -tags=nightly ./internal/hyperliquid/
 
 # Build
 go build ./...

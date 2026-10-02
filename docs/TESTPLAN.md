@@ -708,12 +708,12 @@ live backfills legitimately write historical days.
 |------|----------|----------|----------|
 | RET-I-01 | Buffer purge | Staged fills older than retention + recent | Old gone after sync, recent kept |
 | RET-I-02 | Daily/equity retention | Rows older than window + recent | Old deleted, recent kept (400d default) |
-| RET-I-03 | Dead-wallet prune | Dead pruned; traded/grouped/never-synced kept; re-entry | Exactly 1 pruned; cascade clean; address re-enters |
+| RET-I-03 | Dead-wallet prune | Dead pruned; traded/grouped/never-synced kept; re-entry | Seeded dead gone; others stay; address re-enters |
+| RET-I-04 | Full cleanup partial | Missing orderbook_* tables in this DB | Continues past them; trader counts present; error joined |
 
 ### 19.5 Deferred (still)
 
-Equity/drawdown job (BE-021/022), perf suite 100k/500k/1M (BE-035,
-PERF-BE-01..06), nightly upstream checks, 90D period (not in spec enum).
+90D period (not in spec enum).
 
 ### 19.6 V1.1 WS trade discovery
 
@@ -751,6 +751,71 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 
 ---
 
+## 20. Scale, Perf & Nightly
+
+### 20.1 Sync scale (pool, adaptive pacing, tiers)
+
+Design: SyncAll fans out over W workers (default 4) sharing one venue rate
+limiter; pacer starts at the client interval, doubles on 429/rate-limit class
+(up to a cap), decays to floor on success streaks; tier by `last_trade_at`
+(hot ≤7d → normal cycle, cold → 24h cycle, pending/error-due first);
+portfolio fetch follows the wallet's own cycle.
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| SYNC-U-01 | Pool partition | 10 wallets, 4 workers, fake fetch | Each processed exactly once, no dup/skip |
+| SYNC-U-02 | Adaptive pacer | 429, 429, then success ×5 | Interval ×2 ×2, then decays to floor; bounded both ends |
+| SYNC-U-03 | Tier selection | last_trade now-1d / now-30d / never-synced | hot / cold / pending-first |
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SYNC-I-04 | Pool end-to-end | 20 wallets, pool 4, fake fills | All done, cursors advanced, counts exact |
+| SYNC-I-05 | 429 recovery | Fake 429×2 then OK | Attempt gaps grow (backoff), then ready + retry reset |
+| SYNC-I-06 | Cold tier skip | Cold wallet, interval not due | Skipped this cycle; processed when due |
+
+### 20.2 Funding collector (store-on-change)
+
+Design: per (venue, instrument) compare incoming rate with last stored row;
+store when the rate differs OR the last row is older than the 1h heartbeat
+(chart continuity); otherwise skip. Kills ~99% duplicate rows at current
+cadence; 90d retention stays as the safety net.
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| FUND-U-01 | shouldStore decision | Same rate + fresh heartbeat / changed rate / stale heartbeat | skip / store / store |
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| FUND-I-01 | Collector cycle | Unchanged rates → no rows; changed rate → 1 row; heartbeat due → 1 row | Matches decision table end-to-end |
+| FUND-I-02 | Retention endpoint green | Full cleanup after orderbook funcs removed | 200, no error |
+
+### 20.3 Perf suite (tag `perf`)
+
+Deterministic synthetic seeder (fixed seed): N wallets + 30D period rows with
+varied metrics. Default N=100k (`PERF_WALLETS` env overrides to 500k/1M).
+Run: `go test -tags=perf -run TestPerf_ ./internal/trader/`.
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| PERF-01 | Scanner p95 (100k) | 50 mixed queries (AND + sort + cursor walk) | p95 documented; EXPLAIN uses indexes, no seq scan on period metrics |
+| PERF-02 | Sync throughput | 1k wallets, fake fetch, pool on | Wallets/min measured, zero failures/duplicates |
+| PERF-03 | WS burst 100k events | 10k unique ×10 deliveries | Bounded memory, drops counted, all unique land |
+
+### 20.4 Nightly upstream checks (tag `nightly`, CI cron 2AM)
+
+Read-only live shape checks (no DB writes): fail loudly on upstream drift so
+daytime pipelines never silently ingest garbage. CI: `.github/workflows/ci-nightly.yml`
+(`schedule: cron '0 2 * * *'`, `go test -tags=nightly ./internal/hyperliquid/`).
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| NIGHTLY-01 | Leaderboard shape | Live stats API | `leaderboardRows` present; row keys + day/week/month/allTime windows |
+| NIGHTLY-02 | WS frame shape | Dial + subscribe BTC, read 1 frame | `users` has exactly 2 addresses |
+| NIGHTLY-03 | Portfolio shape | Live portfolio for a known trader | 8 windows with `accountValueHistory` pairs |
+| NIGHTLY-04 | Universe vs cap | Live meta universe count | Non-empty and below subscription cap (early warning) |
+
+---
+
 ## Summary
 
 | Module | Unit | Handler | Integration | E2E | Total |
@@ -768,8 +833,10 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | Reconciliation | 17 | 3 | existing | 0 | **20+** |
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
-| Collector | 3 | 0 | 0 | 0 | **3** |
+| Collector | 4 | 0 | 2 | 0 | **6** |
 | Trader Scanner v1.1 | 29 | 12 | 19 | 3 | **63** |
+| Sync Scale | 3 | 0 | 3 | 0 | **6** |
+| Perf & Nightly (perf/nightly tags) | - | - | - | - | **7** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~295** | **~82** | **~55** | **~25** | **~457** |
+| **TOTAL** | **~299** | **~82** | **~60** | **~25** | **~473** |
