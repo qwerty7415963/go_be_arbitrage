@@ -698,6 +698,12 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 | E2E-T-01 | Discover→groups flow | Fake leaderboard (20 wallets) → discover → sync (mock fills) → search → detail → group add/remove | Counts consistent end-to-end; member aliases persist |
 | E2E-T-02 | Isolation | Two users, trader-groups | Cross-user access rejected (BE-028) |
 
+### 19.7 Retention (DB size control)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| RET-I-01 | Buffer purge | Staged fills older than retention + recent | Old gone after sync, recent kept |
+
 ### 19.5 Deferred (still)
 
 Equity/drawdown job (BE-021/022), perf suite 100k/500k/1M (BE-035,
@@ -757,7 +763,7 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 3 | 0 | 0 | 0 | **3** |
-| Trader Scanner v1.1 | 29 | 12 | 16 | 3 | **60** |
+| Trader Scanner v1.1 | 29 | 12 | 17 | 3 | **61** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~295** | **~82** | **~52** | **~25** | **~454** |
+| **TOTAL** | **~295** | **~82** | **~53** | **~25** | **~455** |

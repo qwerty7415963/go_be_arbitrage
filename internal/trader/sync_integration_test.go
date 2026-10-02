@@ -53,6 +53,32 @@ func dayFills(now time.Time) []Fill {
 	}
 }
 
+// RET-I-01: buffer older than retention is purged per sync; recent kept.
+func TestSync_BufferPurge(t *testing.T) {
+	now := time.Now().UTC()
+	repo, svc, addr := syncFixture(t, &fakeFills{})
+	ctx := context.Background()
+	venueID, _ := repo.VenueIDByCode(ctx, testVenueCode)
+
+	oldFill := Fill{Market: "BTC", Tid: 1, FilledAt: now.Add(-70 * 24 * time.Hour),
+		Buy: true, Quantity: 1, Price: 100}
+	newFill := Fill{Market: "BTC", Tid: 2, FilledAt: now.Add(-time.Hour),
+		Buy: true, Quantity: 1, Price: 100}
+	if _, err := repo.UpsertBufferFills(ctx, venueID, addr, []Fill{oldFill, newFill}); err != nil {
+		t.Fatalf("stage: %v", err)
+	}
+	if err := svc.SyncWallet(ctx, addr, now); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	kept, err := repo.LoadBufferFills(ctx, venueID, addr, now.Add(-400*24*time.Hour), now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(kept) != 1 || kept[0].Tid != 2 {
+		t.Errorf("only the recent fill must survive: %+v", kept)
+	}
+}
+
 // SYNC-I-01: full pipeline seed → sync → daily → period rows.
 func TestSync_FullPipeline(t *testing.T) {
 	now := time.Now().UTC()

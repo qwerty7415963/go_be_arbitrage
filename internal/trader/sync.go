@@ -14,6 +14,8 @@ type SyncOptions struct {
 	// FullLookback bounds first-time backfills (ALL period = 365d).
 	FullLookback time.Duration
 	// PurgeRetention bounds raw fill staging (never retained permanently).
+	// 60d covers day-recompute, incremental overlap and crash replay; daily
+	// rows are the durable record.
 	PurgeRetention time.Duration
 	// StaleAfter marks period rows stale past this data age.
 	StaleAfter time.Duration
@@ -26,7 +28,7 @@ type SyncOptions struct {
 func DefaultSyncOptions() SyncOptions {
 	return SyncOptions{
 		FullLookback:   365 * 24 * time.Hour,
-		PurgeRetention: 400 * 24 * time.Hour,
+		PurgeRetention: 60 * 24 * time.Hour,
 		StaleAfter:     24 * time.Hour,
 		LBRefFresh:     24 * time.Hour,
 		WalletTimeout:  10 * time.Minute,
