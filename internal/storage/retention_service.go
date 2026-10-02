@@ -18,17 +18,15 @@ func NewRetentionService(db *pgxpool.Pool) *RetentionService {
 }
 
 type RetentionResult struct {
-	RawMarketEvents    int64 `json:"raw_market_events"`
-	MarketTrades       int64 `json:"market_trades"`
-	MarketTickers      int64 `json:"market_tickers"`
-	FundingRates       int64 `json:"funding_rates"`
-	OrderbookSnapshots int64 `json:"orderbook_snapshots"`
-	OrderbookDeltas    int64 `json:"orderbook_deltas"`
-	Opportunities      int64 `json:"opportunities"`
-	SystemEvents       int64 `json:"system_events"`
-	TraderDaily        int64 `json:"trader_daily"`
-	TraderEquity       int64 `json:"trader_equity"`
-	DeadTraders        int64 `json:"dead_traders"`
+	RawMarketEvents int64 `json:"raw_market_events"`
+	MarketTrades    int64 `json:"market_trades"`
+	MarketTickers   int64 `json:"market_tickers"`
+	FundingRates    int64 `json:"funding_rates"`
+	Opportunities   int64 `json:"opportunities"`
+	SystemEvents    int64 `json:"system_events"`
+	TraderDaily     int64 `json:"trader_daily"`
+	TraderEquity    int64 `json:"trader_equity"`
+	DeadTraders     int64 `json:"dead_traders"`
 }
 
 func (s *RetentionService) CleanupRawMarketEvents(ctx context.Context, maxAge time.Duration) (int64, error) {
@@ -60,24 +58,6 @@ func (s *RetentionService) CleanupMarketTickers(ctx context.Context, maxAge time
 
 func (s *RetentionService) CleanupFundingRates(ctx context.Context, maxAge time.Duration) (int64, error) {
 	query := `DELETE FROM funding_rates WHERE observed_at < NOW() - $1::interval`
-	result, err := s.db.Exec(ctx, query, maxAge.String())
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-func (s *RetentionService) CleanupOrderbookSnapshots(ctx context.Context, maxAge time.Duration) (int64, error) {
-	query := `DELETE FROM orderbook_snapshots WHERE timestamp < NOW() - $1::interval`
-	result, err := s.db.Exec(ctx, query, maxAge.String())
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-func (s *RetentionService) CleanupOrderbookDeltas(ctx context.Context, maxAge time.Duration) (int64, error) {
-	query := `DELETE FROM orderbook_deltas WHERE timestamp < NOW() - $1::interval`
 	result, err := s.db.Exec(ctx, query, maxAge.String())
 	if err != nil {
 		return 0, err
@@ -181,10 +161,6 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 		func() (int64, error) { return s.CleanupMarketTickers(ctx, config.MarketTickersMaxAge) })
 	run("funding_rates", func(n int64) { result.FundingRates = n },
 		func() (int64, error) { return s.CleanupFundingRates(ctx, config.FundingRatesMaxAge) })
-	run("orderbook_snapshots", func(n int64) { result.OrderbookSnapshots = n },
-		func() (int64, error) { return s.CleanupOrderbookSnapshots(ctx, config.OrderbookSnapshotsMaxAge) })
-	run("orderbook_deltas", func(n int64) { result.OrderbookDeltas = n },
-		func() (int64, error) { return s.CleanupOrderbookDeltas(ctx, config.OrderbookDeltasMaxAge) })
 	run("opportunities", func(n int64) { result.Opportunities = n },
 		func() (int64, error) { return s.CleanupExpiredOpportunities(ctx) })
 	run("system_events", func(n int64) { result.SystemEvents = n },
@@ -202,31 +178,27 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 }
 
 type RetentionConfig struct {
-	RawMarketEventsMaxAge    time.Duration
-	MarketTradesMaxAge       time.Duration
-	MarketTickersMaxAge      time.Duration
-	FundingRatesMaxAge       time.Duration
-	OrderbookSnapshotsMaxAge time.Duration
-	OrderbookDeltasMaxAge    time.Duration
-	SystemEventsMaxAge       time.Duration
-	TraderDailyMaxAge        time.Duration
-	TraderEquityMaxAge       time.Duration
-	TraderPruneEnabled       bool
-	TraderPruneStaleAfter    time.Duration
+	RawMarketEventsMaxAge time.Duration
+	MarketTradesMaxAge    time.Duration
+	MarketTickersMaxAge   time.Duration
+	FundingRatesMaxAge    time.Duration
+	SystemEventsMaxAge    time.Duration
+	TraderDailyMaxAge     time.Duration
+	TraderEquityMaxAge    time.Duration
+	TraderPruneEnabled    bool
+	TraderPruneStaleAfter time.Duration
 }
 
 func DefaultRetentionConfig() RetentionConfig {
 	return RetentionConfig{
-		RawMarketEventsMaxAge:    7 * 24 * time.Hour,
-		MarketTradesMaxAge:       30 * 24 * time.Hour,
-		MarketTickersMaxAge:      30 * 24 * time.Hour,
-		FundingRatesMaxAge:       90 * 24 * time.Hour,
-		OrderbookSnapshotsMaxAge: 7 * 24 * time.Hour,
-		OrderbookDeltasMaxAge:    7 * 24 * time.Hour,
-		SystemEventsMaxAge:       90 * 24 * time.Hour,
-		TraderDailyMaxAge:        400 * 24 * time.Hour,
-		TraderEquityMaxAge:       400 * 24 * time.Hour,
-		TraderPruneEnabled:       true,
-		TraderPruneStaleAfter:    30 * 24 * time.Hour,
+		RawMarketEventsMaxAge: 7 * 24 * time.Hour,
+		MarketTradesMaxAge:    30 * 24 * time.Hour,
+		MarketTickersMaxAge:   30 * 24 * time.Hour,
+		FundingRatesMaxAge:    90 * 24 * time.Hour,
+		SystemEventsMaxAge:    90 * 24 * time.Hour,
+		TraderDailyMaxAge:     400 * 24 * time.Hour,
+		TraderEquityMaxAge:    400 * 24 * time.Hour,
+		TraderPruneEnabled:    true,
+		TraderPruneStaleAfter: 30 * 24 * time.Hour,
 	}
 }

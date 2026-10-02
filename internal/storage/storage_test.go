@@ -174,21 +174,22 @@ func TestMarketQuality(t *testing.T) {
 
 func TestRetentionResult(t *testing.T) {
 	result := &RetentionResult{
-		RawMarketEvents:    100,
-		MarketTrades:       200,
-		MarketTickers:      50,
-		FundingRates:       30,
-		OrderbookSnapshots: 150,
-		OrderbookDeltas:    1000,
-		Opportunities:      10,
-		SystemEvents:       25,
+		RawMarketEvents: 100,
+		MarketTrades:    200,
+		MarketTickers:   50,
+		FundingRates:    30,
+		Opportunities:   10,
+		SystemEvents:    25,
+		TraderDaily:     7,
+		TraderEquity:    3,
+		DeadTraders:     2,
 	}
 
 	total := result.RawMarketEvents + result.MarketTrades + result.MarketTickers +
-		result.FundingRates + result.OrderbookSnapshots + result.OrderbookDeltas +
-		result.Opportunities + result.SystemEvents
+		result.FundingRates + result.Opportunities + result.SystemEvents +
+		result.TraderDaily + result.TraderEquity + result.DeadTraders
 
-	if total != 1565 {
-		t.Errorf("expected total 1565, got %d", total)
+	if total != 427 {
+		t.Errorf("expected total 427, got %d", total)
 	}
 }

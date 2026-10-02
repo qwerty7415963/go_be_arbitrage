@@ -232,8 +232,6 @@ func runRetentionWorker(ctx context.Context, log *logger.Logger, svc *storage.Re
 			"market_trades", res.MarketTrades,
 			"market_tickers", res.MarketTickers,
 			"funding_rates", res.FundingRates,
-			"orderbook_snapshots", res.OrderbookSnapshots,
-			"orderbook_deltas", res.OrderbookDeltas,
 			"opportunities", res.Opportunities,
 			"system_events", res.SystemEvents,
 			"trader_daily", res.TraderDaily,
