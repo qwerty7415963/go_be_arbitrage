@@ -744,6 +744,7 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | WS-I-06 | Burst (BE-036) | 20k events in seconds | Bounded queue, drops counted, all unique wallets land |
 | EQ-I-01 | Equity sync (BE-021) | Fake portfolio over 3 days | Equity rows stored exactly; last_portfolio_sync_at set |
 | EQ-I-02 | Drawdown wiring (BE-022) | Same run, 30D recalc | max_drawdown_pct = 25% from the curve |
+| EQ-I-03 | Wide numerics (live 22003) | Dust-to-millions return + huge PF | Upsert + roundtrip, no overflow |
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
@@ -834,9 +835,9 @@ daytime pipelines never silently ingest garbage. CI: `.github/workflows/ci-night
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 4 | 0 | 2 | 0 | **6** |
-| Trader Scanner v1.1 | 29 | 12 | 19 | 3 | **63** |
+| Trader Scanner v1.1 | 29 | 12 | 20 | 3 | **64** |
 | Sync Scale | 3 | 0 | 3 | 0 | **6** |
 | Perf & Nightly (perf/nightly tags) | - | - | - | - | **7** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~299** | **~82** | **~60** | **~25** | **~473** |
+| **TOTAL** | **~299** | **~82** | **~61** | **~25** | **~474** |
