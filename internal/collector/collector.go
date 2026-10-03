@@ -2,10 +2,14 @@ package collector
 
 import (
 	"context"
+	"math"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/exchange"
@@ -364,6 +368,19 @@ func (c *Collector) storeFundingWithDiscovery(
 		return false
 	}
 
+	// Store-on-change: skip identical readings inside the heartbeat window.
+	lastRate, lastAt, err := c.lastFundingRate(ctx, venueID, instrumentID)
+	if err != nil {
+		c.logger.Debug("failed to read last funding rate",
+			"venue", venueCode, "symbol", venueSymbol, "error", err)
+		return false
+	}
+	if !shouldStoreFunding(lastRate != "", lastRate, fundingRate, lastAt, observedAt, fundingHeartbeat) {
+		c.logger.Debug("funding unchanged, skipped",
+			"venue", venueCode, "symbol", venueSymbol, "rate", fundingRate)
+		return false
+	}
+
 	// Insert funding rate
 	_, err = c.db.Exec(ctx,
 		`INSERT INTO funding_rates (venue_id, instrument_id, observed_at, funding_rate, interval_seconds, mark_price, index_price, open_interest)
@@ -380,4 +397,47 @@ func (c *Collector) storeFundingWithDiscovery(
 	c.logger.Debug("stored funding rate",
 		"venue", venueCode, "symbol", venueSymbol, "rate", fundingRate)
 	return true
+}
+
+// fundingHeartbeat forces a fresh row even when the rate is unchanged, so
+// charts keep continuity without per-cycle duplicates.
+const fundingHeartbeat = time.Hour
+
+// lastFundingRate returns the most recent stored rate ("" when none).
+func (c *Collector) lastFundingRate(ctx context.Context, venueID, instrumentID uuid.UUID) (string, time.Time, error) {
+	var rate string
+	var at time.Time
+	err := c.db.QueryRow(ctx, `
+		SELECT funding_rate, observed_at FROM funding_rates
+		WHERE venue_id = $1 AND instrument_id = $2
+		ORDER BY observed_at DESC LIMIT 1`,
+		venueID, instrumentID).Scan(&rate, &at)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", time.Time{}, nil
+		}
+		return "", time.Time{}, err
+	}
+	return rate, at, nil
+}
+
+// shouldStoreFunding reports whether an observation deserves a new row:
+// first sighting, changed rate, or heartbeat expired. Unparseable rates
+// compare unequal (store — the safe direction).
+func shouldStoreFunding(hasLast bool, lastRate, newRate string, lastAt, now time.Time, heartbeat time.Duration) bool {
+	if !hasLast {
+		return true
+	}
+	if parseFundingRate(lastRate) != parseFundingRate(newRate) {
+		return true
+	}
+	return !now.Before(lastAt.Add(heartbeat))
+}
+
+func parseFundingRate(s string) float64 {
+	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return math.NaN()
+	}
+	return f
 }
