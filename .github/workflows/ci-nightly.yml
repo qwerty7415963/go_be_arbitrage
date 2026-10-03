@@ -1,0 +1,23 @@
+name: CI - Nightly Upstream Checks
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.23"
+
+jobs:
+  nightly:
+    name: Upstream Contract Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Live Hyperliquid shape checks (read-only, no DB)
+        run: go test -tags=nightly -count=1 -timeout 10m ./internal/hyperliquid/

@@ -797,9 +797,9 @@ Run: `go test -tags=perf -run TestPerf_ ./internal/trader/`.
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
-| PERF-01 | Scanner p95 (100k) | 50 mixed queries (AND + sort + cursor walk) | p95 documented; EXPLAIN uses indexes, no seq scan on period metrics |
-| PERF-02 | Sync throughput | 1k wallets, fake fetch, pool on | Wallets/min measured, zero failures/duplicates |
-| PERF-03 | WS burst 100k events | 10k unique ×10 deliveries | Bounded memory, drops counted, all unique land |
+| PERF-01 | Scanner p95 (100k) | 50 mixed queries (AND + sort + cursor walk) | p95 documented (measured 115ms dev, target <500ms); EXPLAIN uses indexes, no seq scan on period metrics |
+| PERF-02 | Sync throughput | 1k wallets, fake fetch, pool on | ~5900/min measured, zero failures/duplicates |
+| PERF-03 | WS burst 100k events | 10k unique ×10 deliveries | 100k in ~5.5s measured; bounded memory, drops counted, all unique land |
 
 ### 20.4 Nightly upstream checks (tag `nightly`, CI cron 2AM)
 
