@@ -770,7 +770,7 @@ portfolio fetch follows the wallet's own cycle.
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
 | SYNC-I-04 | Pool end-to-end | 20 wallets, pool 4, fake fills | All done, cursors advanced, counts exact |
-| SYNC-I-05 | 429 recovery | Fake 429×2 then OK | Attempt gaps grow (backoff), then ready + retry reset |
+| SYNC-I-05 | 429 recovery | Upstream 429×2 then OK (real client, fake server) | Attempt gaps grow (backoff), then ready + retry reset |
 | SYNC-I-06 | Cold tier skip | Cold wallet, interval not due | Skipped this cycle; processed when due |
 
 ### 20.2 Funding collector (store-on-change)

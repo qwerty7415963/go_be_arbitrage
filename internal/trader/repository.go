@@ -348,12 +348,26 @@ func (r *Repository) UpsertRegistryWS(ctx context.Context, venueID uuid.UUID, ad
 	return tag.RowsAffected(), nil
 }
 
-// ListRegistryAddresses returns active registry addresses for a venue (sync
-// scheduling input). Pending wallets first: detail views EnsureSyncState, so
-// on-demand interest is picked up earlier (spec BE-038).
-func (r *Repository) ListRegistryAddresses(ctx context.Context, venueID uuid.UUID) ([]string, error) {
+// SyncItem is one schedulable wallet: identity plus the tier/backoff inputs.
+type SyncItem struct {
+	Address     string
+	LastTradeAt *time.Time
+	LastSuccess *time.Time
+	Status      string
+	UpdatedAt   time.Time
+	RetryCount  int
+	HasSyncRow  bool
+}
+
+// ListSyncQueue returns active registry wallets with scheduling inputs,
+// pending first (detail views EnsureSyncState, so on-demand interest is
+// picked up earlier — spec BE-038).
+func (r *Repository) ListSyncQueue(ctx context.Context, venueID uuid.UUID) ([]SyncItem, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT r.wallet_address FROM trader_registry r
+		SELECT r.wallet_address, r.last_trade_at, s.last_fills_sync_at,
+			COALESCE(s.sync_status, 'pending'), COALESCE(s.updated_at, r.first_seen_at),
+			COALESCE(s.retry_count, 0), s.wallet_address IS NOT NULL
+		FROM trader_registry r
 		LEFT JOIN trader_sync_state s ON s.venue_id = r.venue_id
 			AND s.wallet_address = r.wallet_address
 		WHERE r.venue_id = $1 AND r.status = 'active'
@@ -363,13 +377,14 @@ func (r *Repository) ListRegistryAddresses(ctx context.Context, venueID uuid.UUI
 		return nil, err
 	}
 	defer rows.Close()
-	var out []string
+	var out []SyncItem
 	for rows.Next() {
-		var a string
-		if err := rows.Scan(&a); err != nil {
+		var it SyncItem
+		if err := rows.Scan(&it.Address, &it.LastTradeAt, &it.LastSuccess,
+			&it.Status, &it.UpdatedAt, &it.RetryCount, &it.HasSyncRow); err != nil {
 			return nil, err
 		}
-		out = append(out, a)
+		out = append(out, it)
 	}
 	return out, rows.Err()
 }

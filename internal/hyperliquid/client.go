@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -56,9 +55,7 @@ type Client struct {
 	statsBaseURL string
 	http         *http.Client
 	minInterval  time.Duration
-
-	mu   sync.Mutex
-	last time.Time
+	pacer        *AdaptivePacer
 }
 
 func NewClient(baseURL string, timeout, minInterval time.Duration) *Client {
@@ -70,6 +67,7 @@ func NewClient(baseURL string, timeout, minInterval time.Duration) *Client {
 		statsBaseURL: StatsBaseURL,
 		http:         &http.Client{Timeout: timeout},
 		minInterval:  minInterval,
+		pacer:        NewAdaptivePacer(minInterval, 30*time.Second),
 	}
 }
 
@@ -84,7 +82,9 @@ type fillsByTimeRequest struct {
 // FetchWindow performs one userFillsByTime call for [startMs, endMs]
 // (inclusive). Rows arrive newest-first.
 func (c *Client) FetchWindow(ctx context.Context, address string, startMs, endMs int64) ([]Fill, error) {
-	c.pace()
+	if err := c.pacer.Wait(ctx); err != nil {
+		return nil, err
+	}
 
 	body, err := json.Marshal(fillsByTimeRequest{
 		Type:            "userFillsByTime",
@@ -114,8 +114,10 @@ func (c *Client) FetchWindow(ctx context.Context, address string, startMs, endMs
 		return nil, fmt.Errorf("hyperliquid read: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
+		c.noteStatus(resp.StatusCode)
 		return nil, fmt.Errorf("hyperliquid info: status %d: %s", resp.StatusCode, truncate(raw, 300))
 	}
+	c.noteStatus(resp.StatusCode)
 
 	var fills []Fill
 	if err := json.Unmarshal(raw, &fills); err != nil {
@@ -134,16 +136,13 @@ func truncate(b []byte, n int) string {
 	return string(b)
 }
 
-func (c *Client) pace() {
-	if c.minInterval <= 0 {
-		return
+// noteStatus feeds the adaptive pacer: 429 backs off, 200 counts a success.
+func (c *Client) noteStatus(code int) {
+	if code == http.StatusTooManyRequests {
+		c.pacer.Backoff()
+	} else if code == http.StatusOK {
+		c.pacer.Success()
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if wait := c.minInterval - time.Since(c.last); wait > 0 {
-		time.Sleep(wait)
-	}
-	c.last = time.Now()
 }
 
 // FetchAll returns every fill in [startMs, endMs] oldest-first, subdividing

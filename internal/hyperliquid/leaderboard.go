@@ -74,8 +74,10 @@ func (c *Client) FetchPortfolio(ctx context.Context, address string) (map[string
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		c.noteStatus(resp.StatusCode)
 		return nil, fmt.Errorf("hyperliquid portfolio: status %d", resp.StatusCode)
 	}
+	c.noteStatus(resp.StatusCode)
 	var doc [][2]json.RawMessage
 	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
 		return nil, fmt.Errorf("hyperliquid portfolio decode: %w", err)
@@ -124,8 +126,10 @@ func (c *Client) FetchLeaderboard(ctx context.Context) ([]LeaderboardRow, error)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		c.noteStatus(resp.StatusCode)
 		return nil, fmt.Errorf("hyperliquid leaderboard: status %d", resp.StatusCode)
 	}
+	c.noteStatus(resp.StatusCode)
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxLeaderboardBytes))
 	if err != nil {
 		return nil, fmt.Errorf("hyperliquid leaderboard read: %w", err)

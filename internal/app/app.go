@@ -167,7 +167,7 @@ func New(cfg *config.Config) (*App, error) {
 		discoverySvc = trader.NewDiscoveryService(traderRepo,
 			trader.HLDiscoveryAdapter{C: hlClient}, venueID, traderDiscoveryLimit)
 		traderSyncSvc = trader.NewSyncService(traderRepo,
-			trader.HLFillAdapter{C: hlClient}, venueID, trader.DefaultSyncOptions()).
+			trader.HLFillAdapter{C: hlClient}, venueID, traderSyncOptions()).
 			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient})
 		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
 		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
@@ -218,9 +218,18 @@ const (
 	traderDiscoveryLimit    = 500
 	traderDiscoveryInterval = 15 * time.Minute
 	traderSyncInterval      = 6 * time.Hour
+	traderSyncWorkers       = 4
 	traderWSRefreshInterval = time.Hour
 	retentionInterval       = 24 * time.Hour
 )
+
+// traderSyncOptions is the production sync tuning: pooled workers over the
+// shared venue limiter; see trader.DefaultSyncOptions for the rest.
+func traderSyncOptions() trader.SyncOptions {
+	opts := trader.DefaultSyncOptions()
+	opts.Workers = traderSyncWorkers
+	return opts
+}
 
 // runRetentionWorker runs full retention cleanup on start and every interval
 // until ctx ends. Deletions are idempotent; per-table counts go to the log.

@@ -305,8 +305,10 @@ func (c *Client) FetchPerpCoins(ctx context.Context) ([]string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		c.noteStatus(resp.StatusCode)
 		return nil, fmt.Errorf("hyperliquid meta: status %d", resp.StatusCode)
 	}
+	c.noteStatus(resp.StatusCode)
 	var meta struct {
 		Universe []struct {
 			Name string `json:"name"`

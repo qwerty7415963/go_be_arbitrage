@@ -265,3 +265,73 @@ func TestSync_StaleRule(t *testing.T) {
 		t.Errorf("vintage preserved: %v", m.AsOf)
 	}
 }
+
+// SYNC-I-04: pool end-to-end — 20 wallets across 4 workers, all done once.
+func TestSync_PoolEndToEnd(t *testing.T) {
+	now := time.Now().UTC()
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+	venueID := testVenue(t, pool)
+
+	addrs := make([]string, 20)
+	for i := range addrs {
+		addrs[i] = testAddr()
+		if _, _, err := repo.UpsertRegistry(ctx, venueID, addrs[i],
+			SourceLeaderboard, nil, nil); err != nil {
+			t.Fatalf("registry: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, a := range addrs {
+			_, _ = pool.Exec(context.Background(),
+				`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, a)
+		}
+	})
+	opts := DefaultSyncOptions()
+	opts.Workers = 4
+	svc := NewSyncService(repo, &fakeFills{}, venueID, opts)
+
+	done, failed := svc.SyncAll(ctx, now)
+	if done != 20 || failed != 0 {
+		t.Errorf("pool: done=%d failed=%d", done, failed)
+	}
+	for _, a := range addrs {
+		st, err := repo.GetSyncState(ctx, venueID, a)
+		if err != nil || st == nil || st.BackfillCompletedAt == nil {
+			t.Errorf("%s not completed: %+v %v", a, st, err)
+		}
+	}
+}
+
+// SYNC-I-06: cold wallets wait out ColdInterval; hot wallets run every tick.
+func TestSync_ColdTierSkip(t *testing.T) {
+	now := time.Now().UTC()
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+	venueID := testVenue(t, pool)
+
+	cold := testAddr()
+	tradeAt := now.Add(-60 * 24 * time.Hour)
+	if _, _, err := repo.UpsertRegistry(ctx, venueID, cold,
+		SourceLeaderboard, nil, &tradeAt); err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, cold)
+	})
+	opts := DefaultSyncOptions()
+	svc := NewSyncService(repo, &fakeFills{}, venueID, opts)
+	// First pass completes the backfill (pending always due).
+	if done, _ := svc.SyncAll(ctx, now); done != 1 {
+		t.Fatalf("first pass: done=%d", done)
+	}
+	// Second pass immediately after: cold wallet must wait out 24h.
+	if done, failed := svc.SyncAll(ctx, now); done != 0 || failed != 0 {
+		t.Errorf("cold skip: done=%d failed=%d", done, failed)
+	}
+}

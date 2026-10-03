@@ -3,6 +3,7 @@ package trader
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,15 +24,27 @@ type SyncOptions struct {
 	LBRefFresh time.Duration
 	// WalletTimeout bounds one wallet pass (fetch + compute).
 	WalletTimeout time.Duration
+	// Workers sizes the SyncAll pool (1 = sequential).
+	Workers int
+	// ColdAfter marks wallets without recent trades cold (slower cycle).
+	ColdAfter time.Duration
+	// ColdInterval is the minimum gap between cold-wallet passes.
+	ColdInterval time.Duration
+	// PortfolioInterval is the minimum gap between equity refreshes.
+	PortfolioInterval time.Duration
 }
 
 func DefaultSyncOptions() SyncOptions {
 	return SyncOptions{
-		FullLookback:   365 * 24 * time.Hour,
-		PurgeRetention: 60 * 24 * time.Hour,
-		StaleAfter:     24 * time.Hour,
-		LBRefFresh:     24 * time.Hour,
-		WalletTimeout:  10 * time.Minute,
+		FullLookback:      365 * 24 * time.Hour,
+		PurgeRetention:    60 * 24 * time.Hour,
+		StaleAfter:        24 * time.Hour,
+		LBRefFresh:        24 * time.Hour,
+		WalletTimeout:     10 * time.Minute,
+		Workers:           1,
+		ColdAfter:         7 * 24 * time.Hour,
+		ColdInterval:      24 * time.Hour,
+		PortfolioInterval: 24 * time.Hour,
 	}
 }
 
@@ -51,6 +64,18 @@ func (o *SyncOptions) withDefaults() SyncOptions {
 	}
 	if o.WalletTimeout > 0 {
 		d.WalletTimeout = o.WalletTimeout
+	}
+	if o.Workers > 0 {
+		d.Workers = o.Workers
+	}
+	if o.ColdAfter > 0 {
+		d.ColdAfter = o.ColdAfter
+	}
+	if o.ColdInterval > 0 {
+		d.ColdInterval = o.ColdInterval
+	}
+	if o.PortfolioInterval > 0 {
+		d.PortfolioInterval = o.PortfolioInterval
 	}
 	return d
 }
@@ -165,7 +190,8 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		return err
 	}
 
-	if s.portfolio != nil {
+	if s.portfolio != nil && (state.LastPortfolioSyncAt == nil ||
+		now.Sub(*state.LastPortfolioSyncAt) >= s.opts.PortfolioInterval) {
 		s.syncEquity(ctx, addr, now)
 	}
 	if err := s.recalcAll(ctx, addr, now, truncated, &now, false); err != nil {
@@ -387,29 +413,96 @@ func maxFillCursor(fills []Fill) (time.Time, *int64) {
 	return mt, tid
 }
 
-// SyncAll processes every active registry wallet sequentially, skipping
-// errored wallets still inside their backoff window (BE-010). Continues past
-// per-wallet failures; returns (done, failed).
+// Sync tiers: pending wallets (never attempted) go first, hot wallets follow
+// the scheduler tick, cold wallets wait out ColdInterval.
+type syncTier int
+
+const (
+	tierPending syncTier = iota
+	tierHot
+	tierCold
+)
+
+// tierFor classifies a wallet: pending without a completed backfill, cold
+// when its last trade is older than coldAfter (or unknown with a completed
+// backfill), hot otherwise.
+func tierFor(lastTrade *time.Time, backfillCompleted bool, now time.Time, coldAfter time.Duration) syncTier {
+	if !backfillCompleted {
+		return tierPending
+	}
+	if lastTrade == nil || now.Sub(*lastTrade) > coldAfter {
+		return tierCold
+	}
+	return tierHot
+}
+
+// fanOut runs fn over items with at most workers goroutines, counting
+// outcomes. Each item is processed exactly once (SYNC-U-01).
+func fanOut(ctx context.Context, items []string, workers int, fn func(string) error) (done, failed int) {
+	if workers < 1 {
+		workers = 1
+	}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	ch := make(chan string)
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for addr := range ch {
+				if err := fn(addr); err != nil {
+					mu.Lock()
+					failed++
+					mu.Unlock()
+					continue
+				}
+				mu.Lock()
+				done++
+				mu.Unlock()
+			}
+		}()
+	}
+	for _, addr := range items {
+		select {
+		case <-ctx.Done():
+			break
+		case ch <- addr:
+		}
+	}
+	close(ch)
+	wg.Wait()
+	return done, failed
+}
+
+// SyncAll processes due wallets: pending first, hot on every tick, cold past
+// ColdInterval, errored inside backoff skipped. Continues past per-wallet
+// failures; returns (done, failed).
 func (s *SyncService) SyncAll(ctx context.Context, now time.Time) (done, failed int) {
 	start := time.Now().UTC()
 	defer s.recordRun(start)
-	addrs, err := s.repo.ListRegistryAddresses(ctx, s.venueID)
+	items, err := s.repo.ListSyncQueue(ctx, s.venueID)
 	if err != nil {
 		s.logf("sync list: %v", err)
 		return 0, 0
 	}
-	for _, addr := range addrs {
-		state, err := s.repo.GetSyncState(ctx, s.venueID, addr)
-		if err == nil && state != nil && state.SyncStatus == "error" &&
-			now.Before(state.UpdatedAt.Add(backoffDelay(state.RetryCount))) {
+	var due []string
+	for _, it := range items {
+		if it.Status == "error" && now.Before(it.UpdatedAt.Add(backoffDelay(it.RetryCount))) {
 			continue // cooling down; retried by a later cycle
 		}
-		if err := s.SyncWallet(ctx, addr, now); err != nil {
-			failed++
+		if it.LastSuccess == nil {
+			due = append(due, it.Address) // pending or never succeeded
 			continue
 		}
-		done++
+		tier := tierFor(it.LastTradeAt, true, now, s.opts.ColdAfter)
+		if tier == tierCold && now.Sub(*it.LastSuccess) < s.opts.ColdInterval {
+			continue
+		}
+		due = append(due, it.Address)
 	}
+	done, failed = fanOut(ctx, due, s.opts.Workers, func(addr string) error {
+		return s.SyncWallet(ctx, addr, now)
+	})
 	s.logf("sync finished venue=%s done=%d failed=%d duration_ms=%d",
 		s.venueID, done, failed, time.Since(start).Milliseconds())
 	return done, failed
