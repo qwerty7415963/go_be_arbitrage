@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +22,8 @@ type Store interface {
 	Delete(ctx context.Context, groupID, userID uuid.UUID) error
 	AddMembers(ctx context.Context, groupID, userID uuid.UUID, items []MemberInput) (int64, error)
 	RemoveMembers(ctx context.Context, groupID, userID, venueID uuid.UUID, addrs []string) (int64, error)
-	ListMembers(ctx context.Context, groupID, userID uuid.UUID) ([]*Member, error)
+	UpdateMembers(ctx context.Context, groupID, userID uuid.UUID, items []ValidatedMemberUpdate) (int64, error)
+	ListMembers(ctx context.Context, groupID, userID uuid.UUID, period string) ([]*Member, error)
 	OwnerOf(ctx context.Context, groupID uuid.UUID) (uuid.UUID, error)
 	VenueIDByCode(ctx context.Context, code string) (uuid.UUID, error)
 }
@@ -49,6 +49,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	g.DELETE("/:id", h.Delete)
 	g.POST("/:id/members", h.AddMembers)
 	g.GET("/:id/members", h.ListMembers)
+	g.PATCH("/:id/members", h.UpdateMembers)
 	g.DELETE("/:id/members", h.RemoveMembers)
 }
 
@@ -84,8 +85,6 @@ func groupID(c *gin.Context) (uuid.UUID, bool) {
 	}
 	return id, true
 }
-
-var addrRe = regexp.MustCompile(`^0x[0-9a-f]{40}$`)
 
 // normalizeMember validates one member input (venue required, address
 // lowercased EVM).
@@ -315,11 +314,12 @@ func (h *Handler) AddMembers(c *gin.Context) {
 
 // ListMembers godoc
 // @Summary      List group members
-// @Description  Owned-group memberships with venue codes and display names. Requires JWT.
+// @Description  Owned-group memberships with venue codes, display names and period metrics (null when a wallet has none for the period). Requires JWT.
 // @Tags         trader-groups
 // @Produce      json
 // @Security     BearerAuth
-// @Param        id   path      string  true  "Group ID"
+// @Param        id       path      string  true   "Group ID"
+// @Param        period   query     string  false  "Metric window" enums(1D,7D,30D,ALL) default(30D)
 // @Success      200  {object}  api.Response{data=[]Member}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
@@ -335,7 +335,7 @@ func (h *Handler) ListMembers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	members, err := h.store.ListMembers(c.Request.Context(), id, userID)
+	members, err := h.store.ListMembers(c.Request.Context(), id, userID, c.DefaultQuery("period", "30D"))
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
@@ -399,4 +399,50 @@ func (h *Handler) RemoveMembers(c *gin.Context) {
 		removed += n
 	}
 	api.RespondSuccess(c, map[string]int64{"removed": removed})
+}
+
+// UpdateMembers godoc
+// @Summary      Update group members
+// @Description  Sets alias/note on existing memberships. Per item: absent field keeps, present value sets (trimmed), present empty clears to NULL. Alias max 100 runes, note max 500. Absent memberships are a no-op. Requires JWT.
+// @Tags         trader-groups
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id       path      string                true  "Group ID"
+// @Param        request  body      UpdateMembersRequest  true  "Members to update"
+// @Success      200  {object}  api.Response{data=map[string]int64}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}
+// @Router       /api/v1/trader-groups/{id}/members [patch]
+func (h *Handler) UpdateMembers(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	id, ok := groupID(c)
+	if !ok {
+		return
+	}
+	var req UpdateMembersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid request body"))
+		return
+	}
+	items := make([]ValidatedMemberUpdate, 0, len(req.Members))
+	for _, in := range req.Members {
+		validated, err := in.Validate()
+		if err != nil {
+			api.RespondError(c, appErr(err))
+			return
+		}
+		items = append(items, validated)
+	}
+	updated, err := h.store.UpdateMembers(c.Request.Context(), id, userID, items)
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	api.RespondSuccess(c, map[string]int64{"updated": updated})
 }

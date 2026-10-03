@@ -6275,7 +6275,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Owned-group memberships with venue codes and display names. Requires JWT.",
+                "description": "Owned-group memberships with venue codes, display names and period metrics (null when a wallet has none for the period). Requires JWT.",
                 "produces": [
                     "application/json"
                 ],
@@ -6290,6 +6290,19 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Metric window",
+                        "name": "period",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6552,6 +6565,138 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/internal_tradergroup.AddMembersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer",
+                                                "format": "int64"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets alias/note on existing memberships. Per item: absent field keeps, present value sets (trimmed), present empty clears to NULL. Alias max 100 runes, note max 500. Absent memberships are a no-op. Requires JWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Update group members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Members to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_tradergroup.UpdateMembersRequest"
                         }
                     }
                 ],
@@ -7995,6 +8140,104 @@ const docTemplate = `{
                 },
                 "success": {
                     "type": "boolean"
+                }
+            }
+        },
+        "github_com_qwerty7415963_go_be_arbitrage_internal_trader.DataStatus": {
+            "type": "string",
+            "enum": [
+                "ready",
+                "syncing",
+                "stale",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "DataReady",
+                "DataSyncing",
+                "DataStale",
+                "DataError"
+            ]
+        },
+        "github_com_qwerty7415963_go_be_arbitrage_internal_trader.PeriodMetrics": {
+            "type": "object",
+            "properties": {
+                "avg_holding_time_sec": {
+                    "type": "number"
+                },
+                "avg_trade_pnl": {
+                    "type": "number"
+                },
+                "calculation_version": {
+                    "type": "integer"
+                },
+                "data_status": {
+                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_trader.DataStatus"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "gross_loss": {
+                    "type": "number"
+                },
+                "gross_profit": {
+                    "type": "number"
+                },
+                "is_partial": {
+                    "type": "boolean"
+                },
+                "last_trade_at": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "long_wins": {
+                    "type": "integer"
+                },
+                "max_drawdown_pct": {
+                    "type": "number"
+                },
+                "metrics_as_of": {
+                    "type": "string"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "pnl": {
+                    "type": "number"
+                },
+                "profit_factor": {
+                    "type": "number"
+                },
+                "realized_pnl": {
+                    "type": "number"
+                },
+                "roi": {
+                    "type": "number"
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "short_wins": {
+                    "type": "integer"
+                },
+                "trade_count": {
+                    "type": "integer"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "venue_id": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "wallet_address": {
+                    "type": "string"
+                },
+                "win_rate": {
+                    "type": "number"
                 }
             }
         },
@@ -10215,6 +10458,9 @@ const docTemplate = `{
                 "group_id": {
                     "type": "string"
                 },
+                "metrics": {
+                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_trader.PeriodMetrics"
+                },
                 "note": {
                     "type": "string"
                 },
@@ -10254,6 +10500,34 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_tradergroup.UpdateMemberInput": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "wallet_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_tradergroup.UpdateMembersRequest": {
+            "type": "object",
+            "properties": {
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_tradergroup.UpdateMemberInput"
+                    }
                 }
             }
         },

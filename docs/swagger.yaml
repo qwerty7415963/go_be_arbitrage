@@ -53,6 +53,73 @@ definitions:
       success:
         type: boolean
     type: object
+  github_com_qwerty7415963_go_be_arbitrage_internal_trader.DataStatus:
+    enum:
+    - ready
+    - syncing
+    - stale
+    - error
+    type: string
+    x-enum-varnames:
+    - DataReady
+    - DataSyncing
+    - DataStale
+    - DataError
+  github_com_qwerty7415963_go_be_arbitrage_internal_trader.PeriodMetrics:
+    properties:
+      avg_holding_time_sec:
+        type: number
+      avg_trade_pnl:
+        type: number
+      calculation_version:
+        type: integer
+      data_status:
+        $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_trader.DataStatus'
+      display_name:
+        type: string
+      gross_loss:
+        type: number
+      gross_profit:
+        type: number
+      is_partial:
+        type: boolean
+      last_trade_at:
+        type: string
+      long_count:
+        type: integer
+      long_wins:
+        type: integer
+      max_drawdown_pct:
+        type: number
+      metrics_as_of:
+        type: string
+      period:
+        type: string
+      pnl:
+        type: number
+      profit_factor:
+        type: number
+      realized_pnl:
+        type: number
+      roi:
+        type: number
+      short_count:
+        type: integer
+      short_wins:
+        type: integer
+      trade_count:
+        type: integer
+      venue:
+        type: string
+      venue_id:
+        type: string
+      volume:
+        type: number
+      wallet_address:
+        type: string
+      win_rate:
+        type: number
+    type: object
   internal_auth.AuthResponse:
     properties:
       access_token:
@@ -1574,6 +1641,8 @@ definitions:
         type: string
       group_id:
         type: string
+      metrics:
+        $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_trader.PeriodMetrics'
       note:
         type: string
       venue:
@@ -1600,6 +1669,24 @@ definitions:
         type: string
       name:
         type: string
+    type: object
+  internal_tradergroup.UpdateMemberInput:
+    properties:
+      alias:
+        type: string
+      note:
+        type: string
+      venue:
+        type: string
+      wallet_address:
+        type: string
+    type: object
+  internal_tradergroup.UpdateMembersRequest:
+    properties:
+      members:
+        items:
+          $ref: '#/definitions/internal_tradergroup.UpdateMemberInput'
+        type: array
     type: object
   internal_unifiedstate.DepthLevel:
     properties:
@@ -5500,13 +5587,23 @@ paths:
       tags:
       - trader-groups
     get:
-      description: Owned-group memberships with venue codes and display names. Requires
-        JWT.
+      description: Owned-group memberships with venue codes, display names and period
+        metrics (null when a wallet has none for the period). Requires JWT.
       parameters:
       - description: Group ID
         in: path
         name: id
         required: true
+        type: string
+      - default: 30D
+        description: Metric window
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - ALL
+        in: query
+        name: period
         type: string
       produces:
       - application/json
@@ -5561,6 +5658,80 @@ paths:
       security:
       - BearerAuth: []
       summary: List group members
+      tags:
+      - trader-groups
+    patch:
+      consumes:
+      - application/json
+      description: 'Sets alias/note on existing memberships. Per item: absent field
+        keeps, present value sets (trimmed), present empty clears to NULL. Alias max
+        100 runes, note max 500. Absent memberships are a no-op. Requires JWT.'
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Members to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_tradergroup.UpdateMembersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    format: int64
+                    type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update group members
       tags:
       - trader-groups
     post:

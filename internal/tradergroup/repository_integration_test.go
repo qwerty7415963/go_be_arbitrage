@@ -64,16 +64,20 @@ func testVenueID(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO venues (code, name, venue_type)
-		VALUES ('trader-test-venue', 'Trader Test Venue', 'PERP_DEX')
+		VALUES ('tradergroup-test-venue', 'Tradergroup Test Venue', 'PERP_DEX')
 		ON CONFLICT (code) DO NOTHING`); err != nil {
 		t.Fatalf("venue: %v", err)
 	}
 	tr := trader.NewRepository(pool)
-	id, err := tr.VenueIDByCode(context.Background(), "trader-test-venue")
+	id, err := tr.VenueIDByCode(context.Background(), "tradergroup-test-venue")
 	if err != nil {
 		t.Fatalf("venue: %v", err)
 	}
 	return id
+}
+
+func testAddr() string {
+	return fmt.Sprintf("0x%040x", uint64(time.Now().UnixNano())%0xffff+addrSeq.Add(1)*0x10000)
 }
 
 func seedRegistry(t *testing.T, pool *pgxpool.Pool, venueID uuid.UUID, n int) []string {
@@ -127,24 +131,25 @@ func TestRepo_GroupLifecycle(t *testing.T) {
 	}
 
 	added, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
-		{Venue: "trader-test-venue", WalletAddress: addrs[0], Alias: "whale-1", Note: "watch"},
-		{Venue: "trader-test-venue", WalletAddress: addrs[1]},
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], Alias: "whale-1", Note: "watch"},
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1]},
 	})
 	if err != nil || added != 2 {
 		t.Fatalf("add: %v added=%d", err, added)
 	}
 	// Idempotent re-add keeps alias/note (BE-029).
 	added, err = repo.AddMembers(ctx, g.ID, userA, []MemberInput{
-		{Venue: "trader-test-venue", WalletAddress: addrs[0], Alias: "CHANGED", Note: "CHANGED"},
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], Alias: "CHANGED", Note: "CHANGED"},
 	})
 	if err != nil || added != 0 {
 		t.Fatalf("re-add: %v added=%d", err, added)
 	}
-	members, err := repo.ListMembers(ctx, g.ID, userA)
+	members, err := repo.ListMembers(ctx, g.ID, userA, "")
 	if err != nil || len(members) != 2 {
 		t.Fatalf("members: %v n=%d", err, len(members))
 	}
-	if members[0].Alias != "whale-1" || members[0].Note != "watch" {
+	if members[0].Alias == nil || *members[0].Alias != "whale-1" ||
+		members[0].Note == nil || *members[0].Note != "watch" {
 		t.Errorf("alias/note lost: %+v", members[0])
 	}
 
@@ -208,10 +213,10 @@ func TestRepo_GroupIsolation(t *testing.T) {
 		"delete": func() error { return repo.Delete(ctx, g.ID, userB) },
 		"add": func() error {
 			_, err := repo.AddMembers(ctx, g.ID, userB,
-				[]MemberInput{{Venue: "trader-test-venue", WalletAddress: addrs[0]}})
+				[]MemberInput{{Venue: "tradergroup-test-venue", WalletAddress: addrs[0]}})
 			return err
 		},
-		"members": func() error { _, err := repo.ListMembers(ctx, g.ID, userB); return err },
+		"members": func() error { _, err := repo.ListMembers(ctx, g.ID, userB, ""); return err },
 		"remove": func() error {
 			_, err := repo.RemoveMembers(ctx, g.ID, userB, venueID, addrs)
 			return err
@@ -226,5 +231,153 @@ func TestRepo_GroupIsolation(t *testing.T) {
 	}
 	if _, err := repo.OwnerOf(ctx, g.ID); err != nil {
 		t.Errorf("owner: %v", err)
+	}
+}
+
+// GRP-M-03: set / clear-to-NULL / absent no-op / isolation / unknowns.
+func TestRepo_UpdateMembers(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+	_, userA := testUser(t, pool)
+	_, userB := testUser(t, pool)
+	venueID := testVenueID(t, pool)
+	addrs := seedRegistry(t, pool, venueID, 2)
+
+	g, err := repo.Create(ctx, userA, "PatchMe", "")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM trader_groups WHERE id = $1`, g.ID) })
+	alias := "w1"
+	if _, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], Alias: alias, Note: "n1"},
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1]},
+	}); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	// Set alias on one, clear note on the other (note currently "" — set first).
+	if _, err := repo.UpdateMembers(ctx, g.ID, userA, []ValidatedMemberUpdate{
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1], SetNote: true, Note: "temp"},
+	}); err != nil {
+		t.Fatalf("preset note: %v", err)
+	}
+	updated, err := repo.UpdateMembers(ctx, g.ID, userA, []ValidatedMemberUpdate{
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], SetAlias: true, Alias: "w1x"},
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1], SetNote: true, Note: ""},
+	})
+	if err != nil || updated != 2 {
+		t.Fatalf("update: %v updated=%d", err, updated)
+	}
+	members, _ := repo.ListMembers(ctx, g.ID, userA, "")
+	byAddr := map[string]*Member{}
+	for _, m := range members {
+		byAddr[m.WalletAddress] = m
+	}
+	if byAddr[addrs[0]].Alias == nil || *byAddr[addrs[0]].Alias != "w1x" {
+		t.Errorf("alias set: %+v", byAddr[addrs[0]].Alias)
+	}
+	if byAddr[addrs[1]].Note != nil {
+		t.Errorf("empty clears to NULL: %+v", byAddr[addrs[1]].Note)
+	}
+
+	// Idempotent rerun: same values → 0 changed.
+	updated, err = repo.UpdateMembers(ctx, g.ID, userA, []ValidatedMemberUpdate{
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], SetAlias: true, Alias: "w1x"},
+	})
+	if err != nil || updated != 0 {
+		t.Errorf("no-op rerun: %v updated=%d", err, updated)
+	}
+	// Absent membership (wallet known, not in group) → no-op, not an error.
+	outsider := testAddr()
+	if _, _, err := trader.NewRepository(pool).UpsertRegistry(ctx, venueID, outsider,
+		trader.SourceLeaderboard, nil, nil); err != nil {
+		t.Fatalf("outsider registry: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, outsider)
+	})
+	updated, err = repo.UpdateMembers(ctx, g.ID, userA, []ValidatedMemberUpdate{
+		{Venue: "tradergroup-test-venue", WalletAddress: outsider, SetAlias: true, Alias: "x"},
+	})
+	if err != nil || updated != 0 {
+		t.Errorf("absent member: %v updated=%d", err, updated)
+	}
+	// Unknown venue / unknown wallet fail the batch.
+	if _, err := repo.UpdateMembers(ctx, g.ID, userA, []ValidatedMemberUpdate{
+		{Venue: "nope", WalletAddress: addrs[0], SetAlias: true, Alias: "x"},
+	}); mustCode(t, err) != domain.ErrCodeValidation {
+		t.Errorf("unknown venue: %v", err)
+	}
+	if _, err := repo.UpdateMembers(ctx, g.ID, userA, []ValidatedMemberUpdate{
+		{Venue: "tradergroup-test-venue", WalletAddress: testAddr(), SetAlias: true, Alias: "x"},
+	}); mustCode(t, err) != domain.ErrCodeNotFound {
+		t.Errorf("unknown wallet: %v", err)
+	}
+	// Foreign user → 403.
+	if _, err := repo.UpdateMembers(ctx, g.ID, userB, []ValidatedMemberUpdate{
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], SetAlias: true, Alias: "x"},
+	}); mustCode(t, err) != domain.ErrCodeGroupForbidden {
+		t.Errorf("foreign: %v", err)
+	}
+}
+
+// GRP-M-04: members carry period metrics (null when absent); bad period 400.
+func TestRepo_ListMembers_Metrics(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+	_, userA := testUser(t, pool)
+	venueID := testVenueID(t, pool)
+	addrs := seedRegistry(t, pool, venueID, 2)
+
+	g, err := repo.Create(ctx, userA, "Metrics", "")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM trader_groups WHERE id = $1`, g.ID) })
+	if _, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0]},
+		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1]},
+	}); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	pnl := 12345.0
+	tr := trader.NewRepository(pool)
+	if err := tr.UpsertPeriodMetrics(ctx, &trader.PeriodMetrics{
+		VenueID: venueID, WalletAddress: addrs[0], Period: trader.Period30D,
+		AsOf: time.Now().UTC(), PnL: &pnl,
+		DataStatus: trader.DataReady, CalculationVersion: 1,
+	}); err != nil {
+		t.Fatalf("period: %v", err)
+	}
+
+	members, err := repo.ListMembers(ctx, g.ID, userA, "30D")
+	if err != nil || len(members) != 2 {
+		t.Fatalf("list: %v n=%d", err, len(members))
+	}
+	byAddr := map[string]*Member{}
+	for _, m := range members {
+		byAddr[m.WalletAddress] = m
+	}
+	if byAddr[addrs[0]].Metrics == nil || byAddr[addrs[0]].Metrics.PnL == nil ||
+		*byAddr[addrs[0]].Metrics.PnL != pnl {
+		t.Errorf("metrics present: %+v", byAddr[addrs[0]].Metrics)
+	}
+	if byAddr[addrs[1]].Metrics != nil {
+		t.Errorf("missing metrics must be null: %+v", byAddr[addrs[1]].Metrics)
+	}
+
+	if _, err := repo.ListMembers(ctx, g.ID, userA, "90D"); mustCode(t, err) != domain.ErrCodeInvalidFilter {
+		t.Errorf("bad period: %v", err)
+	}
+	// Empty period defaults to 30D.
+	if _, err := repo.ListMembers(ctx, g.ID, userA, ""); err != nil {
+		t.Errorf("default period: %v", err)
 	}
 }

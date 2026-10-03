@@ -592,8 +592,8 @@ fails on drift in either direction).
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
-| DOCS-S-01 | TestDocs_AnnotationsMatchSwaggerPaths | Set-diff `@Router` ↔ `swagger.json` paths (all `internal/` + `cmd/`) | Both directions empty; counts equal (currently 96) |
-| DOCS-S-02 | TestDocs_SecurityMatchesRoutes | Set-diff secured-in-swagger ↔ `expectedSecured` (47 entries: auth×6, venues×5, strategies×8, risk×9, executions×7, reconciliation×4, trader-groups×8) | Protected without `@Security` → fail; public marked secured → fail; `securityDefinitions.BearerAuth` present |
+| DOCS-S-01 | TestDocs_AnnotationsMatchSwaggerPaths | Set-diff `@Router` ↔ `swagger.json` paths (all `internal/` + `cmd/`) | Both directions empty; counts equal (currently 97) |
+| DOCS-S-02 | TestDocs_SecurityMatchesRoutes | Set-diff secured-in-swagger ↔ `expectedSecured` (48 entries: auth×6, venues×5, strategies×8, risk×9, executions×7, reconciliation×4, trader-groups×9) | Protected without `@Security` → fail; public marked secured → fail; `securityDefinitions.BearerAuth` present |
 
 Swagger-only endpoint groups (documented, no code change): venues/groups
 gained `@Security` + 401/403 rows; opportunity (6, public), strategies (8),
@@ -698,11 +698,24 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 | E2E-T-01 | Discover→groups flow | Fake leaderboard (20 wallets) → discover → sync (mock fills) → search → detail → group add/remove | Counts consistent end-to-end; member aliases persist |
 | E2E-T-02 | Isolation | Two users, trader-groups | Cross-user access rejected (BE-028) |
 
+### 19.8 Group members v2 (BE-1 metrics, BE-2 PATCH)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| GRP-M-01 | UpdateMemberInput.Validate | Absent/present/empty/caps/bad venue/bad address | Tri-state correct; caps 100/500 enforced; 400s |
+| GRP-M-02 | PATCH handler | Shape {updated}, anonymous 403, over-cap 400, foreign 403 | Mappings correct; store untouched on validation fail |
+| GRP-M-03 | UpdateMembers repo | Set + clear-to-NULL + idempotent rerun + absent no-op + unknown venue/wallet + isolation | updated counts exact; 400/404/403 per rule |
+| GRP-M-04 | ListMembers metrics | Member with/without 30D row; bad/empty period | Metrics present/null respectively; 90D → INVALID_FILTER; empty → 30D |
+
 ### 19.7 Retention (DB size control)
 
 Retention tests run against the shared test DB alongside live workers:
 assert only rows the test seeded (address-scoped), never global counts —
-live backfills legitimately write historical days.
+live backfills legitimately write historical days. Each suite uses its own
+test venue (`trader-test-venue`, `tradergroup-test-venue`, `trader-e2e-venue`)
+since packages run in parallel. Register `t.Cleanup(pool.Close)` BEFORE any
+data cleanup: `defer pool.Close()` runs first and deletes silently fail on the
+closed pool, leaking rows.
 
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
@@ -749,6 +762,7 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | Case | Function | Scenario | Expected |
 |------|----------|----------|----------|
 | E2E-T-03 | WS → detail | Fake WS emits trade for unknown wallet | GET /traders/{wallet} 200, source=ws_trade, metrics null |
+| E2E-T-04 | Member patch+metrics | Add w/ alias → GET (metrics present/null) → PATCH set+clear → rerun no-op → period=7D null | {updated} exact; alias set; note NULL; 7D null |
 
 ---
 
@@ -835,9 +849,9 @@ daytime pipelines never silently ingest garbage. CI: `.github/workflows/ci-night
 | Storage | 17 | 2 | 0 | 0 | **19** |
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 4 | 0 | 2 | 0 | **6** |
-| Trader Scanner v1.1 | 29 | 12 | 20 | 3 | **64** |
+| Trader Scanner v1.1 | 30 | 13 | 22 | 4 | **69** |
 | Sync Scale | 3 | 0 | 3 | 0 | **6** |
 | Perf & Nightly (perf/nightly tags) | - | - | - | - | **7** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~299** | **~82** | **~61** | **~25** | **~474** |
+| **TOTAL** | **~300** | **~83** | **~63** | **~26** | **~480** |

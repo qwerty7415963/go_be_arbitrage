@@ -1,15 +1,25 @@
 package tradergroup
 
 import (
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 )
+
+var addrRe = regexp.MustCompile(`^0x[0-9a-f]{40}$`)
 
 // MaxNameRunes caps group names (parity with the legacy groups API).
 const MaxNameRunes = 100
+
+// MaxAliasRunes caps member aliases; MaxNoteRunes caps member notes (BE-2).
+const (
+	MaxAliasRunes = 100
+	MaxNoteRunes  = 500
+)
 
 // Group is one row of trader_groups: user-owned, name unique per user.
 type Group struct {
@@ -21,15 +31,18 @@ type Group struct {
 }
 
 // Member is one row of trader_group_members: (group, venue, address) with an
-// optional alias/note. Metrics are never copied here (spec §8).
+// optional alias/note. Metrics are never copied here (spec §8); the Metrics
+// field is populated per-request from the period cache (null when the wallet
+// has no metrics for the period — same semantics as trader detail).
 type Member struct {
-	GroupID       uuid.UUID `json:"group_id"`
-	VenueID       uuid.UUID `json:"venue_id"`
-	Venue         string    `json:"venue"`
-	WalletAddress string    `json:"wallet_address"`
-	DisplayName   *string   `json:"display_name"`
-	Alias         string    `json:"alias"`
-	Note          string    `json:"note"`
+	GroupID       uuid.UUID             `json:"group_id"`
+	VenueID       uuid.UUID             `json:"venue_id"`
+	Venue         string                `json:"venue"`
+	WalletAddress string                `json:"wallet_address"`
+	DisplayName   *string               `json:"display_name"`
+	Alias         *string               `json:"alias"`
+	Note          *string               `json:"note"`
+	Metrics       *trader.PeriodMetrics `json:"metrics"`
 }
 
 // CreateGroupRequest is POST /api/v1/trader-groups.
@@ -56,6 +69,62 @@ type MemberInput struct {
 	WalletAddress string `json:"wallet_address"`
 	Alias         string `json:"alias"`
 	Note          string `json:"note"`
+}
+
+// UpdateMembersRequest is PATCH /api/v1/trader-groups/{id}/members.
+type UpdateMembersRequest struct {
+	Members []UpdateMemberInput `json:"members"`
+}
+
+// UpdateMemberInput edits one membership's alias/note. Pointers distinguish
+// absent (keep) from present (set; trimmed, empty clears to NULL).
+type UpdateMemberInput struct {
+	Venue         string  `json:"venue"`
+	WalletAddress string  `json:"wallet_address"`
+	Alias         *string `json:"alias"`
+	Note          *string `json:"note"`
+}
+
+// ValidatedMemberUpdate is a normalized PATCH item. Set flags distinguish
+// absent (keep the stored value) from present (set it; trimmed, empty clears
+// to NULL).
+type ValidatedMemberUpdate struct {
+	Venue         string
+	WalletAddress string
+	SetAlias      bool
+	Alias         string
+	SetNote       bool
+	Note          string
+}
+
+// Validate trims and checks caps, returning the normalized tri-state update.
+func (in UpdateMemberInput) Validate() (ValidatedMemberUpdate, error) {
+	var out ValidatedMemberUpdate
+	out.Venue = strings.ToLower(strings.TrimSpace(in.Venue))
+	if out.Venue == "" {
+		return out, domain.NewError(domain.ErrCodeValidation, "member venue is required")
+	}
+	out.WalletAddress = strings.ToLower(strings.TrimSpace(in.WalletAddress))
+	if !addrRe.MatchString(out.WalletAddress) {
+		return out, domain.NewError(domain.ErrCodeValidation, "invalid member address")
+	}
+	if in.Alias != nil {
+		trimmed := strings.TrimSpace(*in.Alias)
+		if utf8.RuneCountInString(trimmed) > MaxAliasRunes {
+			return out, domain.NewError(domain.ErrCodeValidation, "alias exceeds 100 characters")
+		}
+		out.SetAlias = true
+		out.Alias = trimmed
+	}
+	if in.Note != nil {
+		trimmed := strings.TrimSpace(*in.Note)
+		if utf8.RuneCountInString(trimmed) > MaxNoteRunes {
+			return out, domain.NewError(domain.ErrCodeValidation, "note exceeds 500 characters")
+		}
+		out.SetNote = true
+		out.Note = trimmed
+	}
+	return out, nil
 }
 
 func (r *CreateGroupRequest) Validate() error {

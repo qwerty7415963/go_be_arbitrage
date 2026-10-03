@@ -281,6 +281,107 @@ func TestE2E_Trader_Isolation(t *testing.T) {
 	}
 }
 
+// E2E-T-04 (BE-1/BE-2): members carry period metrics; PATCH alias/note
+// round-trips (set → clear-to-null), period param scopes metrics.
+func TestE2E_Trader_MemberPatchAndMetrics(t *testing.T) {
+	s := setupTraderSuite(t)
+	userA := s.userA.String()
+
+	code, resp := s.doJSON(t, "POST", "/api/v1/trader-groups", userA, `{"name":"M"}`)
+	if code != http.StatusCreated {
+		t.Fatalf("create: %d %v", code, resp)
+	}
+	gid := resp["data"].(map[string]any)["id"].(string)
+
+	code, _ = s.doJSON(t, "POST", "/api/v1/trader-groups/"+gid+"/members", userA,
+		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1","note":"n1"},`+
+			`{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[1]+`"}]}`)
+	if code != http.StatusOK {
+		t.Fatalf("add: %d", code)
+	}
+	// Fourth wallet: registry row only (no period metrics) for the null case.
+	bare := fmt.Sprintf("0x71ade%035x", 99)
+	if _, err := s.db.Exec(context.Background(), `
+		INSERT INTO trader_registry (venue_id, wallet_address, discovery_source)
+		VALUES ($1, $2, 'manual')`, s.venueID, bare); err != nil {
+		t.Fatalf("bare registry: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = s.db.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, bare)
+	})
+	code, _ = s.doJSON(t, "POST", "/api/v1/trader-groups/"+gid+"/members", userA,
+		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+bare+`"}]}`)
+	if code != http.StatusOK {
+		t.Fatalf("add bare: %d", code)
+	}
+	code, resp = s.doJSON(t, "GET", "/api/v1/trader-groups/"+gid+"/members", userA, "")
+	if code != http.StatusOK {
+		t.Fatalf("members: %d %v", code, resp)
+	}
+	rows := rowsOf(t, resp)
+	if len(rows) != 3 {
+		t.Fatalf("members: %v", rows)
+	}
+	byAddr := map[string]map[string]any{}
+	for _, r := range rows {
+		m := r.(map[string]any)
+		byAddr[m["wallet_address"].(string)] = m
+	}
+	m0 := byAddr[s.addrs[0]]
+	if m0["alias"] != "w1" || m0["note"] != "n1" {
+		t.Errorf("alias/note: %v", m0)
+	}
+	met, ok := m0["metrics"].(map[string]any)
+	if !ok || met["pnl"] == nil {
+		t.Errorf("metrics present with pnl: %v", m0["metrics"])
+	}
+	if byAddr[bare]["metrics"] != nil {
+		t.Errorf("metrics null without data: %v", byAddr[bare])
+	}
+
+	// PATCH: rename alias + clear note on the same member (both change one row).
+	code, resp = s.doJSON(t, "PATCH", "/api/v1/trader-groups/"+gid+"/members", userA,
+		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1x","note":""}]}`)
+	if code != http.StatusOK {
+		t.Fatalf("patch: %d %v", code, resp)
+	}
+	if resp["data"].(map[string]any)["updated"] != float64(1) {
+		t.Errorf("updated count (one changed row): %v", resp)
+	}
+	code, resp = s.doJSON(t, "GET", "/api/v1/trader-groups/"+gid+"/members", userA, "")
+	rows = rowsOf(t, resp)
+	byAddr = map[string]map[string]any{}
+	for _, r := range rows {
+		m := r.(map[string]any)
+		byAddr[m["wallet_address"].(string)] = m
+	}
+	if byAddr[s.addrs[0]]["alias"] != "w1x" {
+		t.Errorf("alias patched: %v", byAddr[s.addrs[0]])
+	}
+	if byAddr[s.addrs[0]]["note"] != nil {
+		t.Errorf("empty clears to null: %v", byAddr[s.addrs[0]])
+	}
+
+	// Idempotent rerun: same values → 0 changed.
+	code, resp = s.doJSON(t, "PATCH", "/api/v1/trader-groups/"+gid+"/members", userA,
+		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1x"}]}`)
+	if code != http.StatusOK || resp["data"].(map[string]any)["updated"] != float64(0) {
+		t.Errorf("no-op rerun: %d %v", code, resp)
+	}
+
+	// Period scoping: only 30D seeded → 7D metrics null.
+	code, resp = s.doJSON(t, "GET", "/api/v1/trader-groups/"+gid+"/members?period=7D", userA, "")
+	if code != http.StatusOK {
+		t.Fatalf("period: %d %v", code, resp)
+	}
+	for _, r := range rowsOf(t, resp) {
+		if r.(map[string]any)["metrics"] != nil {
+			t.Errorf("7D metrics must be null: %v", r)
+		}
+	}
+}
+
 // E2E-T-03: fake WS trade feed → harvest → registry → detail shows
 // source=ws_trade with null metrics.
 func TestE2E_Trader_WSdiscovery(t *testing.T) {

@@ -103,6 +103,7 @@ var expectedSecured = []string{
 	"PATCH /api/v1/trader-groups/{id}",
 	"DELETE /api/v1/trader-groups/{id}",
 	"POST /api/v1/trader-groups/{id}/members",
+	"PATCH /api/v1/trader-groups/{id}/members",
 	"DELETE /api/v1/trader-groups/{id}/members",
 	"GET /api/v1/trader-groups/{id}/members",
 	// strategy engine (JWT + admin role)

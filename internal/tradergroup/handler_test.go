@@ -15,16 +15,17 @@ import (
 )
 
 type mockStore struct {
-	createFn      func(ctx context.Context, userID uuid.UUID, name, desc string) (*Group, error)
-	listFn        func(ctx context.Context, userID uuid.UUID) ([]*Group, error)
-	getFn         func(ctx context.Context, gid, uid uuid.UUID) (*Group, error)
-	updateFn      func(ctx context.Context, gid, uid uuid.UUID, name, desc *string) (*Group, error)
-	deleteFn      func(ctx context.Context, gid, uid uuid.UUID) error
-	addFn         func(ctx context.Context, gid, uid uuid.UUID, items []MemberInput) (int64, error)
-	removeFn      func(ctx context.Context, gid, uid, venueID uuid.UUID, addrs []string) (int64, error)
-	listMembersFn func(ctx context.Context, gid, uid uuid.UUID) ([]*Member, error)
-	ownerFn       func(ctx context.Context, gid uuid.UUID) (uuid.UUID, error)
-	venueFn       func(ctx context.Context, code string) (uuid.UUID, error)
+	createFn        func(ctx context.Context, userID uuid.UUID, name, desc string) (*Group, error)
+	listFn          func(ctx context.Context, userID uuid.UUID) ([]*Group, error)
+	getFn           func(ctx context.Context, gid, uid uuid.UUID) (*Group, error)
+	updateFn        func(ctx context.Context, gid, uid uuid.UUID, name, desc *string) (*Group, error)
+	deleteFn        func(ctx context.Context, gid, uid uuid.UUID) error
+	addFn           func(ctx context.Context, gid, uid uuid.UUID, items []MemberInput) (int64, error)
+	removeFn        func(ctx context.Context, gid, uid, venueID uuid.UUID, addrs []string) (int64, error)
+	updateMembersFn func(ctx context.Context, gid, uid uuid.UUID, items []ValidatedMemberUpdate) (int64, error)
+	listMembersFn   func(ctx context.Context, gid, uid uuid.UUID) ([]*Member, error)
+	ownerFn         func(ctx context.Context, gid uuid.UUID) (uuid.UUID, error)
+	venueFn         func(ctx context.Context, code string) (uuid.UUID, error)
 }
 
 func (m *mockStore) Create(ctx context.Context, u uuid.UUID, n, d string) (*Group, error) {
@@ -48,7 +49,10 @@ func (m *mockStore) AddMembers(ctx context.Context, g, u uuid.UUID, it []MemberI
 func (m *mockStore) RemoveMembers(ctx context.Context, g, u, v uuid.UUID, a []string) (int64, error) {
 	return m.removeFn(ctx, g, u, v, a)
 }
-func (m *mockStore) ListMembers(ctx context.Context, g, u uuid.UUID) ([]*Member, error) {
+func (m *mockStore) UpdateMembers(ctx context.Context, g, u uuid.UUID, it []ValidatedMemberUpdate) (int64, error) {
+	return m.updateMembersFn(ctx, g, u, it)
+}
+func (m *mockStore) ListMembers(ctx context.Context, g, u uuid.UUID, period string) ([]*Member, error) {
 	return m.listMembersFn(ctx, g, u)
 }
 func (m *mockStore) OwnerOf(ctx context.Context, g uuid.UUID) (uuid.UUID, error) {
@@ -184,5 +188,61 @@ func TestHandler_Delete(t *testing.T) {
 	w2 := doReq(t, testRouter(h2, true), "DELETE", "/api/v1/trader-groups/"+uuid.NewString(), "")
 	if w2.Code != http.StatusInternalServerError {
 		t.Errorf("raw error must map to 500, got %d", w2.Code)
+	}
+}
+
+// GRP-M-02: PATCH members — {updated} shape, validation, auth, isolation.
+func TestHandler_UpdateMembers(t *testing.T) {
+	h := NewHandler(&mockStore{updateMembersFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, items []ValidatedMemberUpdate) (int64, error) {
+		if len(items) != 1 || !items[0].SetAlias || items[0].Alias != "w1" || items[0].SetNote {
+			t.Errorf("tri-state items: %+v", items)
+		}
+		if items[0].Venue != "hyperliquid" {
+			t.Errorf("venue normalized: %+v", items[0])
+		}
+		return 1, nil
+	}})
+	w := doReq(t, testRouter(h, true), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+		`{"members":[{"venue":"Hyperliquid","wallet_address":"0xABCDEF0123456789abcdef0123456789ABCDEF01","alias":"w1"}]}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp["data"].(map[string]any)["updated"] != float64(1) {
+		t.Errorf("shape: %v", resp)
+	}
+
+	// Anonymous → 403.
+	h2 := NewHandler(&mockStore{})
+	w2 := doReq(t, testRouter(h2, false), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+		`{"members":[]}`)
+	if w2.Code != http.StatusForbidden {
+		t.Errorf("anonymous: got %d", w2.Code)
+	}
+
+	// Over-cap alias → 400, store untouched.
+	called := false
+	long := strings.Repeat("x", 101)
+	h3 := NewHandler(&mockStore{updateMembersFn: func(context.Context, uuid.UUID, uuid.UUID, []ValidatedMemberUpdate) (int64, error) {
+		called = true
+		return 0, nil
+	}})
+	w3 := doReq(t, testRouter(h3, true), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+		`{"members":[{"venue":"hyperliquid","wallet_address":"0xabcdef0123456789abcdef0123456789abcdef01","alias":"`+long+`"}]}`)
+	if w3.Code != http.StatusBadRequest || called {
+		t.Errorf("cap: got %d called=%v", w3.Code, called)
+	}
+
+	// Foreign group → 403 via store.
+	h4 := NewHandler(&mockStore{updateMembersFn: func(context.Context, uuid.UUID, uuid.UUID, []ValidatedMemberUpdate) (int64, error) {
+		return 0, domain.NewError(domain.ErrCodeGroupForbidden, "nope")
+	}})
+	w4 := doReq(t, testRouter(h4, true), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+		`{"members":[{"venue":"hyperliquid","wallet_address":"0xabcdef0123456789abcdef0123456789abcdef01"}]}`)
+	if w4.Code != http.StatusForbidden {
+		t.Errorf("foreign: got %d", w4.Code)
 	}
 }

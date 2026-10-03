@@ -12,17 +12,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
-	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 )
 
 var testSecret = []byte("test-cursor-secret-32-bytes!!!")
 
-func searchFixture(t *testing.T) (*Service, *Repository, *tradergroup.Repository, uuid.UUID, uuid.UUID, []string) {
+func searchFixture(t *testing.T) (*Service, *Repository, *stubGroups, uuid.UUID, uuid.UUID, []string) {
 	t.Helper()
 	pool := testPool(t)
 	t.Cleanup(pool.Close)
 	repo := NewRepository(pool)
-	groups := tradergroup.NewRepository(pool)
+	groups := &stubGroups{owners: map[uuid.UUID]uuid.UUID{}}
 	venueID := testVenue(t, pool)
 	user := testUser(t, pool)
 	svc := NewService(repo, groups, testSecret)
@@ -65,6 +64,19 @@ func searchFixture(t *testing.T) (*Service, *Repository, *tradergroup.Repository
 		}
 	}
 	return svc, repo, groups, venueID, user, addrs
+}
+
+// stubGroups is a map-backed GroupOwner (avoids a trader→tradergroup import
+// cycle in tests; real group semantics live in tradergroup's own suite).
+type stubGroups struct {
+	owners map[uuid.UUID]uuid.UUID
+}
+
+func (s *stubGroups) OwnerOf(_ context.Context, gid uuid.UUID) (uuid.UUID, error) {
+	if o, ok := s.owners[gid]; ok {
+		return o, nil
+	}
+	return uuid.Nil, domain.NewError(domain.ErrCodeNotFound, "group not found")
 }
 
 func testUser(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
@@ -231,25 +243,30 @@ func TestService_Search_Errors(t *testing.T) {
 }
 
 // Group filter: members only; anonymous 401; foreign 403; unknown 404.
+// Ownership comes from a stub; real group semantics are covered in the
+// tradergroup suite (this also avoids a test import cycle).
 func TestService_Search_GroupFilter(t *testing.T) {
-	svc, repo, groups, venueID, user, addrs := searchFixture(t)
+	svc, repo, stub, venueID, user, addrs := searchFixture(t)
 	ctx := context.Background()
 
-	g, err := groups.Create(ctx, user, "Alphas", "")
-	if err != nil {
+	gid := uuid.New()
+	if _, err := repo.pool.Exec(ctx, `INSERT INTO trader_groups (id, user_id, name) VALUES ($1, $2, 'Alphas')`,
+		gid, user); err != nil {
 		t.Fatalf("group: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = repo.pool.Exec(ctx, `DELETE FROM trader_groups WHERE id = $1`, g.ID)
+		_, _ = repo.pool.Exec(ctx, `DELETE FROM trader_groups WHERE id = $1`, gid)
 	})
-	if _, err := groups.AddMembers(ctx, g.ID, user, []tradergroup.MemberInput{
-		{Venue: testVenueCode, WalletAddress: addrs[0]},
-		{Venue: testVenueCode, WalletAddress: addrs[1]},
-	}); err != nil {
-		t.Fatalf("members: %v", err)
+	for _, a := range []string{addrs[0], addrs[1]} {
+		if _, err := repo.pool.Exec(ctx, `INSERT INTO trader_group_members
+			(group_id, venue_id, wallet_address) VALUES ($1, $2, $3)`,
+			gid, venueID, a); err != nil {
+			t.Fatalf("member: %v", err)
+		}
 	}
+	stub.owners[gid] = user
 
-	req := &SearchRequest{Limit: 10, GroupID: g.ID.String(), Venue: testVenueCode}
+	req := &SearchRequest{Limit: 10, GroupID: gid.String(), Venue: testVenueCode}
 	res, err := svc.Search(ctx, user, req)
 	if err != nil {
 		t.Fatalf("group search: %v", err)

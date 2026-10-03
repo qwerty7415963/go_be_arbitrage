@@ -41,3 +41,53 @@ func TestUpdateGroupRequest_Validate(t *testing.T) {
 		t.Error("blank name must fail")
 	}
 }
+
+func strPtr(s string) *string { return &s }
+
+// GRP-M-01: absent keeps, present sets, present-empty clears; caps enforced.
+func TestUpdateMemberInput_Validate(t *testing.T) {
+	v, err := UpdateMemberInput{
+		Venue: "Hyperliquid", WalletAddress: "0xABCDEF0123456789abcdef0123456789ABCDEF01",
+	}.Validate()
+	if err != nil {
+		t.Fatalf("minimal: %v", err)
+	}
+	if v.Venue != "hyperliquid" || v.WalletAddress != "0xabcdef0123456789abcdef0123456789abcdef01" {
+		t.Errorf("normalize: %+v", v)
+	}
+	if v.SetAlias || v.SetNote {
+		t.Errorf("absent must not set: %+v", v)
+	}
+
+	v, err = UpdateMemberInput{
+		Venue: "hyperliquid", WalletAddress: "0xabcdef0123456789abcdef0123456789abcdef01",
+		Alias: strPtr("  whale  "), Note: strPtr(""),
+	}.Validate()
+	if err != nil {
+		t.Fatalf("present: %v", err)
+	}
+	if !v.SetAlias || v.Alias != "whale" || !v.SetNote || v.Note != "" {
+		t.Errorf("tri-state: %+v", v)
+	}
+
+	badVenue := UpdateMemberInput{WalletAddress: "0xabcdef0123456789abcdef0123456789abcdef01"}
+	if _, err := badVenue.Validate(); err == nil {
+		t.Error("missing venue must fail")
+	}
+	badAddr := UpdateMemberInput{Venue: "hyperliquid", WalletAddress: "zzz"}
+	if _, err := badAddr.Validate(); err == nil {
+		t.Error("bad address must fail")
+	}
+	long := strings.Repeat("x", 101)
+	if _, err := (UpdateMemberInput{Venue: "hyperliquid",
+		WalletAddress: "0xabcdef0123456789abcdef0123456789abcdef01",
+		Alias:         &long}).Validate(); err == nil {
+		t.Error("alias over cap must fail")
+	}
+	longNote := strings.Repeat("y", 501)
+	if _, err := (UpdateMemberInput{Venue: "hyperliquid",
+		WalletAddress: "0xabcdef0123456789abcdef0123456789abcdef01",
+		Note:          &longNote}).Validate(); err == nil {
+		t.Error("note over cap must fail")
+	}
+}
