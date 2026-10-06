@@ -382,6 +382,68 @@ func TestE2E_Trader_MemberPatchAndMetrics(t *testing.T) {
 	}
 }
 
+// PG-E-01/PG-E-02: numbered walk over HTTP — stateless deep link first
+// (page 2 with no prior cursor state), then page 1, then beyond-total.
+// Each page REPLACES rows; meta.page/total_pages guide the client.
+func TestE2E_Trader_NumberedPagination(t *testing.T) {
+	s := setupTraderSuite(t)
+	userA := s.userA.String()
+
+	search := func(page int) (int, map[string]any) {
+		return s.doJSON(t, "POST", "/api/v1/traders/search", userA,
+			`{"period":"30D","venue":"trader-e2e-venue","sort_by":"pnl","sort_direction":"desc","limit":2,"page":`+
+				fmt.Sprintf("%d", page)+`}`)
+	}
+
+	// PG-E-02 first: page 2 as the very first request (no cursor ever issued).
+	code, resp := search(2)
+	if code != http.StatusOK {
+		t.Fatalf("page 2: %d %v", code, resp)
+	}
+	rows := rowsOf(t, resp)
+	if len(rows) != 1 {
+		t.Fatalf("page 2 of 3/limit 2: want 1 row, got %v", rows)
+	}
+	meta := resp["meta"].(map[string]any)
+	if meta["page"] != 2.0 || meta["total"] != 3.0 || meta["total_pages"] != 2.0 {
+		t.Fatalf("meta: want page=2 total=3 total_pages=2, got %v", meta)
+	}
+	if meta["has_more"] != false {
+		t.Fatalf("last page: has_more must be false: %v", meta)
+	}
+	page2Addr := rows[0].(map[string]any)["wallet_address"].(string)
+
+	// PG-E-01: page 1 holds the other two rows (replace, never append).
+	code, resp = search(1)
+	if code != http.StatusOK {
+		t.Fatalf("page 1: %d %v", code, resp)
+	}
+	rows = rowsOf(t, resp)
+	if len(rows) != 2 {
+		t.Fatalf("page 1: want 2 rows, got %v", rows)
+	}
+	for _, r := range rows {
+		if r.(map[string]any)["wallet_address"].(string) == page2Addr {
+			t.Fatalf("page 1 overlaps page 2: %v", rows)
+		}
+	}
+	if meta = resp["meta"].(map[string]any); meta["has_more"] != true {
+		t.Fatalf("page 1: has_more must be true: %v", meta)
+	}
+
+	// Beyond total → empty data, has_more=false.
+	code, resp = search(3)
+	if code != http.StatusOK {
+		t.Fatalf("page 3: %d %v", code, resp)
+	}
+	if len(rowsOf(t, resp)) != 0 {
+		t.Fatalf("beyond total: want empty, got %v", resp)
+	}
+	if meta = resp["meta"].(map[string]any); meta["has_more"] != false {
+		t.Fatalf("beyond total: has_more must be false: %v", meta)
+	}
+}
+
 // E2E-T-03: fake WS trade feed → harvest → registry → detail shows
 // source=ws_trade with null metrics.
 func TestE2E_Trader_WSdiscovery(t *testing.T) {

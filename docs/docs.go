@@ -6800,7 +6800,7 @@ const docTemplate = `{
         },
         "/api/v1/traders/search": {
             "post": {
-                "description": "Cursor-paginated trader scan over period metrics (spec v1.1). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.",
+                "description": "Trader scan over period metrics (spec v1.1). Two additive pagination modes: legacy keyset cursor (no page field; next page via meta.cursor/has_more) and numbered pages (page >= 1 selects LIMIT/OFFSET with offset=(page-1)*limit; a cursor in the same body is ignored; meta carries page/total/total_pages with total_pages=ceil(total/limit)). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6813,7 +6813,7 @@ const docTemplate = `{
                 "summary": "Search traders (public)",
                 "parameters": [
                     {
-                        "description": "period, venue, min/max filters, sort, limit, cursor",
+                        "description": "period, venue, min/max filters, sort, limit, cursor, page",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10347,6 +10347,9 @@ const docTemplate = `{
                 },
                 "long_win_rate_min": {
                     "type": "number"
+                },
+                "page": {
+                    "type": "integer"
                 },
                 "period": {
                     "type": "string"

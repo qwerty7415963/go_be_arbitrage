@@ -707,6 +707,61 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 | GRP-M-03 | UpdateMembers repo | Set + clear-to-NULL + idempotent rerun + absent no-op + unknown venue/wallet + isolation | updated counts exact; 400/404/403 per rule |
 | GRP-M-04 | ListMembers metrics | Member with/without 30D row; bad/empty period | Metrics present/null respectively; 90D → INVALID_FILTER; empty → 30D |
 
+### 19.9 Numbered pagination (CONTRACT.md 2026-10-06, BE worker)
+
+`POST /api/v1/traders/search` gains an additive numbered-pagination path:
+`page` (`*int`, `>= 1`; absent = legacy keyset path) switches to
+`LIMIT/OFFSET` (`offset = (page-1)*limit`) plus a `COUNT(*)` with identical
+filters for `total` / `total_pages = ceil(total / limit)`. When `page` is
+present the `cursor` in the same body is ignored (precedence: page wins).
+`limit` stays `1..100`. `page > total_pages` (and `total > 0`) returns empty
+data with `has_more=false`. Cursor path is behavior-identical (same rows,
+same `cursor`/`has_more`) and additionally returns `total`/`total_pages`.
+`page` is intentionally NOT part of the cursor `Fingerprint`: the offset path
+is stateless (no sealed cursor to validate), so there is nothing to
+invalidate; the cursor codec/fingerprint for the keyset path is untouched.
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| PG-U-01 | SearchRequest.Normalize/EffectivePage | `{}` (page absent) | `Page` stays nil (cursor path); `EffectivePage()` = 1 |
+| PG-U-02 | SearchRequest.Validate | `page: 0` | INVALID_FILTER 400 |
+| PG-U-03 | SearchRequest.Validate | `page: -1` | INVALID_FILTER 400 |
+| PG-U-04 | SearchRequest.Validate | `page: 1`, `limit: 20` | valid |
+| PG-U-05 | TotalPages | total/limit = 0/20, 41/20, 40/20, 5/10 | 0, 3, 2, 1 |
+| PG-U-06 | buildSearchOffsetQuery | filters + sort pnl desc + limit 2 + offset 2 | Same WHERE fragments as keyset query; `ORDER BY p.pnl DESC NULLS LAST, p.wallet_address ASC`; `LIMIT $n OFFSET $m` |
+| PG-U-07 | buildSearchCountQuery | same filters | `SELECT COUNT(*)` with identical WHERE (no ORDER/LIMIT/cursor predicates) |
+| PG-U-08 | Fingerprint | same filters, page 1 vs page 2 | Equal (page excluded by design; offset path stateless) |
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| PG-H-01 | POST /traders/search | `{"page":2,"limit":2}` (mock rows + total) | 200; `meta.page=2`, `meta.total`, `meta.total_pages`; data = that page only |
+| PG-H-02 | POST /traders/search | `{"page":0}` via service INVALID_FILTER | 400 INVALID_FILTER |
+| PG-H-03 | POST /traders/search | `{"page":"abc"}` (non-int JSON) | 400 INVALID_FILTER (bind-failure shape) |
+| PG-H-04 | POST /traders/search | `{"page":1,"cursor":"forged.cursor"}` (mock ok) | 200 (cursor ignored, offset wins) |
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| PG-I-01 | Service.Search offset walk | 5-row fixture, limit 2, pages 1→2→3 | Exact coverage, no dup/missing; total=5, totalPages=3; has_more true/true/false |
+| PG-I-02 | Service.Search beyond total | page 4, total 5, limit 2 | Empty data, has_more=false, total_pages=3 |
+| PG-I-03 | Service.Search empty set | filter matching 0 rows, page 1 | Empty data, total=0, totalPages=0, has_more=false |
+| PG-I-04 | Service.Search partial tail | page 2, limit 10, total 5 | 5 rows on page 1; page 2 empty (limit > remaining) |
+| PG-I-05 | Service.Search page+cursor | page 1 + forged cursor | 200 offset results (no INVALID_FILTER) |
+| PG-I-06 | Service.Search invalid pages | page 0 / -1 | INVALID_FILTER, no query executed |
+| PG-I-07 | Service.Search stable sort | static fixture, sort pnl desc, limit 2 | Pages 1-2 disjoint and union = top-4; wallet tiebreak stable |
+| PG-I-08 | Service.Search repeatability | same page twice on static data | Identical rows (stateless determinism for FE retry) |
+| PG-I-09 | EXPLAIN COUNT | realistic filters (venue+period+pnl_min) | Index (no seq scan on period metrics); plan + timings in BE report |
+
+| Case | Flow | Steps | Expected |
+|------|------|-------|----------|
+| PG-E-01 | Numbered walk over HTTP | seed 3 rows → page 1 (limit 2) → page 2 → page 3 | 2 rows + total_pages=2 → 1 row → empty + has_more=false; `meta.page` echoes |
+| PG-E-02 | Stateless deep link | page 2 as first request (no prior cursor) | Correct rows without any cursor state |
+
+Out of BE scope (FE owns per CONTRACT §3): rapid page-click latest-wins,
+`?page=` URL state, `page > totalPages` auto-fall to last page, 500-on-page-2
+retry UX. BE contribution: every page request is independent/stateless, so a
+retry of the same page is deterministic (PG-I-08) and total-shrink clamps via
+PG-I-02.
+
 ### 19.7 Retention (DB size control)
 
 Retention tests run against the shared test DB alongside live workers:

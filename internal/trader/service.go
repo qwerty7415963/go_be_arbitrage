@@ -28,14 +28,24 @@ func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte) *Servi
 	return &Service{repo: repo, groups: groups, secret: cursorSecret}
 }
 
-// SearchResult is one page: rows + opaque cursor for the next page.
+// SearchResult is one page: rows + opaque cursor for the next page (keyset
+// path) or page/total/totalPages for the numbered path (CONTRACT.md
+// 2026-10-06). Both paths always carry Total/TotalPages; the keyset path
+// additionally carries NextCursor/HasMore as before, the offset path carries
+// Page and derives HasMore from page < totalPages (NextCursor empty:
+// the offset path is stateless, no cursor to continue from).
 type SearchResult struct {
 	Rows       []*PeriodMetrics `json:"rows"`
 	NextCursor string           `json:"next_cursor,omitempty"`
 	HasMore    bool             `json:"has_more"`
+	Page       int              `json:"page,omitempty"`
+	Total      int64            `json:"total,omitempty"`
+	TotalPages int              `json:"total_pages,omitempty"`
 }
 
-// Search validates, resolves venue/group, applies the keyset cursor and reads
+// Search validates, resolves venue/group, then serves either the legacy
+// keyset path (Page absent, spec §14) or the numbered offset path (Page
+// present: offset = (page-1)*limit, Cursor ignored). Both read
 // period_metrics only (never upstream, spec §14).
 func (s *Service) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
 	req.Normalize()
@@ -62,6 +72,39 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, req *SearchReque
 		}
 		groupID = &gid
 	}
+	if req.UseOffset() {
+		return s.searchOffset(ctx, req, venueID, groupID)
+	}
+	return s.searchKeyset(ctx, req, venueID, groupID)
+}
+
+// searchOffset serves the numbered-pagination path: COUNT(*) with identical
+// filters for the total, then the exact LIMIT/OFFSET window. page >
+// totalPages (and total > 0) yields empty data with has_more=false.
+func (s *Service) searchOffset(ctx context.Context, req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID) (*SearchResult, error) {
+	total, err := s.countTotal(ctx, req, venueID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	page := req.EffectivePage()
+	totalPages := TotalPages(total, req.Limit)
+	res := &SearchResult{Rows: []*PeriodMetrics{}, Page: page, Total: total, TotalPages: totalPages}
+	if total > 0 && page > totalPages {
+		return res, nil
+	}
+	query, args := buildSearchOffsetQuery(req, venueID, groupID, (page-1)*req.Limit)
+	rows, err := s.repo.searchRaw(ctx, query, args)
+	if err != nil {
+		return nil, err
+	}
+	res.Rows = rows
+	res.HasMore = int64((page-1)*req.Limit+len(rows)) < total
+	return res, nil
+}
+
+// searchKeyset serves the legacy cursor path (spec BE-024/025/026), unchanged
+// apart from additionally reporting Total/TotalPages for the shared meta.
+func (s *Service) searchKeyset(ctx context.Context, req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID) (*SearchResult, error) {
 	fp := req.Fingerprint()
 	var curVal *string
 	var curAddr string
@@ -77,7 +120,11 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, req *SearchReque
 	if err != nil {
 		return nil, err
 	}
-	res := &SearchResult{Rows: []*PeriodMetrics{}}
+	total, err := s.countTotal(ctx, req, venueID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	res := &SearchResult{Rows: []*PeriodMetrics{}, Total: total, TotalPages: TotalPages(total, req.Limit)}
 	if len(rows) > req.Limit {
 		res.HasMore = true
 		rows = rows[:req.Limit]
@@ -102,6 +149,12 @@ func (s *Service) Search(ctx context.Context, userID uuid.UUID, req *SearchReque
 		res.NextCursor = cur
 	}
 	return res, nil
+}
+
+// countTotal runs the COUNT(*) with filters identical to the data query.
+func (s *Service) countTotal(ctx context.Context, req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID) (int64, error) {
+	query, args := buildSearchCountQuery(req, venueID, groupID)
+	return s.repo.countSearch(ctx, query, args)
 }
 
 func metricString(sortBy string, m *PeriodMetrics) *string {

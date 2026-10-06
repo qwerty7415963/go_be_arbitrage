@@ -389,6 +389,16 @@ func (r *Repository) ListSyncQueue(ctx context.Context, venueID uuid.UUID) ([]Sy
 	return out, rows.Err()
 }
 
+// countSearch executes a COUNT(*) built by buildSearchCountQuery over the
+// identical filters as the data query (CONTRACT.md B2).
+func (r *Repository) countSearch(ctx context.Context, query string, args []any) (int64, error) {
+	var total int64
+	if err := r.pool.QueryRow(ctx, query, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 // searchRaw executes a query built by buildSearchQuery and scans period rows
 // with venue code + registry display name.
 func (r *Repository) searchRaw(ctx context.Context, query string, args []any) ([]*PeriodMetrics, error) {

@@ -25,15 +25,24 @@ func metricColumn(key string) string {
 	return ""
 }
 
-// buildSearchQuery assembles the keyset-paginated scanner query (pure function,
-// unit-tested). Ordering is always <metric> DIR NULLS LAST + address ASC for a
-// stable snapshot per query (spec BE-025/BE-026).
-func buildSearchQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID, curVal *string, curAddr string) (string, []any) {
-	ac := &searchArgs{}
+// searchSelectCols is the single SELECT projection shared by the keyset and
+// offset data queries (COUNT uses COUNT(*) over the same FROM/WHERE).
+const searchSelectCols = `p.venue_id, v.code, p.wallet_address, r.display_name, p.period,
+		p.as_of, p.pnl, p.realized_pnl, p.roi, p.win_rate, p.trade_count, p.volume, p.gross_profit,
+		p.gross_loss, p.profit_factor, p.avg_trade_pnl, p.long_count, p.long_wins,
+		p.short_count, p.short_wins, p.max_drawdown_pct, p.avg_holding_time_sec,
+		p.last_trade_at, p.data_status, p.is_partial, p.calculation_version`
+
+// searchFilter builds the FROM (+ venue/period/group JOINs) and WHERE
+// (venue, period, every min/max filter) shared by ALL scanner reads: the
+// keyset data query, the offset data query and the COUNT query. Sharing one
+// function guarantees the COUNT sees identical filters (CONTRACT.md B2).
+// Cursor predicates are NOT added here; each data builder adds its own.
+func searchFilter(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID, ac *searchArgs) (from string, where []string, col, dir string) {
 	v := ac.add(venueID)
 	p := ac.add(req.Period)
 
-	from := `FROM trader_period_metrics p
+	from = `FROM trader_period_metrics p
 	JOIN trader_registry r ON r.venue_id = p.venue_id AND r.wallet_address = p.wallet_address
 	JOIN venues v ON v.id = p.venue_id`
 	if groupID != nil {
@@ -42,7 +51,7 @@ func buildSearchQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID,
 	JOIN trader_group_members gm ON gm.venue_id = p.venue_id
 		AND gm.wallet_address = p.wallet_address AND gm.group_id = %s`, g)
 	}
-	where := []string{fmt.Sprintf("p.venue_id = %s", v), fmt.Sprintf("p.period = %s", p)}
+	where = []string{fmt.Sprintf("p.venue_id = %s", v), fmt.Sprintf("p.period = %s", p)}
 
 	rangeF := func(col string, min, max *float64) {
 		if min == nil && max == nil {
@@ -100,11 +109,28 @@ func buildSearchQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID,
 			ac.add(req.LastTradeAfter)))
 	}
 
-	col := metricColumn(req.SortBy)
-	dir := "DESC"
+	col = metricColumn(req.SortBy)
+	dir = "DESC"
 	if req.SortDirection == "asc" {
 		dir = "ASC"
 	}
+	return from, where, col, dir
+}
+
+// orderBy renders the stable sort: metric DIR NULLS LAST + wallet tiebreak,
+// so static datasets page without dup/missing on either path (CONTRACT B3).
+func orderBy(col, dir string) string {
+	return fmt.Sprintf("p.%s %s NULLS LAST, p.wallet_address ASC", col, dir)
+}
+
+// buildSearchQuery assembles the keyset-paginated scanner query (pure function,
+// unit-tested). Ordering is always <metric> DIR NULLS LAST + address ASC for a
+// stable snapshot per query (spec BE-025/BE-026). Behavior is unchanged by the
+// numbered-pagination contract (CONTRACT.md 2026-10-06): same filters, same
+// projection, same LIMIT+1 probing.
+func buildSearchQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID, curVal *string, curAddr string) (string, []any) {
+	ac := &searchArgs{}
+	from, where, col, dir := searchFilter(req, venueID, groupID, ac)
 	cast := "::numeric"
 	if req.SortBy == "last_trade" {
 		cast = "::timestamptz"
@@ -127,12 +153,33 @@ func buildSearchQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID,
 	}
 
 	limit := ac.add(req.Limit + 1)
-	q := fmt.Sprintf(`SELECT p.venue_id, v.code, p.wallet_address, r.display_name, p.period,
-		p.as_of, p.pnl, p.realized_pnl, p.roi, p.win_rate, p.trade_count, p.volume, p.gross_profit,
-		p.gross_loss, p.profit_factor, p.avg_trade_pnl, p.long_count, p.long_wins,
-		p.short_count, p.short_wins, p.max_drawdown_pct, p.avg_holding_time_sec,
-		p.last_trade_at, p.data_status, p.is_partial, p.calculation_version
-	%s WHERE %s ORDER BY p.%s %s NULLS LAST, p.wallet_address ASC LIMIT %s`,
-		from, strings.Join(where, " AND "), col, dir, limit)
+	q := fmt.Sprintf(`SELECT %s
+	%s WHERE %s ORDER BY %s LIMIT %s`,
+		searchSelectCols, from, strings.Join(where, " AND "), orderBy(col, dir), limit)
+	return q, ac.vals
+}
+
+// buildSearchOffsetQuery assembles the numbered-pagination scanner query
+// (CONTRACT.md 2026-10-06, pure function, unit-tested): identical filters and
+// stable ORDER as the keyset path, but exact LIMIT + OFFSET instead of the
+// keyset predicate and LIMIT+1 probing. offset = (page-1)*limit.
+func buildSearchOffsetQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID, offset int) (string, []any) {
+	ac := &searchArgs{}
+	from, where, col, dir := searchFilter(req, venueID, groupID, ac)
+	limit := ac.add(req.Limit)
+	off := ac.add(offset)
+	q := fmt.Sprintf(`SELECT %s
+	%s WHERE %s ORDER BY %s LIMIT %s OFFSET %s`,
+		searchSelectCols, from, strings.Join(where, " AND "), orderBy(col, dir), limit, off)
+	return q, ac.vals
+}
+
+// buildSearchCountQuery assembles SELECT COUNT(*) over the identical
+// FROM/WHERE as the data queries (same searchFilter, no ORDER/LIMIT/cursor),
+// yielding the total for total_pages = ceil(total/limit).
+func buildSearchCountQuery(req *SearchRequest, venueID uuid.UUID, groupID *uuid.UUID) (string, []any) {
+	ac := &searchArgs{}
+	from, where, _, _ := searchFilter(req, venueID, groupID, ac)
+	q := fmt.Sprintf(`SELECT COUNT(*) %s WHERE %s`, from, strings.Join(where, " AND "))
 	return q, ac.vals
 }

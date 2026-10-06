@@ -56,11 +56,11 @@ func appErr(err error) *domain.AppError {
 
 // Search godoc
 // @Summary      Search traders (public)
-// @Description  Cursor-paginated trader scan over period metrics (spec v1.1). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.
+// @Description  Trader scan over period metrics (spec v1.1). Two additive pagination modes: legacy keyset cursor (no page field; next page via meta.cursor/has_more) and numbered pages (page >= 1 selects LIMIT/OFFSET with offset=(page-1)*limit; a cursor in the same body is ignored; meta carries page/total/total_pages with total_pages=ceil(total/limit)). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.
 // @Tags         traders
 // @Accept       json
 // @Produce      json
-// @Param        request  body      SearchRequest  true  "period, venue, min/max filters, sort, limit, cursor"
+// @Param        request  body      SearchRequest  true  "period, venue, min/max filters, sort, limit, cursor, page"
 // @Success      200  {object}  api.Response{data=[]PeriodMetrics,meta=api.Meta}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER"
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003 group filter without token"
@@ -79,6 +79,7 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, api.Response{Success: true, Data: res.Rows, Meta: &api.Meta{
+		Page: res.Page, Total: res.Total, TotalPages: res.TotalPages,
 		Limit: req.Limit, HasMore: res.HasMore, Cursor: res.NextCursor,
 	}})
 }

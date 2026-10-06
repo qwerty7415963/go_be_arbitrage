@@ -55,6 +55,8 @@ func TestSearchRequest_NormalizeValidate(t *testing.T) {
 		{"bad group", func(r *SearchRequest) { r.GroupID = "nope" }},
 		{"bad sort", func(r *SearchRequest) { r.SortBy = "avg_leverage" }},
 		{"bad dir", func(r *SearchRequest) { r.SortDirection = "sideways" }},
+		{"page 0", func(r *SearchRequest) { r.Page = ip(0) }},
+		{"page negative", func(r *SearchRequest) { r.Page = ip(-2) }},
 		{"limit 0", func(r *SearchRequest) { r.Limit = 0; r.Normalize(); r.Limit = 0 }},
 		{"limit 101", func(r *SearchRequest) { r.Limit = 101 }},
 	}
@@ -76,8 +78,76 @@ func TestSearchRequest_NormalizeValidate(t *testing.T) {
 	ok.SortBy = "last_trade"
 	ok.SortDirection = "asc"
 	ok.Limit = 100
+	ok.Page = ip(1)
 	if err := ok.Validate(); err != nil {
 		t.Errorf("boundary-valid request rejected: %v", err)
+	}
+}
+
+// PG-U-01/04: page presence selects the path; absent keeps the keyset path
+// with effective page 1. Page + cursor in one body is VALID here —
+// precedence (page wins, cursor ignored) is enforced by the service.
+func TestSearchRequest_PagePresence(t *testing.T) {
+	r := &SearchRequest{}
+	r.Normalize()
+	if r.Page != nil {
+		t.Error("Normalize must preserve absent page (nil selects keyset path)")
+	}
+	if r.UseOffset() {
+		t.Error("absent page must not select the offset path")
+	}
+	if got := r.EffectivePage(); got != 1 {
+		t.Errorf("absent page: want effective 1, got %d", got)
+	}
+
+	withPage := &SearchRequest{Page: ip(2), Cursor: "stale-or-forged"}
+	withPage.Normalize()
+	if !withPage.UseOffset() {
+		t.Error("present page must select the offset path")
+	}
+	if got := withPage.EffectivePage(); got != 2 {
+		t.Errorf("want effective 2, got %d", got)
+	}
+	if err := withPage.Validate(); err != nil {
+		t.Errorf("page+cursor combo must validate (precedence, not rejection): %v", err)
+	}
+}
+
+// PG-U-05: ceil(total/limit) table.
+func TestTotalPages(t *testing.T) {
+	for _, tc := range []struct {
+		total int64
+		limit int
+		want  int
+	}{
+		{0, 20, 0}, {1, 20, 1}, {20, 20, 1}, {21, 20, 2},
+		{40, 20, 2}, {41, 20, 3}, {5, 10, 1}, {100, 100, 1},
+		{0, 0, 0}, {5, 0, 0},
+	} {
+		if got := TotalPages(tc.total, tc.limit); got != tc.want {
+			t.Errorf("TotalPages(%d,%d): want %d, got %d", tc.total, tc.limit, tc.want, got)
+		}
+	}
+}
+
+// PG-U-08: page is excluded from the fingerprint by design (offset path is
+// stateless); filter/sort changes still invalidate cursors.
+func TestFingerprint_PageExcluded(t *testing.T) {
+	base := &SearchRequest{}
+	base.Normalize()
+	base.Page = ip(1)
+	other := &SearchRequest{}
+	other.Normalize()
+	other.Page = ip(2)
+	if base.Fingerprint() != other.Fingerprint() {
+		t.Error("page must not affect the fingerprint (stateless offset path)")
+	}
+	changed := &SearchRequest{}
+	changed.Normalize()
+	changed.Page = ip(1)
+	changed.PnLMin = f64(1)
+	if base.Fingerprint() == changed.Fingerprint() {
+		t.Error("filter change must still invalidate cursors")
 	}
 }
 
@@ -149,6 +219,7 @@ func TestLBWindowForPeriod(t *testing.T) {
 
 func f64(v float64) *float64 { return &v }
 func i(v int) *int           { return &v }
+func ip(v int) *int          { return &v }
 
 func mustEncode(t *testing.T, secret []byte, fp string, m *string, a string) string {
 	t.Helper()

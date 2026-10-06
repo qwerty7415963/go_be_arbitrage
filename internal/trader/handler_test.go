@@ -122,6 +122,86 @@ func TestHandler_Search_Shape(t *testing.T) {
 	}
 }
 
+// PG-H-01: numbered page shape — data is that page only; meta carries
+// page/total/total_pages alongside limit/has_more.
+func TestHandler_Search_PageMeta(t *testing.T) {
+	pnl := 25000.0
+	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, req *SearchRequest) (*SearchResult, error) {
+		if req.Page == nil || *req.Page != 2 {
+			t.Errorf("page not forwarded: %+v", req.Page)
+		}
+		return &SearchResult{
+			Rows:       []*PeriodMetrics{{WalletAddress: "0xpage2", PnL: &pnl}},
+			HasMore:    false,
+			Page:       2,
+			Total:      3,
+			TotalPages: 2,
+		}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":2,"limit":2}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data []map[string]any `json:"data"`
+		Meta map[string]any   `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Data) != 1 || resp.Data[0]["wallet_address"] != "0xpage2" {
+		t.Errorf("data: %+v", resp.Data)
+	}
+	for k, want := range map[string]any{"page": 2.0, "total": 3.0, "total_pages": 2.0, "limit": 2.0, "has_more": false} {
+		if resp.Meta[k] != want {
+			t.Errorf("meta[%q]: want %v, got %v (meta=%v)", k, want, resp.Meta[k], resp.Meta)
+		}
+	}
+}
+
+// PG-H-02: service-side page validation surfaces as 400 INVALID_FILTER.
+func TestHandler_Search_InvalidPage(t *testing.T) {
+	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, _ *SearchRequest) (*SearchResult, error) {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "page must be >= 1")
+	}})
+	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":0,"limit":20}`)
+	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+}
+
+// PG-H-03: non-int page fails binding with the existing 400 shape, before
+// the service is ever called.
+func TestHandler_Search_NonIntPage(t *testing.T) {
+	called := false
+	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, _ *SearchRequest) (*SearchResult, error) {
+		called = true
+		return &SearchResult{Rows: []*PeriodMetrics{}}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":"abc","limit":20}`)
+	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+	if called {
+		t.Error("service must not run on bind failure")
+	}
+}
+
+// PG-H-04: page + cursor in one body is forwarded as-is (service applies the
+// page-wins precedence); the handler itself never rejects the combination.
+func TestHandler_Search_PageWithCursorForwarded(t *testing.T) {
+	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, req *SearchRequest) (*SearchResult, error) {
+		if req.Page == nil || *req.Page != 1 || req.Cursor != "forged.cursor" {
+			t.Errorf("body not forwarded intact: page=%v cursor=%q", req.Page, req.Cursor)
+		}
+		return &SearchResult{Rows: []*PeriodMetrics{}, Page: 1, Total: 0, TotalPages: 0}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":1,"cursor":"forged.cursor"}`)
+	if w.Code != http.StatusOK {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+}
+
 // TRD-H: detail 404 mapping + bad address 400.
 func TestHandler_Detail_Errors(t *testing.T) {
 	h := NewHandler(&mockService{detailFn: func(_ context.Context, _, _, _ string) (*Detail, error) {

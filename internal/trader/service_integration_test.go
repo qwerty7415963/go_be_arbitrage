@@ -4,12 +4,15 @@ package trader
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
@@ -358,4 +361,363 @@ func TestService_Search_LastTradeSort(t *testing.T) {
 			t.Errorf("not desc by last_trade: %+v", res.Rows)
 		}
 	}
+}
+
+// pageReq builds an offset-path request for the shared fixture venue.
+func pageReq(page, limit int) *SearchRequest {
+	return &SearchRequest{Page: &page, Limit: limit, Venue: testVenueCode}
+}
+
+// PG-I-01/PG-I-07: offset walk pages 1→2→3 over the static 5-row fixture
+// (limit 2, sort pnl desc): exact coverage with no dup/missing, global order
+// stable across pages (wallet tiebreak), total/totalPages/has_more per page,
+// and no cursor issued on the stateless path.
+func TestService_Search_OffsetPages(t *testing.T) {
+	svc, _, _, _, user, _ := searchFixture(t)
+	ctx := context.Background()
+
+	// Fixture pnl desc: 35000, 25000, 15000, 5000, NULL (NULLS LAST).
+	wantOrder := []string{"35000", "25000", "15000", "5000", "<nil>"}
+	var gotOrder []string
+	seen := map[string]bool{}
+	for _, tc := range []struct {
+		page    int
+		rows    int
+		hasMore bool
+	}{{1, 2, true}, {2, 2, true}, {3, 1, false}} {
+		res, err := svc.Search(ctx, user, pageReq(tc.page, 2))
+		if err != nil {
+			t.Fatalf("page %d: %v", tc.page, err)
+		}
+		if res.Page != tc.page || res.Total != 5 || res.TotalPages != 3 {
+			t.Errorf("page %d: want page/total=5/totalPages=3, got %+v", tc.page, res)
+		}
+		if res.HasMore != tc.hasMore {
+			t.Errorf("page %d: want hasMore=%v, got %v", tc.page, tc.hasMore, res.HasMore)
+		}
+		if res.NextCursor != "" {
+			t.Errorf("page %d: offset path must not issue a cursor", tc.page)
+		}
+		if len(res.Rows) != tc.rows {
+			t.Fatalf("page %d: want %d rows, got %d", tc.page, tc.rows, len(res.Rows))
+		}
+		for _, r := range res.Rows {
+			if seen[r.WalletAddress] {
+				t.Fatalf("duplicate row %s across pages", r.WalletAddress)
+			}
+			seen[r.WalletAddress] = true
+			if r.PnL == nil {
+				gotOrder = append(gotOrder, "<nil>")
+			} else {
+				gotOrder = append(gotOrder, fmt.Sprintf("%v", *r.PnL))
+			}
+		}
+	}
+	if len(seen) != 5 {
+		t.Errorf("want 5 distinct rows across pages, got %d", len(seen))
+	}
+	for i := range wantOrder {
+		if gotOrder[i] != wantOrder[i] {
+			t.Errorf("unstable order: want %v, got %v", wantOrder, gotOrder)
+		}
+	}
+}
+
+// PG-I-02: page > totalPages (total > 0) → empty data, has_more=false.
+func TestService_Search_PageBeyondTotal(t *testing.T) {
+	svc, _, _, _, user, _ := searchFixture(t)
+	ctx := context.Background()
+	res, err := svc.Search(ctx, user, pageReq(4, 2))
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(res.Rows) != 0 || res.HasMore || res.NextCursor != "" {
+		t.Errorf("beyond total: want empty + has_more=false, got %+v", res)
+	}
+	if res.Total != 5 || res.TotalPages != 3 || res.Page != 4 {
+		t.Errorf("meta: want total=5 totalPages=3 page=4, got %+v", res)
+	}
+}
+
+// PG-I-03: empty result set → total=0, totalPages=0, empty, has_more=false.
+func TestService_Search_PageEmptyResult(t *testing.T) {
+	svc, _, _, _, user, _ := searchFixture(t)
+	ctx := context.Background()
+	req := pageReq(1, 20)
+	req.PnLMin = f64(1e12)
+	res, err := svc.Search(ctx, user, req)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(res.Rows) != 0 || res.Total != 0 || res.TotalPages != 0 || res.HasMore {
+		t.Errorf("empty: got %+v", res)
+	}
+}
+
+// PG-I-04: limit > remaining — first page holds everything, page 2 is empty.
+func TestService_Search_PageLimitBeyondRemaining(t *testing.T) {
+	svc, _, _, _, user, _ := searchFixture(t)
+	ctx := context.Background()
+	res, err := svc.Search(ctx, user, pageReq(1, 10))
+	if err != nil {
+		t.Fatalf("page 1: %v", err)
+	}
+	if len(res.Rows) != 5 || res.TotalPages != 1 || res.HasMore {
+		t.Errorf("page 1: want 5 rows totalPages=1 hasMore=false, got %+v", res)
+	}
+	res2, err := svc.Search(ctx, user, pageReq(2, 10))
+	if err != nil {
+		t.Fatalf("page 2: %v", err)
+	}
+	if len(res2.Rows) != 0 || res2.HasMore {
+		t.Errorf("page 2: want empty, got %+v", res2)
+	}
+}
+
+// PG-I-05: page + cursor in one body → offset wins even for a forged cursor.
+func TestService_Search_PageIgnoresCursor(t *testing.T) {
+	svc, _, _, _, user, _ := searchFixture(t)
+	ctx := context.Background()
+	req := pageReq(1, 2)
+	req.Cursor = "forged.cursor"
+	res, err := svc.Search(ctx, user, req)
+	if err != nil {
+		t.Fatalf("page must win over cursor (no INVALID_FILTER): %v", err)
+	}
+	if len(res.Rows) != 2 || res.Total != 5 || res.Page != 1 {
+		t.Errorf("offset results: got %+v", res)
+	}
+}
+
+// PG-I-06: page 0 / negative → INVALID_FILTER, no query executed.
+func TestService_Search_PageInvalid(t *testing.T) {
+	svc, _, _, _, user, _ := searchFixture(t)
+	ctx := context.Background()
+	for _, p := range []int{0, -1} {
+		if _, err := svc.Search(ctx, user, pageReq(p, 20)); err == nil {
+			t.Errorf("page %d: expected INVALID_FILTER", p)
+		} else {
+			mustInvalidFilter(t, err)
+		}
+	}
+}
+
+// PG-I-08: same page twice on static data → identical rows (stateless
+// determinism, so an FE retry of a failed page is safe).
+func TestService_Search_PageRepeatable(t *testing.T) {
+	svc, _, _, _, user, _ := searchFixture(t)
+	ctx := context.Background()
+	first, err := svc.Search(ctx, user, pageReq(2, 2))
+	if err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	second, err := svc.Search(ctx, user, pageReq(2, 2))
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if len(first.Rows) != len(second.Rows) {
+		t.Fatalf("row count changed: %d vs %d", len(first.Rows), len(second.Rows))
+	}
+	for i := range first.Rows {
+		if first.Rows[i].WalletAddress != second.Rows[i].WalletAddress {
+			t.Errorf("row %d changed: %s vs %s", i,
+				first.Rows[i].WalletAddress, second.Rows[i].WalletAddress)
+		}
+	}
+}
+
+// PG-I-09 (B3 perf guard): COUNT(*) under realistic scanner filters must not
+// seq-scan trader_period_metrics. Seeds 20k deterministic rows in a dedicated
+// venue (hermetic vs live workers + other tests), ANALYZEs so the planner
+// sees real stats, then EXPLAINs the exact count query the service runs.
+// The raw plan + timing are logged for the BE report.
+func TestService_Search_CountUsesIndex(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+
+	const venueCode = "trader-pagecount-venue"
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO venues (code, name, venue_type)
+		VALUES ('trader-pagecount-venue', 'Trader Pagecount Venue', 'PERP_DEX')
+		ON CONFLICT (code) DO NOTHING`); err != nil {
+		t.Fatalf("venue: %v", err)
+	}
+	var venueID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM venues WHERE code = 'trader-pagecount-venue'`).Scan(&venueID); err != nil {
+		t.Fatalf("venue id: %v", err)
+	}
+
+	const n = 20000
+	addrs := make([]string, n)
+	for i := range addrs {
+		addrs[i] = fmt.Sprintf("0xcc%038x", i+1)
+	}
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM trader_registry WHERE venue_id = $1`, venueID); err != nil {
+		t.Fatalf("pre-clean: %v", err)
+	}
+	if _, err := pool.CopyFrom(ctx,
+		pgx.Identifier{"trader_registry"},
+		[]string{"venue_id", "wallet_address", "discovery_source"},
+		pgx.CopyFromSlice(len(addrs), func(i int) ([]any, error) {
+			return []any{venueID, addrs[i], "leaderboard"}, nil
+		})); err != nil {
+		t.Fatalf("seed registry: %v", err)
+	}
+	now := time.Now().UTC()
+	if _, err := pool.CopyFrom(ctx,
+		pgx.Identifier{"trader_period_metrics"},
+		[]string{"venue_id", "wallet_address", "period", "as_of", "pnl", "win_rate",
+			"volume", "trade_count", "data_status", "calculation_version"},
+		pgx.CopyFromSlice(n, func(i int) ([]any, error) {
+			// Deterministic spread; every 10th row keeps NULL metrics.
+			var pnl, wr, vol any
+			var tc any
+			if i%10 != 0 {
+				p := float64((i*7919)%40000) - 5000
+				w := float64((i*104729)%10000) / 100
+				v := float64((i*1299709)%1000000) + 100
+				c := int64((i*31)%500) + 1
+				pnl, wr, vol, tc = p, w, v, c
+			}
+			return []any{venueID, addrs[i], Period30D, now, pnl, wr, vol, tc, "ready", 1}, nil
+		})); err != nil {
+		t.Fatalf("seed periods: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1`, venueID)
+	})
+	if _, err := pool.Exec(ctx, `ANALYZE trader_period_metrics`); err != nil {
+		t.Fatalf("analyze: %v", err)
+	}
+
+	req := &SearchRequest{Venue: venueCode, Period: Period30D, SortBy: "pnl",
+		SortDirection: "desc", Limit: 20}
+	req.Normalize()
+	req.PnLMin = f64(0)
+	cq, cargs := buildSearchCountQuery(req, venueID, nil)
+
+	explain := func(name, q string, args []any) {
+		t.Helper()
+		var planJSON string
+		start := time.Now()
+		if err := pool.QueryRow(ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+q, args...).Scan(&planJSON); err != nil {
+			t.Fatalf("explain %s: %v", name, err)
+		}
+		t.Logf("%s plan (%s, %d rows venue): %s", name, time.Since(start), n, compactPlan(t, planJSON))
+		if hasSeqScan(t, planJSON, "trader_period_metrics") {
+			t.Errorf("%s seq-scans trader_period_metrics (plan above)", name)
+		}
+	}
+	explain("COUNT pnl-filter", cq, cargs)
+
+	// Offset data query under the same filters (page 3 window).
+	dq, dargs := buildSearchOffsetQuery(req, venueID, nil, 40)
+	explain("DATA pnl-filter offset=40", dq, dargs)
+
+	// Second realistic filter set on another sort metric (win_rate + volume).
+	req2 := &SearchRequest{Venue: venueCode, Period: Period30D, SortBy: "win_rate",
+		SortDirection: "desc", Limit: 20}
+	req2.Normalize()
+	req2.WinRateMin = f64(50)
+	req2.VolumeMin = f64(100000)
+	cq2, cargs2 := buildSearchCountQuery(req2, venueID, nil)
+	explain("COUNT wr+vol-filter", cq2, cargs2)
+
+	// Same filters through the service: total matches the seed, pages add up.
+	svc := NewService(repo, &stubGroups{owners: map[uuid.UUID]uuid.UUID{}}, testSecret)
+	user := testUser(t, pool)
+	got := int64(0)
+	pages := 0
+	for p := 1; ; p++ {
+		r := &SearchRequest{Venue: venueCode, Period: Period30D, SortBy: "pnl",
+			SortDirection: "desc", Limit: 100, Page: &p}
+		r.Normalize()
+		r.PnLMin = f64(0)
+		res, err := svc.Search(ctx, user, r)
+		if err != nil {
+			t.Fatalf("page %d: %v", p, err)
+		}
+		if p == 1 {
+			got = res.Total
+			if want := int((got + 99) / 100); res.TotalPages != want {
+				t.Errorf("totalPages: want %d, got %d", want, res.TotalPages)
+			}
+		} else if res.Total != got {
+			t.Errorf("total changed across pages: %d vs %d", got, res.Total)
+		}
+		pages++
+		if !res.HasMore {
+			break
+		}
+		if pages > 1000 {
+			t.Fatal("offset walk did not terminate")
+		}
+	}
+	t.Logf("offset walk: total=%d pages=%d", got, pages)
+}
+
+// walkPlan walks a decoded EXPLAIN (FORMAT JSON) tree, which nests
+// map[string]any and []any arbitrarily under the top-level "Plan" object.
+func walkPlan(n any, visit func(node map[string]any)) {
+	switch v := n.(type) {
+	case map[string]any:
+		visit(v)
+		for _, c := range v {
+			walkPlan(c, visit)
+		}
+	case []any:
+		for _, c := range v {
+			walkPlan(c, visit)
+		}
+	}
+}
+
+// decodePlan decodes EXPLAIN (FORMAT JSON) output into a generic tree.
+func decodePlan(t *testing.T, planJSON string) any {
+	t.Helper()
+	var tree any
+	if err := json.Unmarshal([]byte(planJSON), &tree); err != nil {
+		t.Fatalf("plan decode: %v", err)
+	}
+	return tree
+}
+
+// hasSeqScan reports whether the JSON plan contains a Seq Scan on rel.
+func hasSeqScan(t *testing.T, planJSON, rel string) bool {
+	t.Helper()
+	found := false
+	walkPlan(decodePlan(t, planJSON), func(node map[string]any) {
+		if node["Node Type"] == "Seq Scan" && node["Relation Name"] == rel {
+			found = true
+		}
+	})
+	return found
+}
+
+// compactPlan extracts node types + timing for readable logs.
+func compactPlan(t *testing.T, planJSON string) string {
+	t.Helper()
+	var out []string
+	walkPlan(decodePlan(t, planJSON), func(v map[string]any) {
+		if nt, ok := v["Node Type"].(string); ok {
+			rel, _ := v["Relation Name"].(string)
+			idx, _ := v["Index Name"].(string)
+			out = append(out, fmt.Sprintf("%s %s %s (cost=%.0f rows=%.0f time=%.3f..%.3f)",
+				nt, rel, idx, num(v["Total Cost"]), num(v["Plan Rows"]),
+				num(v["Actual Startup Time"]), num(v["Actual Total Time"])))
+		}
+	})
+	return strings.Join(out, " -> ")
+}
+
+func num(v any) float64 {
+	if f, ok := v.(float64); ok {
+		return f
+	}
+	return 0
 }

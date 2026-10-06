@@ -186,7 +186,16 @@ var sortableColumns = map[string]string{
 	"last_trade":  "last_trade_at",
 }
 
-// SearchRequest is the POST /api/v1/traders/search body (spec §13 + v1.1 D7).
+// SearchRequest is the POST /api/v1/traders/search body (spec §13 + v1.1 D7
+// + CONTRACT.md 2026-10-06 numbered pagination).
+//
+// Numbered pagination vs keyset cursor (mutually exclusive, additive):
+//   - Page == nil (absent) → legacy keyset path using Cursor (untouched).
+//   - Page != nil (present) → offset path with offset = (page-1)*limit, and
+//     any Cursor in the same body is IGNORED (precedence: page wins, so a
+//     stale/forged cursor can never break a numbered-page request).
+//
+// EffectivePage defaults to 1 when Page is absent.
 type SearchRequest struct {
 	Period          string   `json:"period"`
 	Venue           string   `json:"venue"`
@@ -212,6 +221,7 @@ type SearchRequest struct {
 	SortDirection   string   `json:"sort_direction"`
 	Limit           int      `json:"limit"`
 	Cursor          string   `json:"cursor"`
+	Page            *int     `json:"page,omitempty"`
 }
 
 func invalidFilter(format string, args ...any) error {
@@ -241,6 +251,10 @@ func (r *SearchRequest) Normalize() {
 	if r.Limit == 0 {
 		r.Limit = 50
 	}
+	// Page is deliberately left untouched: nil (absent) selects the legacy
+	// keyset path, non-nil selects the offset path. Defaulting nil to 1 here
+	// would silently reroute cursor-walk continuations (Cursor set, Page
+	// absent) into the offset path and break them; see EffectivePage.
 }
 
 // Validate checks the normalized request (call Normalize first).
@@ -331,11 +345,45 @@ func (r *SearchRequest) Validate() error {
 	if r.Limit < 1 || r.Limit > 100 {
 		return invalidFilter("limit must be 1..100")
 	}
+	if r.Page != nil && *r.Page < 1 {
+		return invalidFilter("page must be >= 1")
+	}
 	return nil
+}
+
+// UseOffset reports whether the numbered-pagination path applies: Page was
+// explicitly present in the body (non-nil). The caller must then ignore
+// Cursor entirely (precedence: page wins).
+func (r *SearchRequest) UseOffset() bool { return r.Page != nil }
+
+// EffectivePage returns the page number, defaulting to 1 when Page is
+// absent (CONTRACT.md: default 1). Routing still uses presence (UseOffset),
+// not this value, so absent keeps meaning the keyset path.
+func (r *SearchRequest) EffectivePage() int {
+	if r.Page == nil {
+		return 1
+	}
+	return *r.Page
+}
+
+// TotalPages returns ceil(total/limit); 0 when there is nothing to page
+// (total == 0) or the limit is invalid.
+func TotalPages(total int64, limit int) int {
+	if total <= 0 || limit <= 0 {
+		return 0
+	}
+	return int((total + int64(limit) - 1) / int64(limit))
 }
 
 // Fingerprint binds a cursor to its query: any filter/sort change invalidates
 // previously issued cursors (spec: stable snapshot per query).
+//
+// Page is intentionally NOT part of the fingerprint (CONTRACT.md §1): the
+// offset path is stateless — it carries no sealed cursor, so there is nothing
+// whose validity could depend on the page number. A filter/sort change
+// between two numbered-page requests simply yields the new result set; no
+// stale-cursor error is possible. The keyset path fingerprint below is
+// unchanged, so old cursors keep validating exactly as before.
 func (r *SearchRequest) Fingerprint() string {
 	canonical, _ := json.Marshal(struct {
 		Period, Venue, LastTradeAfter, GroupID, SortBy, SortDirection    string
