@@ -1444,6 +1444,30 @@ definitions:
       status:
         $ref: '#/definitions/internal_strategy.StrategyStatus'
     type: object
+  internal_trader.ActivityPage:
+    properties:
+      has_more:
+        type: boolean
+      next_cursor:
+        type: string
+      rows:
+        items:
+          type: object
+        type: array
+    type: object
+  internal_trader.PositionSnapshotDTO:
+    properties:
+      as_of:
+        type: string
+      data_status:
+        $ref: '#/definitions/internal_trader.DataStatus'
+      positions:
+        items:
+          type: object
+        type: array
+      summary:
+        type: object
+    type: object
   internal_trader.DataStatus:
     enum:
     - ready
@@ -5866,6 +5890,143 @@ paths:
                   $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
               type: object
       summary: Trader detail (public)
+      tags:
+      - traders
+  /api/v1/traders/{wallet}/activity:
+    get:
+      description: Durable closed trades newest-first with server-computed net_pnl
+        (DETAIL-PLAN §4.1). Keyset pagination on (closed_at DESC, market ASC, opened_at
+        ASC); cursor opaque + HMAC-sealed. Default limit=20, allowed 1..100.
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 20
+        description: Page size 1..100
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque page cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.ActivityPage'
+              type: object
+        "400":
+          description: INVALID_FILTER (limit/cursor)
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader recent activity (public)
+      tags:
+      - traders
+  /api/v1/traders/{wallet}/positions:
+    get:
+      description: Latest open-position snapshot for a watched wallet (DETAIL-PLAN
+        §4.1). Never calls upstream inline; freshness from last_positions_sync_at
+        (NULL/never synced reports data_status=syncing per M5). Summary null when
+        never synced; positions is [] (never null).
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.PositionSnapshotDTO'
+              type: object
+        "400":
+          description: INVALID_FILTER / validation
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader open positions (public)
+      tags:
+      - traders
+  /api/v1/traders/ws:
+    get:
+      description: Realtime fill-level activity for one watched wallet (DETAIL-PLAN
+        §4.2). Query wallet=0x... (lowercased server-side). Server sends {type:subscribed}
+        on connect, then {type:activity} per fill; client {type:ping} gets {type:pong}.
+        Reconnect/resubscribe is the FE's job. No auth (public read).
+      parameters:
+      - description: Watched wallet address (0x...)
+        in: query
+        name: wallet
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: websocket upgrade
+        "400":
+          description: invalid wallet
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader activity stream (public WS)
       tags:
       - traders
   /api/v1/traders/search:

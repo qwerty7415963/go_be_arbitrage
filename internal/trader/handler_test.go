@@ -14,8 +14,10 @@ import (
 )
 
 type mockService struct {
-	searchFn func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
-	detailFn func(ctx context.Context, venue, addr, period string) (*Detail, error)
+	searchFn    func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
+	detailFn    func(ctx context.Context, venue, addr, period string) (*Detail, error)
+	positionsFn func(ctx context.Context, venue, addr string) (*PositionSnapshotDTO, error)
+	activityFn  func(ctx context.Context, venue, addr string, limit int, cursor string) (*ActivityPage, error)
 }
 
 func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
@@ -24,6 +26,20 @@ func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchR
 
 func (m *mockService) Detail(ctx context.Context, venue, addr, period string) (*Detail, error) {
 	return m.detailFn(ctx, venue, addr, period)
+}
+
+func (m *mockService) Positions(ctx context.Context, venue, addr string) (*PositionSnapshotDTO, error) {
+	if m.positionsFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.positionsFn(ctx, venue, addr)
+}
+
+func (m *mockService) Activity(ctx context.Context, venue, addr string, limit int, cursor string) (*ActivityPage, error) {
+	if m.activityFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.activityFn(ctx, venue, addr, limit, cursor)
 }
 
 func testRouter(h *Handler, userID string) *gin.Engine {

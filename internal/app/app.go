@@ -155,6 +155,12 @@ func New(cfg *config.Config) (*App, error) {
 	traderHandler := trader.NewHandler(traderService)
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
 
+	// DETAIL-PLAN A7/A8: realtime activity hub (venue-independent; WS
+	// subscribers = M2 watched set for positions scope).
+	activityHub := trader.NewActivityHub()
+	traderActivitySvc := trader.NewWSActivityService(activityHub)
+	traderHandler.WithWS(trader.NewActivityWSHandler(activityHub))
+
 	var discoverySvc *trader.DiscoveryService
 	var traderSyncSvc *trader.SyncService
 	var hlClient *hyperliquid.Client
@@ -168,10 +174,15 @@ func New(cfg *config.Config) (*App, error) {
 			trader.HLDiscoveryAdapter{C: hlClient}, venueID, traderDiscoveryLimit)
 		traderSyncSvc = trader.NewSyncService(traderRepo,
 			trader.HLFillAdapter{C: hlClient}, venueID, traderSyncOptions()).
-			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient})
+			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient}).
+			WithPositions(trader.HLPositionAdapter{C: hlClient}).
+			WithActivityHub(activityHub)
 		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
 		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
 			func(evs []hyperliquid.WSTradeEvent) { wsHarvest.Submit(trader.AdaptWSBatch(evs)) })
+		// A7: the same trade frames feed harvest (addresses) and realtime
+		// activity (fills for watched wallets); harvest keeps working unchanged.
+		wsStream.SetOnFills(func(fills []hyperliquid.WSTradeFill) { traderActivitySvc.Submit(fills) })
 	}
 
 	// Collector (lazy start - will start on first request context)
@@ -219,6 +230,7 @@ const (
 	traderDiscoveryInterval = 15 * time.Minute
 	traderSyncInterval      = 6 * time.Hour
 	traderSyncWorkers       = 4
+	traderPositionInterval  = 30 * time.Second
 	traderWSRefreshInterval = time.Hour
 	retentionInterval       = 24 * time.Hour
 )
@@ -333,6 +345,9 @@ func (a *App) Run() error {
 	}
 	if a.traderSyncService != nil {
 		go a.traderSyncService.Start(ctx, traderSyncInterval)
+		// M2 fast path: watched wallets (live detail pages) get
+		// near-realtime position snapshots; the 6h SyncAll covers the rest.
+		go a.traderSyncService.StartPositions(ctx, traderPositionInterval)
 	}
 
 	// Start WS trade discovery (V1.1): harvest trade counterparties into the

@@ -89,6 +89,7 @@ type SyncState struct {
 	FillsLastTID        *int64     `json:"fills_last_tid"`
 	LastFillsSyncAt     *time.Time `json:"last_fills_sync_at"`
 	LastPortfolioSyncAt *time.Time `json:"last_portfolio_sync_at"`
+	LastPositionsSyncAt *time.Time `json:"last_positions_sync_at"`
 	BackfillStartTime   *time.Time `json:"backfill_start_time"`
 	BackfillCompletedAt *time.Time `json:"backfill_completed_at"`
 	SyncStatus          string     `json:"sync_status"`

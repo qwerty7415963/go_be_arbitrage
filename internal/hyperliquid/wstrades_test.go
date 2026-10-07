@@ -90,3 +90,56 @@ func TestTradeStream_SubscribeAll(t *testing.T) {
 		t.Errorf("stats: %+v", got)
 	}
 }
+
+// A2: fill-level parse — px/sz/side/tid/hash with skip-malformed semantics.
+// Verified live field names (docs): coin,side,px,sz,hash,time,tid,users=[buyer,seller].
+func TestParseTradeFillFrame(t *testing.T) {
+	body := `{"channel":"trades","data":[
+		{"coin":"BTC","side":"B","px":"60000.5","sz":"0.1","time":1727745600000,"hash":"0xabc","tid":12345,
+		 "users":["0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]},
+		{"coin":"eth","side":"A","px":"3000","sz":"1","time":1727745660000,"hash":"0xdef","tid":12346,
+		 "users":["0xcccccccccccccccccccccccccccccccccccccccc","0xdddddddddddddddddddddddddddddddddddddddd"]},
+		{"coin":"SOL","side":"B","px":"bad","sz":"1","time":1727745660000,"hash":"h","tid":3,
+		 "users":["0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","0xffffffffffffffffffffffffffffffffffffffff"]},
+		{"coin":"ARB","side":"X","px":"1","sz":"1","time":1727745660000,"hash":"h","tid":4,
+		 "users":["0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","0xffffffffffffffffffffffffffffffffffffffff"]},
+		{"coin":"OP","side":"B","px":"1","sz":"0","time":1727745660000,"hash":"h","tid":5,
+		 "users":["0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","0xffffffffffffffffffffffffffffffffffffffff"]}
+	]}`
+	fills, handled, err := parseTradeFillFrame([]byte(body))
+	if err != nil || !handled {
+		t.Fatalf("fills frame: %v %v", err, handled)
+	}
+	if len(fills) != 2 {
+		t.Fatalf("want 2 valid fills (3 malformed skipped), got %d: %+v", len(fills), fills)
+	}
+	btc := fills[0]
+	if btc.Coin != "BTC" || btc.Px != 60000.5 || btc.Sz != 0.1 || btc.Side != "B" ||
+		btc.Tid != 12345 || btc.Hash != "0xabc" ||
+		btc.Buyer != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ||
+		btc.Seller != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Errorf("btc fill: %+v", btc)
+	}
+	eth := fills[1]
+	if eth.Coin != "ETH" {
+		t.Errorf("coin uppercased: %+v", eth)
+	}
+	// users=[buyer,seller] always — no swap on side==A.
+	if eth.Buyer != "0xcccccccccccccccccccccccccccccccccccccccc" ||
+		eth.Seller != "0xdddddddddddddddddddddddddddddddddddddddd" {
+		t.Errorf("buyer/seller attribution (no swap): %+v", eth)
+	}
+
+	for name, frame := range map[string]string{
+		"ack":     `{"channel":"subscriptionResponse","data":{}}`,
+		"garbage": `not json`,
+	} {
+		_, handled, err := parseTradeFillFrame([]byte(frame))
+		if name == "ack" && (err != nil || handled) {
+			t.Errorf("%s: want ignored", name)
+		}
+		if name == "garbage" && err == nil {
+			t.Errorf("%s: want loud error", name)
+		}
+	}
+}

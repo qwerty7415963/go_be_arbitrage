@@ -2,6 +2,10 @@ package trader
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -22,10 +26,21 @@ type Service struct {
 	repo   *Repository
 	groups GroupOwner
 	secret []byte
+	// positionsStaleAfter bounds positions freshness (DETAIL-PLAN A6):
+	// last_positions_sync_at older than this reports stale; NULL reports
+	// syncing (M5). Default 5m (near-realtime 30s refresh for watched).
+	positionsStaleAfter time.Duration
 }
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte) *Service {
-	return &Service{repo: repo, groups: groups, secret: cursorSecret}
+	return &Service{repo: repo, groups: groups, secret: cursorSecret,
+		positionsStaleAfter: 5 * time.Minute}
+}
+
+// WithPositionsStaleAfter overrides the positions stale threshold (tests).
+func (s *Service) WithPositionsStaleAfter(d time.Duration) *Service {
+	s.positionsStaleAfter = d
+	return s
 }
 
 // SearchResult is one page: rows + opaque cursor for the next page (keyset
@@ -226,4 +241,257 @@ type Detail struct {
 	Registry *RegistryEntry `json:"registry"`
 	Metrics  *PeriodMetrics `json:"metrics"`
 	Period   string         `json:"period"`
+}
+
+// PositionDTO is one open position row (snake_case per DETAIL-PLAN §4.1).
+type PositionDTO struct {
+	Coin             string     `json:"coin"`
+	Side             string     `json:"side"`
+	Size             float64    `json:"size"`
+	EntryPrice       *float64   `json:"entry_price"`
+	MarkPrice        *float64   `json:"mark_price"`
+	PositionValue    *float64   `json:"position_value"`
+	UnrealizedPnl    *float64   `json:"unrealized_pnl"`
+	ReturnOnEquity   *float64   `json:"return_on_equity"`
+	LiquidationPrice *float64   `json:"liquidation_price"`
+	Leverage         *float64   `json:"leverage"`
+	MaxLeverage      *float64   `json:"max_leverage"`
+	MarginUsed       *float64   `json:"margin_used"`
+	AsOf             *time.Time `json:"as_of"`
+}
+
+// PositionSummaryDTO is the account-level margin summary (null when never synced).
+type PositionSummaryDTO struct {
+	AccountValue    *float64   `json:"account_value"`
+	TotalNtlPos     *float64   `json:"total_ntl_pos"`
+	TotalMarginUsed *float64   `json:"total_margin_used"`
+	AsOf            *time.Time `json:"as_of"`
+}
+
+// PositionSnapshotDTO is the GET /traders/{wallet}/positions payload (§4.1).
+type PositionSnapshotDTO struct {
+	Summary    *PositionSummaryDTO `json:"summary"`
+	Positions  []PositionDTO       `json:"positions"`
+	DataStatus DataStatus          `json:"data_status"`
+	AsOf       *time.Time          `json:"as_of"`
+}
+
+// ActivityTradeDTO is one durable closed trade with server-computed net_pnl.
+type ActivityTradeDTO struct {
+	Market   string    `json:"market"`
+	Side     string    `json:"side"`
+	OpenedAt time.Time `json:"opened_at"`
+	ClosedAt time.Time `json:"closed_at"`
+	Volume   float64   `json:"volume"`
+	PnL      float64   `json:"pnl"`
+	Fees     float64   `json:"fees"`
+	NetPnl   float64   `json:"net_pnl"`
+	Fills    int       `json:"fills"`
+}
+
+// ActivityPage is the GET /traders/{wallet}/activity payload (§4.1).
+type ActivityPage struct {
+	Rows       []ActivityTradeDTO `json:"rows"`
+	NextCursor string             `json:"next_cursor,omitempty"`
+	HasMore    bool               `json:"has_more"`
+}
+
+// activityCursor is the HMAC-sealed keyset triple
+// (closed_at DESC, market ASC, opened_at ASC).
+type activityCursor struct {
+	FP string `json:"fp"`
+	C  string `json:"c"` // closed_at RFC3339Nano
+	M  string `json:"m"` // market tiebreak
+	O  string `json:"o"` // opened_at RFC3339Nano
+}
+
+func activityFingerprint(venueID uuid.UUID, addr string) string {
+	sum := sha256.Sum256([]byte(venueID.String() + "|" + addr))
+	return fmt.Sprintf("%x", sum[:])
+}
+
+// EncodeActivityCursor seals the page triple (closed_at, market, opened_at).
+func EncodeActivityCursor(secret []byte, fp string, closedAt time.Time, market string, openedAt time.Time) (string, error) {
+	raw, err := json.Marshal(activityCursor{
+		FP: fp, C: closedAt.UTC().Format(time.RFC3339Nano),
+		M: market, O: openedAt.UTC().Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(raw)
+	sig := mac.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(raw) + "." +
+		base64.RawURLEncoding.EncodeToString(sig), nil
+}
+
+// DecodeActivityCursor verifies and opens an activity cursor bound to fp.
+func DecodeActivityCursor(secret []byte, fp, raw string) (closedAt time.Time, market string, openedAt time.Time, err error) {
+	parts := strings.Split(raw, ".")
+	if len(parts) != 2 {
+		return time.Time{}, "", time.Time{}, invalidFilter("malformed cursor")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return time.Time{}, "", time.Time{}, invalidFilter("malformed cursor")
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return time.Time{}, "", time.Time{}, invalidFilter("malformed cursor")
+	}
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(payload)
+	if !hmac.Equal(mac.Sum(nil), sig) {
+		return time.Time{}, "", time.Time{}, invalidFilter("invalid cursor signature")
+	}
+	var c activityCursor
+	if err := json.Unmarshal(payload, &c); err != nil {
+		return time.Time{}, "", time.Time{}, invalidFilter("malformed cursor")
+	}
+	if c.FP != fp {
+		return time.Time{}, "", time.Time{}, invalidFilter("cursor does not match this query")
+	}
+	if c.M == "" {
+		return time.Time{}, "", time.Time{}, invalidFilter("malformed cursor")
+	}
+	ct, err := time.Parse(time.RFC3339Nano, c.C)
+	if err != nil {
+		return time.Time{}, "", time.Time{}, invalidFilter("malformed cursor")
+	}
+	ot, err := time.Parse(time.RFC3339Nano, c.O)
+	if err != nil {
+		return time.Time{}, "", time.Time{}, invalidFilter("malformed cursor")
+	}
+	return ct.UTC(), c.M, ot.UTC(), nil
+}
+
+// Positions returns the latest open-position snapshot (DETAIL-PLAN A6).
+// It never calls upstream inline; freshness comes from
+// trader_sync_state.last_positions_sync_at: NULL (never synced) reports
+// syncing (M5), older than the stale threshold reports stale, else ready.
+// Unknown wallet → 404 (Detail error path).
+func (s *Service) Positions(ctx context.Context, venueCode, rawAddr string) (*PositionSnapshotDTO, error) {
+	addr, err := NormalizeAddress(rawAddr)
+	if err != nil {
+		return nil, err
+	}
+	venueID, err := s.repo.VenueIDByCode(ctx, strings.ToLower(strings.TrimSpace(venueCode)))
+	if err != nil {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
+	}
+	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
+		return nil, err
+	}
+	state, err := s.repo.EnsureSyncState(ctx, venueID, addr)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := s.repo.GetPositionSummary(ctx, venueID, addr)
+	if err != nil {
+		return nil, err
+	}
+	positions, err := s.repo.GetPositions(ctx, venueID, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	status := DataSyncing // M5: never synced reports syncing, never stale.
+	var asOf *time.Time
+	if state != nil && state.LastPositionsSyncAt != nil {
+		status = DataReady
+		if s.positionsStaleAfter > 0 && time.Since(*state.LastPositionsSyncAt) > s.positionsStaleAfter {
+			status = DataStale
+		}
+	}
+	var summaryDTO *PositionSummaryDTO
+	if summary != nil {
+		t := summary.AsOf.UTC()
+		summaryDTO = &PositionSummaryDTO{
+			AccountValue: summary.AccountValue, TotalNtlPos: summary.TotalNtlPos,
+			TotalMarginUsed: summary.TotalMarginUsed, AsOf: &t,
+		}
+		asOf = &t
+	}
+
+	rows := make([]PositionDTO, 0, len(positions))
+	for _, p := range positions {
+		rows = append(rows, PositionDTO{
+			Coin: p.Coin, Side: p.Side, Size: p.Size,
+			EntryPrice: p.EntryPrice, MarkPrice: p.MarkPrice,
+			PositionValue: p.PositionValue, UnrealizedPnl: p.UnrealizedPnl,
+			ReturnOnEquity: p.ReturnOnEquity, LiquidationPrice: p.LiquidationPrice,
+			Leverage: p.Leverage, MaxLeverage: p.MaxLeverage,
+			MarginUsed: p.MarginUsed, AsOf: asOf,
+		})
+	}
+	return &PositionSnapshotDTO{
+		Summary: summaryDTO, Positions: rows, DataStatus: status, AsOf: asOf,
+	}, nil
+}
+
+// Activity returns durable closed trades newest-first with keyset cursor +
+// has_more (DETAIL-PLAN A6). limit defaults to 20, allowed 1..100;
+// net_pnl = pnl - fees computed server-side. Unknown wallet → 404.
+func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, limit int, cursor string) (*ActivityPage, error) {
+	addr, err := NormalizeAddress(rawAddr)
+	if err != nil {
+		return nil, err
+	}
+	if limit == 0 {
+		limit = 20
+	}
+	if limit < 1 || limit > 100 {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
+	}
+	venueID, err := s.repo.VenueIDByCode(ctx, strings.ToLower(strings.TrimSpace(venueCode)))
+	if err != nil {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
+	}
+	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.EnsureSyncState(ctx, venueID, addr); err != nil {
+		return nil, err
+	}
+
+	fp := activityFingerprint(venueID, addr)
+	var afterClosedAt *time.Time
+	var afterMarket string
+	var afterOpenedAt *time.Time
+	if cursor != "" {
+		ct, m, ot, err := DecodeActivityCursor(s.secret, fp, cursor)
+		if err != nil {
+			return nil, err
+		}
+		afterClosedAt, afterMarket, afterOpenedAt = &ct, m, &ot
+	}
+
+	fetched, err := s.repo.ListTrades(ctx, venueID, addr, limit+1, afterClosedAt, afterMarket, afterOpenedAt)
+	if err != nil {
+		return nil, err
+	}
+	hasMore := len(fetched) > limit
+	if hasMore {
+		fetched = fetched[:limit]
+	}
+	rows := make([]ActivityTradeDTO, 0, len(fetched))
+	for _, r := range fetched {
+		rows = append(rows, ActivityTradeDTO{
+			Market: r.Market, Side: r.Side,
+			OpenedAt: r.OpenedAt.UTC(), ClosedAt: r.ClosedAt.UTC(),
+			Volume: r.Volume, PnL: r.PnL, Fees: r.Fees,
+			NetPnl: r.PnL - r.Fees, Fills: r.Fills,
+		})
+	}
+	page := &ActivityPage{Rows: rows, HasMore: hasMore}
+	if hasMore {
+		last := fetched[len(fetched)-1]
+		cur, err := EncodeActivityCursor(s.secret, fp, last.ClosedAt, last.Market, last.OpenedAt)
+		if err != nil {
+			return nil, err
+		}
+		page.NextCursor = cur
+	}
+	return page, nil
 }

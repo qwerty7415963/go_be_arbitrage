@@ -819,6 +819,70 @@ Coin universe from `POST /info {"type":"meta"}` (234 perps observed).
 | E2E-T-03 | WS → detail | Fake WS emits trade for unknown wallet | GET /traders/{wallet} 200, source=ws_trade, metrics null |
 | E2E-T-04 | Member patch+metrics | Add w/ alias → GET (metrics present/null) → PATCH set+clear → rerun no-op → period=7D null | {updated} exact; alias set; note NULL; 7D null |
 
+### 19.10 Trader detail: positions + activity (DETAIL-PLAN.md A1–A9)
+
+Scope (M2): positions sync covers watched wallets (`ActivityHub.WatchSet()`,
+i.e. wallets with a live WS subscriber = currently-viewed detail pages) plus
+recently-traded wallets on their normal sync pass; all other wallets use a
+long interval + jitter (see POS-S-01). Worst-case HL `clearinghouseState`
+rate = watched + due-hot wallets per 30s tick (bounded by the sync worker
+pool, sharing the venue pacer with fills/portfolio — no per-wallet timer).
+Worst-case formula: `|WatchSet| x 1 clearinghouseState per 30s + cold-pass due`
+(e.g. 50 watched wallets → 50 calls/30s ≈ 1.7 rps, plus at most the cold wallets due that tick).
+
+Status (M5): `last_positions_sync_at IS NULL` (never synced) reports
+`data_status=syncing`, never `stale`.
+
+Upstream auth (M8, verified 2026-10-07, report only): `POST https://api.hyperliquid.xyz/info {"type":"webData2","user":"0x0000...0000"}` returns 200 with `clearinghouseState` unauthenticated —
+conclusion: `webData2` is PUBLIC; polling architecture unchanged.
+
+Schema doc: `DATABASE_DESIGN.md` §10.3a updated on disk at `arbitrage-platform-docs/DATABASE_DESIGN.md` lines 722-790 (that dir is gitignored per `.gitignore:20`, so it cannot be committed).
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| POS-U-01 | HLPositionAdapter mapping | `szi` +/−, decimal strings, zero/unparseable `szi` | + → LONG, − → SHORT, size=\|szi\|; bad rows skipped; mark=‖value‖/size; summary parsed |
+| POS-U-02 | parseOpt/DecimalString | `"12.5"`, `20` (number), `""`, `null` | floats / nil, no crash |
+| ACT-U-01 | WSActivityService.Submit | fills with buyer/seller watched/unwatched, self-trade | watched buyer → BUY, watched seller → SELL, self-trade once as BUY; unwatched skipped |
+| ACT-U-02 | ActivityHub publish | full subscriber buffer (bufSize 1) | non-blocking drop, no goroutine block |
+| ACT-U-03 | CompletedTradeRow.NetPnl | pnl=1500, fees=30 | 1470 |
+| POS-S-01 | Position scope (M2) | watched vs unwatched wallets, cold interval + jitter | watched → every 30s; unwatched → every 24h + deterministic hash jitter; first sync always; nil fetcher never |
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| POS-H-01 | GET /traders/{wallet}/positions | synced wallet (mock service) | 200; summary + per-coin rows; `data_status=ready`; `positions` never null |
+| POS-H-02 | GET /traders/{wallet}/positions | unknown wallet | 404 (Detail error path) |
+| POS-H-03 | GET /traders/{wallet}/positions | invalid address | 400 INVALID_FILTER/COMMON-902 |
+| POS-H-04 | GET /traders/{wallet}/positions | never synced (`last_positions_sync_at` NULL) | 200 with `data_status=syncing` (M5), summary null, positions `[]` |
+| ACT-H-01 | GET /traders/{wallet}/activity | default (no limit/cursor) | 200; limit=20; rows newest-first with `net_pnl=pnl-fees`; `has_more` + `next_cursor` |
+| ACT-H-02 | GET /traders/{wallet}/activity | `limit=0` / `limit=101` | 400 INVALID_FILTER |
+| ACT-H-03 | GET /traders/{wallet}/activity | tampered cursor | 400 INVALID_FILTER |
+| ACT-H-04 | GET /traders/{wallet}/activity | unknown wallet | 404 |
+| WS-H-01 | GET /traders/ws (M3) | httptest + real WS dial: connect → `subscribed` → Publish → receive | client gets `{type:subscribed}` then `{type:activity}` with fill fields |
+| WS-H-02 | GET /traders/ws | `{"type":"ping"}` | `{type:pong}` reply |
+| WS-H-03 | GET /traders/ws | close conn | unsubscribed (WatchSet shrinks); invalid wallet → 400, no upgrade |
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| POS-I-01 | ReplacePositions idempotent | same snapshot twice | identical rows (summary + positions) after second run |
+| POS-I-02 | Coin removal | snap A {BTC,ETH} → snap B {BTC} | ETH row deleted, BTC updated |
+| POS-I-03 | FK cascade | DELETE trader_registry row | positions + summary + trades rows gone |
+| POS-I-04 | ReplaceTradesForDay deterministic | same day recomputed twice; then empty list | identical rows; empty recompute deletes stale day rows |
+| ACT-I-01 | ListTrades keyset | 3 closed trades, limit 2 → page 2 via cursor | page 1 = newest 2 + has_more; page 2 = last 1, no dup/skip; order (closed_at DESC, market ASC, opened_at ASC) |
+| ACT-I-02 | PruneTrades | rows older/newer than 15d cutoff | only old rows deleted; count exact |
+| SYNC-I-07 | syncPositions failure | fetcher errors | wallet pass still succeeds; last snapshot kept; `last_positions_sync_at` untouched |
+| SYNC-I-08 | SyncWallet persists trades | fake fills closing a cycle | `trader_trades` rows written; `last_positions_sync_at` set on success |
+
+| Case | Flow | Steps | Expected |
+|------|------|-------|----------|
+| E2E-T-05 | Positions flow (M7) | seed registry + sync-state + positions/summary → GET positions | 200 summary + rows + `data_status`; unknown wallet 404 |
+| E2E-T-06 | Activity flow (M7) | seed 3 closed trades → GET activity limit=2 → follow `next_cursor` | page 1 (2 rows, has_more=true) → page 2 (1 row); `net_pnl` correct; bad cursor 400 |
+
+Env deviations (M6): no cgo/gcc → gates run WITHOUT `-race` (`go test
+-short -count=1`); no `golangci-lint` → `go vet` + `gofmt -l` substitute;
+`swag init` broken on unrelated files → swagger equivalents hand-edited
+(`docs/swagger.json`, `docs/swagger.yaml`, `docs/docs.go` untouched-ids only
+for the 3 new routes).
+
 ---
 
 ## 20. Scale, Perf & Nightly

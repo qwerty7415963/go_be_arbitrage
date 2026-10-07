@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,8 +39,30 @@ type wsEnvelope struct {
 
 type wsTrade struct {
 	Coin  string   `json:"coin"`
+	Px    string   `json:"px"`
+	Sz    string   `json:"sz"`
+	Side  string   `json:"side"` // taker side: B | A
 	Time  int64    `json:"time"`
-	Users []string `json:"users"`
+	Hash  string   `json:"hash"`
+	Tid   int64    `json:"tid"`
+	Users []string `json:"users"` // [buyer, seller] per docs (NOT [taker, maker])
+}
+
+// WSTradeFill is one fill-level trade with price/size/side, for realtime activity.
+// Buyer is always users[0], Seller users[1] ([buyer, seller] per live docs);
+// Side is the taker side (B| A) and does NOT change buyer/seller attribution.
+// (DETAIL-PLAN A2 suggested swapping on side==A assuming users=[taker,maker];
+// live docs + verification show users=[buyer,seller], so no swap.)
+type WSTradeFill struct {
+	Coin   string
+	Px     float64
+	Sz     float64
+	Side   string // "B" | "A" (taker side)
+	Time   time.Time
+	Tid    int64
+	Hash   string
+	Buyer  string
+	Seller string
 }
 
 // parseTradeFrame extracts trade events from one socket frame. handled=false
@@ -75,12 +99,65 @@ func parseTradeFrame(raw []byte) (events []WSTradeEvent, handled bool, err error
 	return events, true, nil
 }
 
+// parseTradeFillFrame extracts fill-level trades (price/size/side/tid/hash)
+// from one socket frame. Same channel/error handling as parseTradeFrame.
+// Malformed rows (bad px/sz, non-positive time, users != 2, unknown side,
+// empty coin) are skipped (same skip-and-count style as HLFillAdapter).
+// The harvest path (parseTradeFrame) is untouched.
+func parseTradeFillFrame(raw []byte) (fills []WSTradeFill, handled bool, err error) {
+	var env wsEnvelope
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if err := dec.Decode(&env); err != nil {
+		return nil, false, fmt.Errorf("hyperliquid ws: bad frame: %w", err)
+	}
+	switch env.Channel {
+	case "trades":
+		handled = true
+	case "error":
+		return nil, false, fmt.Errorf("hyperliquid ws error channel: %s", string(env.Data))
+	default:
+		return nil, false, nil
+	}
+	var trades []wsTrade
+	if err := json.Unmarshal(env.Data, &trades); err != nil {
+		return nil, true, fmt.Errorf("hyperliquid ws: bad trades payload: %w", err)
+	}
+	for _, t := range trades {
+		if len(t.Users) != 2 || t.Time <= 0 {
+			continue
+		}
+		if t.Side != "B" && t.Side != "A" {
+			continue
+		}
+		coin := strings.ToUpper(strings.TrimSpace(t.Coin))
+		if coin == "" {
+			continue
+		}
+		px, err := strconv.ParseFloat(strings.TrimSpace(t.Px), 64)
+		if err != nil || px < 0 {
+			continue
+		}
+		sz, err := strconv.ParseFloat(strings.TrimSpace(t.Sz), 64)
+		if err != nil || sz <= 0 {
+			continue
+		}
+		fills = append(fills, WSTradeFill{
+			Coin: coin, Px: px, Sz: sz, Side: t.Side,
+			Time: time.UnixMilli(t.Time).UTC(), Tid: t.Tid, Hash: t.Hash,
+			Buyer: t.Users[0], Seller: t.Users[1],
+		})
+	}
+	return fills, true, nil
+}
+
 // TradeStream maintains public-trades subscriptions and streams buyer/seller
-// pairs to onTrades. One instance serves one venue.
+// pairs to onTrades. One instance serves one venue. onFills (optional) receives
+// the richer fill-level view of the same frames for realtime activity.
 type TradeStream struct {
 	wsURL    string
 	maxCoins int
 	onTrades func([]WSTradeEvent)
+	onFills  func([]WSTradeFill)
 	logf     func(format string, args ...any)
 
 	mu         sync.Mutex
@@ -106,6 +183,14 @@ func NewTradeStream(wsURL string, maxCoins int, onTrades func([]WSTradeEvent)) *
 		wsURL: wsURL, maxCoins: maxCoins, onTrades: onTrades,
 		subscribed: map[string]bool{}, logf: log.Printf,
 	}
+}
+
+// SetOnFills registers the fill-level callback (realtime activity path).
+// Nil disables it; the harvest path (onTrades) keeps working unchanged.
+func (s *TradeStream) SetOnFills(fn func([]WSTradeFill)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onFills = fn
 }
 
 // TradeStreamStats is a point-in-time snapshot (observability).
@@ -285,6 +370,14 @@ func (s *TradeStream) connect(ctx context.Context) error {
 		s.events.Add(int64(len(events)))
 		if s.onTrades != nil {
 			s.onTrades(events)
+		}
+		s.mu.Lock()
+		onFills := s.onFills
+		s.mu.Unlock()
+		if onFills != nil {
+			if fills, _, ferr := parseTradeFillFrame(raw); ferr == nil && len(fills) > 0 {
+				onFills(fills)
+			}
 		}
 	}
 }

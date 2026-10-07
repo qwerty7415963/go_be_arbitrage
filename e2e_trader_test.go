@@ -4,6 +4,8 @@ package e2e
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -33,6 +35,17 @@ type traderSuite struct {
 
 func traderSeedAddr(i int) string {
 	return fmt.Sprintf("0x71ade%035x", i+1)
+}
+
+// traderRandAddr returns a crypto-rand 0x + 40 hex address (collision-safe
+// across parallel runs; never time-derived).
+func traderRandAddr(t *testing.T) string {
+	t.Helper()
+	var b [20]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		t.Fatalf("rand: %v", err)
+	}
+	return "0x" + hex.EncodeToString(b[:])
 }
 
 func setupTraderSuite(t *testing.T) *traderSuite {
@@ -451,7 +464,7 @@ func TestE2E_Trader_WSdiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	addr := fmt.Sprintf("0x%040x", uint64(time.Now().UnixNano())%0xffffff+0x100000)
+	addr := traderRandAddr(t)
 	t.Cleanup(func() {
 		_, _ = s.db.Exec(context.Background(),
 			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr)
@@ -521,5 +534,127 @@ func TestE2E_Trader_WSdiscovery(t *testing.T) {
 	}
 	if data["metrics"] != nil {
 		t.Errorf("never-synced wallet must have null metrics: %v", data)
+	}
+}
+
+// E2E-T-05 (M7): positions flow — seed registry + sync-state +
+// positions/summary → GET positions 200; unknown wallet 404.
+func TestE2E_Trader_PositionsFlow(t *testing.T) {
+	s := setupTraderSuite(t)
+	ctx := context.Background()
+	repo := trader.NewRepository(s.db)
+	addr := traderRandAddr(t)
+	t.Cleanup(func() {
+		_, _ = s.db.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr)
+	})
+
+	if _, _, err := repo.UpsertRegistry(ctx, s.venueID, addr, trader.SourceLeaderboard, nil, nil); err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	now := time.Now().UTC()
+	av, nt, mu := 12345.6, 5000.0, 800.0
+	snap := &trader.PositionSnapshot{
+		Positions: []trader.Position{
+			{Coin: "BTC", Side: "LONG", Size: 0.5, EntryPrice: &av},
+		},
+		AccountValue: &av, TotalNtlPos: &nt, TotalMarginUsed: &mu, AsOf: now,
+	}
+	if err := repo.ReplacePositions(ctx, s.venueID, addr, snap); err != nil {
+		t.Fatalf("seed positions: %v", err)
+	}
+	if _, err := repo.EnsureSyncState(ctx, s.venueID, addr); err != nil {
+		t.Fatalf("sync state: %v", err)
+	}
+	if _, err := s.db.Exec(ctx, `UPDATE trader_sync_state SET last_positions_sync_at=$3
+		WHERE venue_id=$1 AND wallet_address=$2`, s.venueID, addr, now); err != nil {
+		t.Fatalf("sync timestamp: %v", err)
+	}
+
+	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/positions?venue=trader-e2e-venue", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("positions: %d %v", code, resp)
+	}
+	data := resp["data"].(map[string]any)
+	if data["data_status"] != "ready" {
+		t.Errorf("data_status: %v", data)
+	}
+	if data["summary"] == nil {
+		t.Errorf("summary must be present: %v", data)
+	}
+	rows, ok := data["positions"].([]any)
+	if !ok || len(rows) != 1 || rows[0].(map[string]any)["coin"] != "BTC" {
+		t.Errorf("positions rows: %v", data["positions"])
+	}
+
+	unknown := traderRandAddr(t)
+	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+unknown+"/positions?venue=trader-e2e-venue", "", "")
+	if code != http.StatusNotFound {
+		t.Errorf("unknown wallet must 404, got %d", code)
+	}
+}
+
+// E2E-T-06 (M7): activity flow — seed 3 closed trades → GET activity limit=2
+// → follow next_cursor; net_pnl correct; bad cursor 400.
+func TestE2E_Trader_ActivityFlow(t *testing.T) {
+	s := setupTraderSuite(t)
+	ctx := context.Background()
+	repo := trader.NewRepository(s.db)
+	addr := traderRandAddr(t)
+	t.Cleanup(func() {
+		_, _ = s.db.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr)
+	})
+
+	if _, _, err := repo.UpsertRegistry(ctx, s.venueID, addr, trader.SourceLeaderboard, nil, nil); err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	day1 := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+	day2 := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
+	if err := repo.ReplaceTradesForDay(ctx, s.venueID, addr, day1, []trader.CompletedTrade{
+		{Market: "SOL", Long: true, OpenTime: day1.Add(time.Hour), CloseTime: day1.Add(2 * time.Hour), Volume: 1000, PnL: 50, Fees: 2, Fills: 1},
+	}); err != nil {
+		t.Fatalf("day1: %v", err)
+	}
+	if err := repo.ReplaceTradesForDay(ctx, s.venueID, addr, day2, []trader.CompletedTrade{
+		{Market: "BTC", Long: true, OpenTime: day2.Add(5 * time.Hour), CloseTime: day2.Add(6 * time.Hour), Volume: 30000, PnL: 1500, Fees: 30, Fills: 3},
+		{Market: "ETH", Long: false, OpenTime: day2.Add(time.Hour), CloseTime: day2.Add(2 * time.Hour), Volume: 5000, PnL: -100, Fees: 5, Fills: 2},
+	}); err != nil {
+		t.Fatalf("day2: %v", err)
+	}
+
+	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&limit=2", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("activity p1: %d %v", code, resp)
+	}
+	data := resp["data"].(map[string]any)
+	rows, ok := data["rows"].([]any)
+	if !ok || len(rows) != 2 {
+		t.Fatalf("page 1 rows: %v", data)
+	}
+	if data["has_more"] != true || data["next_cursor"] == nil || data["next_cursor"] == "" {
+		t.Fatalf("page 1 pagination: %v", data)
+	}
+	if rows[0].(map[string]any)["market"] != "BTC" || rows[0].(map[string]any)["net_pnl"] != 1470.0 {
+		t.Errorf("page 1 content: %v", rows)
+	}
+	cursor := data["next_cursor"].(string)
+
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&limit=2&cursor="+cursor, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("activity p2: %d %v", code, resp)
+	}
+	data = resp["data"].(map[string]any)
+	rows, ok = data["rows"].([]any)
+	if !ok || len(rows) != 1 || rows[0].(map[string]any)["market"] != "SOL" {
+		t.Errorf("page 2 rows: %v", data)
+	}
+	if data["has_more"] != false {
+		t.Errorf("page 2 has_more: %v", data)
+	}
+
+	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&cursor=forged.cursor", "", "")
+	if code != http.StatusBadRequest {
+		t.Errorf("bad cursor must 400, got %d", code)
 	}
 }

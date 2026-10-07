@@ -2,6 +2,7 @@ package trader
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -108,12 +109,12 @@ func (r *Repository) GetSyncState(ctx context.Context, venueID uuid.UUID, addr s
 	var s SyncState
 	err := r.pool.QueryRow(ctx, `
 		SELECT venue_id, wallet_address, fills_last_time, fills_last_tid,
-			last_fills_sync_at, last_portfolio_sync_at, backfill_start_time,
+			last_fills_sync_at, last_portfolio_sync_at, last_positions_sync_at, backfill_start_time,
 			backfill_completed_at, sync_status, retry_count, last_error, updated_at
 		FROM trader_sync_state WHERE venue_id = $1 AND wallet_address = $2`,
 		venueID, addr,
 	).Scan(&s.VenueID, &s.WalletAddress, &s.FillsLastTime, &s.FillsLastTID,
-		&s.LastFillsSyncAt, &s.LastPortfolioSyncAt, &s.BackfillStartTime,
+		&s.LastFillsSyncAt, &s.LastPortfolioSyncAt, &s.LastPositionsSyncAt, &s.BackfillStartTime,
 		&s.BackfillCompletedAt, &s.SyncStatus, &s.RetryCount, &s.LastError, &s.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -387,6 +388,231 @@ func (r *Repository) ListSyncQueue(ctx context.Context, venueID uuid.UUID) ([]Sy
 		out = append(out, it)
 	}
 	return out, rows.Err()
+}
+
+// ReplacePositions replaces the whole open-position snapshot for one wallet
+// in ONE transaction (DETAIL-PLAN A4): UPSERT the margin summary, UPSERT
+// each position coin, DELETE coins absent from the snapshot. Empty snapshots
+// still persist the summary and delete all coins (flat account).
+func (r *Repository) ReplacePositions(ctx context.Context, venueID uuid.UUID, addr string, snap *PositionSnapshot) error {
+	if snap == nil {
+		return domain.NewError(domain.ErrCodeValidation, "nil position snapshot")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	asOf := snap.AsOf.UTC()
+	if asOf.IsZero() {
+		asOf = time.Now().UTC()
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO trader_position_summary
+			(venue_id, wallet_address, account_value, total_ntl_pos,
+			 total_margin_used, as_of, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,NOW())
+		ON CONFLICT (venue_id, wallet_address) DO UPDATE SET
+			account_value = EXCLUDED.account_value,
+			total_ntl_pos = EXCLUDED.total_ntl_pos,
+			total_margin_used = EXCLUDED.total_margin_used,
+			as_of = EXCLUDED.as_of, updated_at = NOW()`,
+		venueID, addr, snap.AccountValue, snap.TotalNtlPos,
+		snap.TotalMarginUsed, asOf); err != nil {
+		return err
+	}
+	coins := make([]string, 0, len(snap.Positions))
+	for _, p := range snap.Positions {
+		coin := strings.ToUpper(strings.TrimSpace(p.Coin))
+		if coin == "" {
+			return domain.NewError(domain.ErrCodeValidation, "position coin is required")
+		}
+		if p.Side != "LONG" && p.Side != "SHORT" {
+			return domain.NewError(domain.ErrCodeValidation, "invalid position side "+p.Side+": want LONG|SHORT")
+		}
+		coins = append(coins, coin)
+		side := p.Side
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO trader_positions
+				(venue_id, wallet_address, coin, side, size, entry_price,
+				 mark_price, position_value, unrealized_pnl, return_on_equity,
+				 liquidation_price, leverage, max_leverage, margin_used,
+				 as_of, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+			ON CONFLICT (venue_id, wallet_address, coin) DO UPDATE SET
+				side = EXCLUDED.side, size = EXCLUDED.size,
+				entry_price = EXCLUDED.entry_price, mark_price = EXCLUDED.mark_price,
+				position_value = EXCLUDED.position_value,
+				unrealized_pnl = EXCLUDED.unrealized_pnl,
+				return_on_equity = EXCLUDED.return_on_equity,
+				liquidation_price = EXCLUDED.liquidation_price,
+				leverage = EXCLUDED.leverage, max_leverage = EXCLUDED.max_leverage,
+				margin_used = EXCLUDED.margin_used, as_of = EXCLUDED.as_of,
+				updated_at = NOW()`,
+			venueID, addr, coin, side, p.Size, p.EntryPrice,
+			p.MarkPrice, p.PositionValue, p.UnrealizedPnl, p.ReturnOnEquity,
+			p.LiquidationPrice, p.Leverage, p.MaxLeverage, p.MarginUsed,
+			asOf); err != nil {
+			return err
+		}
+	}
+	if len(coins) == 0 {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM trader_positions
+			WHERE venue_id = $1 AND wallet_address = $2`,
+			venueID, addr); err != nil {
+			return err
+		}
+	} else {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM trader_positions
+			WHERE venue_id = $1 AND wallet_address = $2
+			  AND coin <> ALL($3)`,
+			venueID, addr, coins); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// GetPositions returns the latest snapshot coins oldest-coin-first
+// (deterministic for the REST DTO). Empty (never empty-nil) when none.
+func (r *Repository) GetPositions(ctx context.Context, venueID uuid.UUID, addr string) ([]Position, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT coin, side, size, entry_price, mark_price, position_value,
+			unrealized_pnl, return_on_equity, liquidation_price, leverage,
+			max_leverage, margin_used
+		FROM trader_positions
+		WHERE venue_id = $1 AND wallet_address = $2
+		ORDER BY coin ASC`,
+		venueID, addr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Position{}
+	for rows.Next() {
+		var p Position
+		if err := rows.Scan(&p.Coin, &p.Side, &p.Size, &p.EntryPrice,
+			&p.MarkPrice, &p.PositionValue, &p.UnrealizedPnl, &p.ReturnOnEquity,
+			&p.LiquidationPrice, &p.Leverage, &p.MaxLeverage, &p.MarginUsed); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// GetPositionSummary loads the account margin summary (nil, nil when never
+// synced).
+func (r *Repository) GetPositionSummary(ctx context.Context, venueID uuid.UUID, addr string) (*PositionSummary, error) {
+	var s PositionSummary
+	err := r.pool.QueryRow(ctx, `
+		SELECT account_value, total_ntl_pos, total_margin_used, as_of
+		FROM trader_position_summary
+		WHERE venue_id = $1 AND wallet_address = $2`,
+		venueID, addr,
+	).Scan(&s.AccountValue, &s.TotalNtlPos, &s.TotalMarginUsed, &s.AsOf)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &s, nil
+}
+
+// ReplaceTradesForDay replaces all durable closed trades whose close time
+// falls on day (UTC) in ONE transaction: DELETE the day window, then INSERT
+// the recomputed list. Empty lists still delete (a recompute that closed the
+// cycle must clear stale rows). Crash-safe recompute (DETAIL-PLAN A4).
+func (r *Repository) ReplaceTradesForDay(ctx context.Context, venueID uuid.UUID, addr string, day time.Time, trades []CompletedTrade) error {
+	day = day.UTC().Truncate(24 * time.Hour)
+	next := day.Add(24 * time.Hour)
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM trader_trades
+		WHERE venue_id = $1 AND wallet_address = $2
+		  AND closed_at >= $3 AND closed_at < $4`,
+		venueID, addr, day, next); err != nil {
+		return err
+	}
+	for _, t := range trades {
+		side := "SHORT"
+		if t.Long {
+			side = "LONG"
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO trader_trades
+				(venue_id, wallet_address, market, side, opened_at, closed_at,
+				 volume, pnl, fees, fills, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+			ON CONFLICT (venue_id, wallet_address, market, opened_at, closed_at)
+			DO UPDATE SET volume = EXCLUDED.volume, pnl = EXCLUDED.pnl,
+				fees = EXCLUDED.fees, fills = EXCLUDED.fills,
+				side = EXCLUDED.side, updated_at = NOW()`,
+			venueID, addr, t.Market, side, t.OpenTime.UTC(), t.CloseTime.UTC(),
+			t.Volume, t.PnL, t.Fees, t.Fills); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// ListTrades returns closed trades newest-first with keyset pagination on
+// (closed_at DESC, market ASC, opened_at ASC). Pass afterClosedAt == nil for
+// the first page; otherwise the cursor triple from the previous page's last
+// row. The caller fetches limit+1 to detect has_more (DETAIL-PLAN A4).
+func (r *Repository) ListTrades(ctx context.Context, venueID uuid.UUID, addr string, limit int, afterClosedAt *time.Time, afterMarket string, afterOpenedAt *time.Time) ([]CompletedTradeRow, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	var afterOpened time.Time
+	if afterOpenedAt != nil {
+		afterOpened = afterOpenedAt.UTC()
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT market, side, opened_at, closed_at, volume, pnl, fees, fills
+		FROM trader_trades
+		WHERE venue_id = $1 AND wallet_address = $2
+		  AND ($3::timestamptz IS NULL
+			OR closed_at < $3
+			OR (closed_at = $3 AND market > $4)
+			OR (closed_at = $3 AND market = $4 AND opened_at > $5))
+		ORDER BY closed_at DESC, market ASC, opened_at ASC
+		LIMIT $6`,
+		venueID, addr, afterClosedAt, afterMarket, afterOpened, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CompletedTradeRow{}
+	for rows.Next() {
+		var row CompletedTradeRow
+		if err := rows.Scan(&row.Market, &row.Side, &row.OpenedAt, &row.ClosedAt,
+			&row.Volume, &row.PnL, &row.Fees, &row.Fills); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+// PruneTrades deletes durable closed trades with closed_at before cutoff
+// (15-day retention, DETAIL-PLAN D5). Returns deleted rows.
+func (r *Repository) PruneTrades(ctx context.Context, venueID uuid.UUID, addr string, before time.Time) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `
+		DELETE FROM trader_trades
+		WHERE venue_id = $1 AND wallet_address = $2 AND closed_at < $3`,
+		venueID, addr, before.UTC())
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // countSearch executes a COUNT(*) built by buildSearchCountQuery over the
