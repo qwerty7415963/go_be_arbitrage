@@ -31,7 +31,7 @@ func decodeData(t *testing.T, wBody []byte) map[string]any {
 // POS-H-01: synced wallet returns summary + rows, positions never null.
 func TestHandler_Positions_Success(t *testing.T) {
 	now := time.Now().UTC()
-	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _ string) (*PositionSnapshotDTO, error) {
+	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return &PositionSnapshotDTO{
 			Summary:    &PositionSummaryDTO{AccountValue: fptrDTO(12345.6), TotalNtlPos: fptrDTO(5000), TotalMarginUsed: fptrDTO(800), AsOf: &now},
 			Positions:  []PositionDTO{{Coin: "BTC", Side: "LONG", Size: 0.5}},
@@ -55,7 +55,7 @@ func TestHandler_Positions_Success(t *testing.T) {
 
 // POS-H-02: unknown wallet -> 404.
 func TestHandler_Positions_UnknownWallet(t *testing.T) {
-	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _ string) (*PositionSnapshotDTO, error) {
+	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "trader not found")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
@@ -66,7 +66,7 @@ func TestHandler_Positions_UnknownWallet(t *testing.T) {
 
 // POS-H-03: invalid address -> 400.
 func TestHandler_Positions_InvalidAddress(t *testing.T) {
-	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _ string) (*PositionSnapshotDTO, error) {
+	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return nil, domain.NewError(domain.ErrCodeValidation, "invalid wallet address")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/not-an-address/positions", "")
@@ -77,7 +77,7 @@ func TestHandler_Positions_InvalidAddress(t *testing.T) {
 
 // POS-H-04: never synced -> syncing, summary null, positions [].
 func TestHandler_Positions_NeverSynced(t *testing.T) {
-	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _ string) (*PositionSnapshotDTO, error) {
+	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return &PositionSnapshotDTO{Summary: nil, Positions: []PositionDTO{}, DataStatus: DataSyncing}, nil
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
@@ -99,9 +99,9 @@ func TestHandler_Positions_NeverSynced(t *testing.T) {
 
 // ACT-H-01: default limit 20, net_pnl computed, has_more + next_cursor.
 func TestHandler_Activity_Success(t *testing.T) {
-	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, limit int, _ string) (*ActivityPage, error) {
-		if limit != 20 {
-			t.Errorf("default limit must be 20, got %d", limit)
+	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, q ActivityQuery) (*ActivityPage, error) {
+		if q.Limit != 20 {
+			t.Errorf("default limit must be 20, got %d", q.Limit)
 		}
 		now := time.Now().UTC()
 		return &ActivityPage{
@@ -132,7 +132,7 @@ func TestHandler_Activity_BadLimit(t *testing.T) {
 		"/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=101",
 		"/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=abc",
 	} {
-		h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ int, _ string) (*ActivityPage, error) {
+		h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ ActivityQuery) (*ActivityPage, error) {
 			return nil, domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
 		}})
 		w := doReq(t, testRouter(h, ""), "GET", target, "")
@@ -144,7 +144,7 @@ func TestHandler_Activity_BadLimit(t *testing.T) {
 
 // ACT-H-03: tampered cursor -> 400.
 func TestHandler_Activity_BadCursor(t *testing.T) {
-	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ int, _ string) (*ActivityPage, error) {
+	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ ActivityQuery) (*ActivityPage, error) {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid cursor signature")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?cursor=forged.cursor", "")
@@ -155,7 +155,7 @@ func TestHandler_Activity_BadCursor(t *testing.T) {
 
 // ACT-H-04: unknown wallet -> 404.
 func TestHandler_Activity_UnknownWallet(t *testing.T) {
-	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ int, _ string) (*ActivityPage, error) {
+	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ ActivityQuery) (*ActivityPage, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "trader not found")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity", "")

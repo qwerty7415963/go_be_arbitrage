@@ -69,12 +69,20 @@ type AssetPosition struct {
 }
 
 // ClearinghouseState is the perp account summary for one user.
+// Withdrawable + CrossMarginSummary observed live 2026-10-07 (contract
+// WALLET-TABS v1 §0); absent upstream values decode as "" (nil downstream).
 type ClearinghouseState struct {
 	MarginSummary struct {
 		AccountValue    DecimalString `json:"accountValue"`
 		TotalNtlPos     DecimalString `json:"totalNtlPos"`
 		TotalMarginUsed DecimalString `json:"totalMarginUsed"`
 	} `json:"marginSummary"`
+	CrossMarginSummary struct {
+		AccountValue    DecimalString `json:"accountValue"`
+		TotalNtlPos     DecimalString `json:"totalNtlPos"`
+		TotalMarginUsed DecimalString `json:"totalMarginUsed"`
+	} `json:"crossMarginSummary"`
+	Withdrawable   DecimalString   `json:"withdrawable"`
 	AssetPositions []AssetPosition `json:"assetPositions"`
 	Time           int64           `json:"time"`
 }

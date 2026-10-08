@@ -126,3 +126,34 @@ func (r *Repository) ListEquityDaily(ctx context.Context, venueID uuid.UUID, add
 	}
 	return out, rows.Err()
 }
+
+// EquityDailyRow is one stored equity day for the performance tab (§1.7).
+type EquityDailyRow struct {
+	Date        time.Time
+	EndEquity   *float64
+	DailyReturn *float64
+}
+
+// ListEquityDailyRows returns dated equity points in [from, to] oldest-first
+// for GET .../performance (contract §1.7 equity array).
+func (r *Repository) ListEquityDailyRows(ctx context.Context, venueID uuid.UUID, addr string, from, to time.Time) ([]EquityDailyRow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT stat_date, end_equity, daily_return FROM trader_equity_daily
+		WHERE venue_id = $1 AND wallet_address = $2
+		  AND stat_date >= $3 AND stat_date <= $4
+		ORDER BY stat_date ASC`,
+		venueID, addr, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []EquityDailyRow{}
+	for rows.Next() {
+		var row EquityDailyRow
+		if err := rows.Scan(&row.Date, &row.EndEquity, &row.DailyReturn); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}

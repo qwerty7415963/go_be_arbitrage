@@ -658,3 +658,238 @@ func TestE2E_Trader_ActivityFlow(t *testing.T) {
 		t.Errorf("bad cursor must 400, got %d", code)
 	}
 }
+
+// E2E-T-07 (wallet-tabs WS2-WS6): on-demand tabs flow — registry via
+// traderRandAddr → balances/fills/orders/transfers/performance 200 (nil
+// on-demand client ⇒ degraded/empty, never 500) → unknown wallet 404 →
+// invalid params 400. Performance seeds 30D metrics + 1 equity row.
+func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
+	s := setupTraderSuite(t)
+	ctx := context.Background()
+	repo := trader.NewRepository(s.db)
+	addr := traderRandAddr(t)
+	t.Cleanup(func() {
+		_, _ = s.db.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr)
+	})
+
+	if _, _, err := repo.UpsertRegistry(ctx, s.venueID, addr, trader.SourceLeaderboard, nil, nil); err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	v := "?venue=trader-e2e-venue"
+
+	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/balances"+v, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("balances: %d %v", code, resp)
+	}
+	bdata := resp["data"].(map[string]any)
+	if bdata["data_status"] != "error" || bdata["perp"] != nil || bdata["spot"] != nil {
+		t.Errorf("nil on-demand ⇒ perp/spot null + error status: %v", bdata)
+	}
+
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/fills"+v, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("fills: %d %v", code, resp)
+	}
+	if rows := resp["data"].(map[string]any)["rows"].([]any); len(rows) != 0 {
+		t.Errorf("fills empty: %v", rows)
+	}
+	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/fills"+v+"&limit=0", "", ""); code != http.StatusBadRequest {
+		t.Errorf("fills limit=0 must 400, got %d", code)
+	}
+
+	for _, st := range []string{"open", "historical"} {
+		code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/orders"+v+"&status="+st, "", "")
+		if code != http.StatusOK {
+			t.Fatalf("orders %s: %d %v", st, code, resp)
+		}
+		odata := resp["data"].(map[string]any)
+		if odata["status"] != st {
+			t.Errorf("orders status echo: %v", odata)
+		}
+		if rows := odata["rows"].([]any); len(rows) != 0 {
+			t.Errorf("orders %s empty: %v", st, rows)
+		}
+	}
+	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/orders"+v+"&status=bad", "", ""); code != http.StatusBadRequest {
+		t.Errorf("orders status=bad must 400, got %d", code)
+	}
+
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/transfers"+v, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("transfers: %d %v", code, resp)
+	}
+	if rows := resp["data"].(map[string]any)["rows"].([]any); len(rows) != 0 {
+		t.Errorf("transfers empty: %v", rows)
+	}
+	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/transfers"+v+"&days=0", "", ""); code != http.StatusBadRequest {
+		t.Errorf("transfers days=0 must 400, got %d", code)
+	}
+
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/performance"+v, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("performance empty: %d %v", code, resp)
+	}
+	pdata := resp["data"].(map[string]any)
+	if pdata["period"] != "30D" || pdata["metrics"] != nil {
+		t.Errorf("no metrics ⇒ null: %v", pdata)
+	}
+	pnl := 1234.5
+	tc := int64(7)
+	if err := repo.UpsertPeriodMetrics(ctx, &trader.PeriodMetrics{
+		VenueID: s.venueID, WalletAddress: addr, Period: trader.Period30D,
+		AsOf: time.Now().UTC(), PnL: &pnl, TradeCount: &tc,
+		DataStatus: trader.DataReady, CalculationVersion: 1,
+	}); err != nil {
+		t.Fatalf("period: %v", err)
+	}
+	eqDay := time.Now().UTC().Truncate(24 * time.Hour)
+	if err := repo.UpsertEquityDaily(ctx, s.venueID, addr, trader.EquityDay{
+		Date: eqDay, StartEquity: &pnl, EndEquity: &pnl, PeakEquity: &pnl,
+	}); err != nil {
+		t.Fatalf("equity: %v", err)
+	}
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/performance"+v+"&period=30D", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("performance seeded: %d %v", code, resp)
+	}
+	pdata = resp["data"].(map[string]any)
+	met, ok := pdata["metrics"].(map[string]any)
+	if !ok || met["pnl"] != 1234.5 {
+		t.Errorf("metrics pnl: %v", pdata)
+	}
+	if eq := pdata["equity"].([]any); len(eq) == 0 {
+		t.Errorf("equity curve: %v", pdata)
+	}
+	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/performance"+v+"&period=90D", "", ""); code != http.StatusBadRequest {
+		t.Errorf("performance period=90D must 400, got %d", code)
+	}
+
+	unknown := traderRandAddr(t)
+	for _, path := range []string{"balances", "fills", "orders", "transfers", "performance"} {
+		if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+unknown+"/"+path+v, "", ""); code != http.StatusNotFound {
+			t.Errorf("%s unknown wallet must 404, got %d", path, code)
+		}
+	}
+	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/not-an-address/balances"+v, "", ""); code != http.StatusBadRequest {
+		t.Errorf("invalid address must 400, got %d", code)
+	}
+}
+
+// E2E-T-08 (wallet-tabs WS1): activity sort/filter/counts — seed 4 trades
+// (LONG win ×2, SHORT loss ×1, LONG breakeven ×1) → sort=volume asc monotonic
+// → result=win&side=long only winners → counts stable across filters/pages →
+// cursor walk by sort has no dup/skip; entry_price nulls last.
+func TestE2E_Trader_ActivitySortFilterCounts(t *testing.T) {
+	s := setupTraderSuite(t)
+	ctx := context.Background()
+	repo := trader.NewRepository(s.db)
+	addr := traderRandAddr(t)
+	t.Cleanup(func() {
+		_, _ = s.db.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr)
+	})
+
+	if _, _, err := repo.UpsertRegistry(ctx, s.venueID, addr, trader.SourceLeaderboard, nil, nil); err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	day := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
+	btcEntry, btcExit, btcSize := 50000.0, 51000.0, 0.6
+	ethEntry, ethExit, ethSize := 3000.0, 3100.0, 1.5
+	arbEntry, arbExit, arbSize := 2.0, 2.0, 100.0
+	if err := repo.ReplaceTradesForDay(ctx, s.venueID, addr, day, []trader.CompletedTrade{
+		{Market: "BTC", Long: true, OpenTime: day.Add(5 * time.Hour), CloseTime: day.Add(6 * time.Hour), Volume: 30000, PnL: 1500, Fees: 30, Fills: 3, EntryPrice: &btcEntry, ExitPrice: &btcExit, Size: &btcSize},
+		{Market: "ETH", Long: true, OpenTime: day.Add(time.Hour), CloseTime: day.Add(2 * time.Hour), Volume: 5000, PnL: 200, Fees: 10, Fills: 2, EntryPrice: &ethEntry, ExitPrice: &ethExit, Size: &ethSize},
+		{Market: "SOL", Long: false, OpenTime: day.Add(3 * time.Hour), CloseTime: day.Add(4 * time.Hour), Volume: 1000, PnL: -100, Fees: 5, Fills: 1},
+		{Market: "ARB", Long: true, OpenTime: day.Add(7 * time.Hour), CloseTime: day.Add(8 * time.Hour), Volume: 2000, PnL: 10, Fees: 10, Fills: 1, EntryPrice: &arbEntry, ExitPrice: &arbExit, Size: &arbSize},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	v := "?venue=trader-e2e-venue"
+	wantCounts := map[string]float64{"win": 2, "loss": 1, "long": 3, "short": 1, "total": 4}
+
+	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=10", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("sort volume: %d %v", code, resp)
+	}
+	data := resp["data"].(map[string]any)
+	rows := data["rows"].([]any)
+	if len(rows) != 4 {
+		t.Fatalf("rows: %v", data)
+	}
+	vols := []float64{rows[0].(map[string]any)["volume"].(float64), rows[1].(map[string]any)["volume"].(float64), rows[2].(map[string]any)["volume"].(float64), rows[3].(map[string]any)["volume"].(float64)}
+	for i := 1; i < len(vols); i++ {
+		if vols[i] < vols[i-1] {
+			t.Fatalf("volume asc monotonic: %v", vols)
+		}
+	}
+	for k, want := range wantCounts {
+		if got := data["counts"].(map[string]any)[k].(float64); got != want {
+			t.Errorf("counts %s: want %v got %v (%v)", k, want, got, data["counts"])
+		}
+	}
+	if rows[3].(map[string]any)["market"] != "BTC" || rows[3].(map[string]any)["entry_price"] != 50000.0 {
+		t.Errorf("largest volume (BTC) must carry entry_price 50000: %v", rows[3])
+	}
+
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&result=win&side=long", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("filter: %d %v", code, resp)
+	}
+	data = resp["data"].(map[string]any)
+	rows = data["rows"].([]any)
+	if len(rows) != 2 {
+		t.Fatalf("win+long rows: %v", data)
+	}
+	for _, r := range rows {
+		m := r.(map[string]any)
+		if m["side"] != "LONG" || m["net_pnl"].(float64) <= 0 {
+			t.Errorf("only LONG winners: %v", m)
+		}
+	}
+	for k, want := range wantCounts {
+		if got := data["counts"].(map[string]any)[k].(float64); got != want {
+			t.Errorf("filtered counts %s stable: want %v got %v", k, want, got)
+		}
+	}
+
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=entry_price&dir=asc&limit=10", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("sort entry: %d %v", code, resp)
+	}
+	rows = resp["data"].(map[string]any)["rows"].([]any)
+	if len(rows) != 4 || rows[3].(map[string]any)["entry_price"] != nil {
+		t.Errorf("entry nulls last: %v", rows)
+	}
+
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=2", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("p1: %d %v", code, resp)
+	}
+	data = resp["data"].(map[string]any)
+	p1 := data["rows"].([]any)
+	if len(p1) != 2 || data["has_more"] != true {
+		t.Fatalf("p1: %v", data)
+	}
+	cursor := data["next_cursor"].(string)
+	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=2&cursor="+cursor, "", "")
+	if code != http.StatusOK {
+		t.Fatalf("p2: %d %v", code, resp)
+	}
+	data = resp["data"].(map[string]any)
+	p2 := data["rows"].([]any)
+	if len(p2) != 2 {
+		t.Fatalf("p2: %v", data)
+	}
+	seen := map[string]bool{}
+	for _, r := range append(p1, p2...) {
+		mk := r.(map[string]any)["market"].(string)
+		if seen[mk] {
+			t.Fatalf("dup %s across sort pages", mk)
+		}
+		seen[mk] = true
+	}
+	if len(seen) != 4 {
+		t.Errorf("pages cover 4: %v", seen)
+	}
+}

@@ -170,6 +170,9 @@ func New(cfg *config.Config) (*App, error) {
 		log.Warn("hyperliquid venue missing; trader discovery/sync disabled", "error", verr)
 	} else {
 		hlClient = hyperliquid.NewClient("", 30*time.Second, 2*time.Second)
+		// WALLET-TABS v1 WS2-WS5: on-demand tabs share the HL client + 15s TTL
+		// cache behind the existing pacer; graceful degradation on HL error.
+		traderService.WithOnDemand(hlClient, trader.NewOnDemandCache(15*time.Second))
 		discoverySvc = trader.NewDiscoveryService(traderRepo,
 			trader.HLDiscoveryAdapter{C: hlClient}, venueID, traderDiscoveryLimit)
 		traderSyncSvc = trader.NewSyncService(traderRepo,

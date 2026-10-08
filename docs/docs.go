@@ -7021,7 +7021,7 @@ const docTemplate = `{
         },
         "/api/v1/traders/{wallet}/activity": {
             "get": {
-                "description": "Durable closed trades newest-first with server-computed net_pnl (DETAIL-PLAN §4.1). Keyset pagination on (closed_at DESC, market ASC, opened_at ASC); cursor opaque + HMAC-sealed. Default limit=20, allowed 1..100.",
+                "description": "Durable closed trades with server-computed net_pnl (WALLET-TABS v1 §1.2). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
                 "produces": [
                     "application/json"
                 ],
@@ -7046,16 +7046,69 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "default": 20,
                         "description": "Page size 1..100",
                         "name": "limit",
-                        "in": "query"
+                        "in": "query",
+                        "default": 20
                     },
                     {
                         "type": "string",
                         "description": "Opaque page cursor",
                         "name": "cursor",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort column",
+                        "name": "sort",
+                        "in": "query",
+                        "default": "closed_at",
+                        "enum": [
+                            "closed_at",
+                            "opened_at",
+                            "market",
+                            "volume",
+                            "pnl",
+                            "net_pnl",
+                            "duration",
+                            "entry_price",
+                            "exit_price"
+                        ]
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort direction",
+                        "name": "dir",
+                        "in": "query",
+                        "default": "desc",
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ]
+                    },
+                    {
+                        "type": "string",
+                        "description": "Result filter",
+                        "name": "result",
+                        "in": "query",
+                        "default": "all",
+                        "enum": [
+                            "all",
+                            "win",
+                            "loss"
+                        ]
+                    },
+                    {
+                        "type": "string",
+                        "description": "Side filter",
+                        "name": "side",
+                        "in": "query",
+                        "default": "all",
+                        "enum": [
+                            "all",
+                            "long",
+                            "short"
+                        ]
                     }
                 ],
                 "responses": {
@@ -7078,7 +7131,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "INVALID_FILTER (limit/cursor)",
+                        "description": "INVALID_FILTER (limit/cursor/sort/dir/result/side)",
                         "schema": {
                             "allOf": [
                                 {
@@ -7118,7 +7171,7 @@ const docTemplate = `{
         },
         "/api/v1/traders/{wallet}/positions": {
             "get": {
-                "description": "Latest open-position snapshot for a watched wallet (DETAIL-PLAN §4.1). Never calls upstream inline; freshness from last_positions_sync_at (NULL/never synced reports data_status=syncing per M5). Summary null when never synced; positions is [] (never null).",
+                "description": "Latest open-position snapshot for a watched wallet (DETAIL-PLAN §4.1 + WALLET-TABS v1 §1.1). Never calls upstream inline; freshness from last_positions_sync_at (NULL/never synced reports data_status=syncing per M5). Summary null when never synced; positions is [] (never null). Server-side sort.",
                 "produces": [
                     "application/json"
                 ],
@@ -7140,6 +7193,34 @@ const docTemplate = `{
                         "description": "Venue code",
                         "name": "venue",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort column",
+                        "name": "sort",
+                        "in": "query",
+                        "default": "coin",
+                        "enum": [
+                            "coin",
+                            "size",
+                            "entry_price",
+                            "mark_price",
+                            "position_value",
+                            "unrealized_pnl",
+                            "return_on_equity",
+                            "leverage"
+                        ]
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort direction",
+                        "name": "dir",
+                        "in": "query",
+                        "default": "asc",
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ]
                     }
                 ],
                 "responses": {
@@ -8267,6 +8348,490 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}/balances": {
+            "get": {
+                "description": "Perp + spot balances on-demand with short TTL cache (WALLET-TABS v1 §1.3, WS2). Either side may be null on partial failure; data_status reflects it. No DB.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader balances (public, on-demand)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.BalancesDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}/fills": {
+            "get": {
+                "description": "Recent user fills newest-first with tid keyset pagination (WALLET-TABS v1 §1.4, WS4). Source userFills (2000 most recent); FE paginates through the fetched set. Short TTL cache; graceful degradation on HL error.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader fills (public, on-demand)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size 1..200",
+                        "name": "limit",
+                        "in": "query",
+                        "default": 100
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque page cursor (by tid)",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.FillsPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}/orders": {
+            "get": {
+                "description": "Open or historical orders (WALLET-TABS v1 §1.5, WS3). order_status/status_timestamp present only for status=historical. Short TTL cache.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader orders (public, on-demand)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Order set",
+                        "name": "status",
+                        "in": "query",
+                        "default": "open",
+                        "enum": [
+                            "open",
+                            "historical"
+                        ]
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max rows 1..2000",
+                        "name": "limit",
+                        "in": "query",
+                        "default": 200
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.OrdersDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}/transfers": {
+            "get": {
+                "description": "Non-funding ledger transfers newest-first with time+hash keyset pagination (WALLET-TABS v1 §1.6, WS5). Funding excluded by decision. Short TTL cache.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader transfers (public, on-demand)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Lookback 1..180",
+                        "name": "days",
+                        "in": "query",
+                        "default": 30
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size 1..500",
+                        "name": "limit",
+                        "in": "query",
+                        "default": 200
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque page cursor (by time+hash)",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.TransfersPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}/performance": {
+            "get": {
+                "description": "Period metrics + equity curve (WALLET-TABS v1 §1.7, WS6). Reuses Detail metrics + trader_equity_daily; no new source.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader performance (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metric window",
+                        "name": "period",
+                        "in": "query",
+                        "default": "30D",
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.PerformanceDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
                         "schema": {
                             "allOf": [
                                 {
@@ -11260,6 +11825,61 @@ const docTemplate = `{
                 "Minute",
                 "Hour"
             ]
+        },
+        "internal_trader.BalancesDTO": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "internal_trader.FillsPage": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "internal_trader.OrdersDTO": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "internal_trader.TransfersPage": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
+        "internal_trader.PerformanceDTO": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
         }
     },
     "securityDefinitions": {

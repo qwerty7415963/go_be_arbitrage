@@ -14,10 +14,15 @@ import (
 )
 
 type mockService struct {
-	searchFn    func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
-	detailFn    func(ctx context.Context, venue, addr, period string) (*Detail, error)
-	positionsFn func(ctx context.Context, venue, addr string) (*PositionSnapshotDTO, error)
-	activityFn  func(ctx context.Context, venue, addr string, limit int, cursor string) (*ActivityPage, error)
+	searchFn      func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
+	detailFn      func(ctx context.Context, venue, addr, period string) (*Detail, error)
+	positionsFn   func(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error)
+	activityFn    func(ctx context.Context, venue, addr string, q ActivityQuery) (*ActivityPage, error)
+	balancesFn    func(ctx context.Context, venue, addr string) (*BalancesDTO, error)
+	fillsFn       func(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error)
+	ordersFn      func(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error)
+	transfersFn   func(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error)
+	performanceFn func(ctx context.Context, venue, addr, period string) (*PerformanceDTO, error)
 }
 
 func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
@@ -28,18 +33,53 @@ func (m *mockService) Detail(ctx context.Context, venue, addr, period string) (*
 	return m.detailFn(ctx, venue, addr, period)
 }
 
-func (m *mockService) Positions(ctx context.Context, venue, addr string) (*PositionSnapshotDTO, error) {
+func (m *mockService) Positions(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error) {
 	if m.positionsFn == nil {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
-	return m.positionsFn(ctx, venue, addr)
+	return m.positionsFn(ctx, venue, addr, sort, dir)
 }
 
-func (m *mockService) Activity(ctx context.Context, venue, addr string, limit int, cursor string) (*ActivityPage, error) {
+func (m *mockService) Activity(ctx context.Context, venue, addr string, q ActivityQuery) (*ActivityPage, error) {
 	if m.activityFn == nil {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
-	return m.activityFn(ctx, venue, addr, limit, cursor)
+	return m.activityFn(ctx, venue, addr, q)
+}
+
+func (m *mockService) Balances(ctx context.Context, venue, addr string) (*BalancesDTO, error) {
+	if m.balancesFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.balancesFn(ctx, venue, addr)
+}
+
+func (m *mockService) Fills(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error) {
+	if m.fillsFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.fillsFn(ctx, venue, addr, limit, cursor)
+}
+
+func (m *mockService) Orders(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error) {
+	if m.ordersFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.ordersFn(ctx, venue, addr, status, limit)
+}
+
+func (m *mockService) Transfers(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error) {
+	if m.transfersFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.transfersFn(ctx, venue, addr, days, limit, cursor)
+}
+
+func (m *mockService) Performance(ctx context.Context, venue, addr, period string) (*PerformanceDTO, error) {
+	if m.performanceFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.performanceFn(ctx, venue, addr, period)
 }
 
 func testRouter(h *Handler, userID string) *gin.Engine {

@@ -30,16 +30,31 @@ type Service struct {
 	// last_positions_sync_at older than this reports stale; NULL reports
 	// syncing (M5). Default 5m (near-realtime 30s refresh for watched).
 	positionsStaleAfter time.Duration
+	// onDemand serves the wallet-tabs on-demand reads (contract WALLET-TABS
+	// v1 §1.3-§1.7, WS2-WS6). Nil disables HL reads (unit contexts without a
+	// venue client); handlers then surface data_status=error via the mock.
+	onDemand OnDemandClient
+	cache    *OnDemandCache
 }
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte) *Service {
 	return &Service{repo: repo, groups: groups, secret: cursorSecret,
-		positionsStaleAfter: 5 * time.Minute}
+		positionsStaleAfter: 5 * time.Minute, cache: NewOnDemandCache(15 * time.Second)}
 }
 
 // WithPositionsStaleAfter overrides the positions stale threshold (tests).
 func (s *Service) WithPositionsStaleAfter(d time.Duration) *Service {
 	s.positionsStaleAfter = d
+	return s
+}
+
+// WithOnDemand attaches the venue on-demand client + cache (WS2-WS6).
+// Nil client disables HL reads (service returns graceful-degradation payloads).
+func (s *Service) WithOnDemand(c OnDemandClient, cache *OnDemandCache) *Service {
+	s.onDemand = c
+	if cache != nil {
+		s.cache = cache
+	}
 	return s
 }
 
@@ -277,23 +292,50 @@ type PositionSnapshotDTO struct {
 }
 
 // ActivityTradeDTO is one durable closed trade with server-computed net_pnl.
+// DurationSec = closed-open seconds; Entry/Exit NULL for pre-000030 rows.
 type ActivityTradeDTO struct {
-	Market   string    `json:"market"`
-	Side     string    `json:"side"`
-	OpenedAt time.Time `json:"opened_at"`
-	ClosedAt time.Time `json:"closed_at"`
-	Volume   float64   `json:"volume"`
-	PnL      float64   `json:"pnl"`
-	Fees     float64   `json:"fees"`
-	NetPnl   float64   `json:"net_pnl"`
-	Fills    int       `json:"fills"`
+	Market      string    `json:"market"`
+	Side        string    `json:"side"`
+	OpenedAt    time.Time `json:"opened_at"`
+	ClosedAt    time.Time `json:"closed_at"`
+	DurationSec float64   `json:"duration_sec"`
+	Volume      float64   `json:"volume"`
+	EntryPrice  *float64  `json:"entry_price"`
+	ExitPrice   *float64  `json:"exit_price"`
+	PnL         float64   `json:"pnl"`
+	Fees        float64   `json:"fees"`
+	NetPnl      float64   `json:"net_pnl"`
+	Fills       int       `json:"fills"`
 }
 
-// ActivityPage is the GET /traders/{wallet}/activity payload (§4.1).
+// ActivityCounts are totals across the whole retained window (independent of
+// pagination, result and side filters) so the chips are stable (§1.2).
+// Win = net>0, loss = net<0 (breakeven in total only); long/short by side.
+type ActivityCounts struct {
+	Win   int `json:"win"`
+	Loss  int `json:"loss"`
+	Long  int `json:"long"`
+	Short int `json:"short"`
+	Total int `json:"total"`
+}
+
+// ActivityPage is the GET /traders/{wallet}/activity payload (§1.2).
 type ActivityPage struct {
 	Rows       []ActivityTradeDTO `json:"rows"`
 	NextCursor string             `json:"next_cursor,omitempty"`
 	HasMore    bool               `json:"has_more"`
+	Counts     ActivityCounts     `json:"counts"`
+}
+
+// ActivityQuery carries the §1.2 query params (defaults applied by the handler
+// or Normalize: sort=closed_at, dir=desc, result=all, side=all).
+type ActivityQuery struct {
+	Limit  int
+	Cursor string
+	Sort   string
+	Dir    string
+	Result string
+	Side   string
 }
 
 // activityCursor is the HMAC-sealed keyset triple
@@ -366,15 +408,32 @@ func DecodeActivityCursor(secret []byte, fp, raw string) (closedAt time.Time, ma
 	return ct.UTC(), c.M, ot.UTC(), nil
 }
 
-// Positions returns the latest open-position snapshot (DETAIL-PLAN A6).
-// It never calls upstream inline; freshness comes from
-// trader_sync_state.last_positions_sync_at: NULL (never synced) reports
-// syncing (M5), older than the stale threshold reports stale, else ready.
-// Unknown wallet → 404 (Detail error path).
-func (s *Service) Positions(ctx context.Context, venueCode, rawAddr string) (*PositionSnapshotDTO, error) {
+// Positions returns the latest open-position snapshot (DETAIL-PLAN A6 +
+// WALLET-TABS v1 §1.1: server-side sort). It never calls upstream inline;
+// freshness comes from trader_sync_state.last_positions_sync_at: NULL (never
+// synced) reports syncing (M5), older than the stale threshold reports stale,
+// else ready. Unknown wallet → 404 (Detail error path).
+// sort ∈ {coin,size,entry_price,mark_price,position_value,unrealized_pnl,
+// return_on_equity,leverage} default coin; dir ∈ {asc,desc} default asc.
+// Null numerics sort last regardless of dir; tiebreak coin ASC.
+func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir string) (*PositionSnapshotDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
 		return nil, err
+	}
+	sort = strings.ToLower(strings.TrimSpace(sort))
+	if sort == "" {
+		sort = "coin"
+	}
+	dir = strings.ToLower(strings.TrimSpace(dir))
+	if dir == "" {
+		dir = "asc"
+	}
+	if !validPositionSort(sort) {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort")
+	}
+	if dir != "asc" && dir != "desc" {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir: want asc|desc")
 	}
 	venueID, err := s.repo.VenueIDByCode(ctx, strings.ToLower(strings.TrimSpace(venueCode)))
 	if err != nil {
@@ -414,6 +473,7 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr string) (*Po
 		asOf = &t
 	}
 
+	sortPositions(positions, sort, dir)
 	rows := make([]PositionDTO, 0, len(positions))
 	for _, p := range positions {
 		rows = append(rows, PositionDTO{
@@ -430,19 +490,64 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr string) (*Po
 	}, nil
 }
 
-// Activity returns durable closed trades newest-first with keyset cursor +
-// has_more (DETAIL-PLAN A6). limit defaults to 20, allowed 1..100;
-// net_pnl = pnl - fees computed server-side. Unknown wallet → 404.
-func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, limit int, cursor string) (*ActivityPage, error) {
+func validPositionSort(sort string) bool {
+	switch sort {
+	case "coin", "size", "entry_price", "mark_price", "position_value",
+		"unrealized_pnl", "return_on_equity", "leverage":
+		return true
+	}
+	return false
+}
+
+// Activity returns durable closed trades with server-side sort/filter and
+// keyset cursor + has_more + stable counts (WALLET-TABS v1 §1.2).
+// limit 1..100 default 20; sort ∈ {closed_at,opened_at,market,volume,pnl,
+// net_pnl,duration,entry_price,exit_price} default closed_at; dir ∈ {asc,desc}
+// default desc; result ∈ {all,win,loss} default all; side ∈ {all,long,short}
+// default all. net_pnl = pnl - fees server-side. counts across the whole
+// retained window independent of pagination/result/side. Cursor HMAC-sealed
+// over (sortKey, closed_at, market, opened_at) honouring dir. Unknown wallet
+// → 404. Backwards compat: legacy (closed_at DESC, market ASC, opened_at ASC)
+// triple cursors are NOT accepted here; callers refetch page 1 on 400.
+func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q ActivityQuery) (*ActivityPage, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
 		return nil, err
 	}
+	limit := q.Limit
 	if limit == 0 {
 		limit = 20
 	}
 	if limit < 1 || limit > 100 {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
+	}
+	sort := strings.ToLower(strings.TrimSpace(q.Sort))
+	if sort == "" {
+		sort = "closed_at"
+	}
+	dir := strings.ToLower(strings.TrimSpace(q.Dir))
+	if dir == "" {
+		dir = "desc"
+	}
+	result := strings.ToLower(strings.TrimSpace(q.Result))
+	if result == "" {
+		result = "all"
+	}
+	side := strings.ToLower(strings.TrimSpace(q.Side))
+	if side == "" {
+		side = "all"
+	}
+	if !validActivitySort(sort) {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort")
+	}
+	if dir != "asc" && dir != "desc" {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir: want asc|desc")
+	}
+	if result != "all" && result != "win" && result != "loss" {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid result: want all|win|loss")
+	}
+	if side != "all" && side != "long" && side != "short" {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid side: want all|long|short")
 	}
 	venueID, err := s.repo.VenueIDByCode(ctx, strings.ToLower(strings.TrimSpace(venueCode)))
 	if err != nil {
@@ -455,39 +560,43 @@ func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, limit
 		return nil, err
 	}
 
-	fp := activityFingerprint(venueID, addr)
-	var afterClosedAt *time.Time
-	var afterMarket string
-	var afterOpenedAt *time.Time
-	if cursor != "" {
-		ct, m, ot, err := DecodeActivityCursor(s.secret, fp, cursor)
-		if err != nil {
-			return nil, err
-		}
-		afterClosedAt, afterMarket, afterOpenedAt = &ct, m, &ot
-	}
-
-	fetched, err := s.repo.ListTrades(ctx, venueID, addr, limit+1, afterClosedAt, afterMarket, afterOpenedAt)
+	all, err := s.repo.ListAllTrades(ctx, venueID, addr)
 	if err != nil {
 		return nil, err
 	}
-	hasMore := len(fetched) > limit
-	if hasMore {
-		fetched = fetched[:limit]
+	counts := activityCounts(all)
+	filtered := filterActivityRows(all, result, side)
+	sortActivityRows(filtered, sort, dir)
+
+	fp := activityQueryFingerprint(venueID, addr, sort, dir, result, side)
+	var after *activityAfter
+	if q.Cursor != "" {
+		a, err := decodeActivityCursorV2(s.secret, fp, q.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		after = a
 	}
-	rows := make([]ActivityTradeDTO, 0, len(fetched))
-	for _, r := range fetched {
+	paged := applyActivityCursor(filtered, sort, dir, after)
+	hasMore := len(paged) > limit
+	if hasMore {
+		paged = paged[:limit]
+	}
+	rows := make([]ActivityTradeDTO, 0, len(paged))
+	for _, r := range paged {
 		rows = append(rows, ActivityTradeDTO{
 			Market: r.Market, Side: r.Side,
 			OpenedAt: r.OpenedAt.UTC(), ClosedAt: r.ClosedAt.UTC(),
-			Volume: r.Volume, PnL: r.PnL, Fees: r.Fees,
+			DurationSec: r.ClosedAt.Sub(r.OpenedAt).Seconds(),
+			Volume:      r.Volume, EntryPrice: r.EntryPrice, ExitPrice: r.ExitPrice,
+			PnL: r.PnL, Fees: r.Fees,
 			NetPnl: r.PnL - r.Fees, Fills: r.Fills,
 		})
 	}
-	page := &ActivityPage{Rows: rows, HasMore: hasMore}
+	page := &ActivityPage{Rows: rows, HasMore: hasMore, Counts: counts}
 	if hasMore {
-		last := fetched[len(fetched)-1]
-		cur, err := EncodeActivityCursor(s.secret, fp, last.ClosedAt, last.Market, last.OpenedAt)
+		last := paged[len(paged)-1]
+		cur, err := encodeActivityCursorV2(s.secret, fp, sort, last)
 		if err != nil {
 			return nil, err
 		}

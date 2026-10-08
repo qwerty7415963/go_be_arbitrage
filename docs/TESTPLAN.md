@@ -877,11 +877,80 @@ Schema doc: `DATABASE_DESIGN.md` §10.3a updated on disk at `arbitrage-platform-
 | E2E-T-05 | Positions flow (M7) | seed registry + sync-state + positions/summary → GET positions | 200 summary + rows + `data_status`; unknown wallet 404 |
 | E2E-T-06 | Activity flow (M7) | seed 3 closed trades → GET activity limit=2 → follow `next_cursor` | page 1 (2 rows, has_more=true) → page 2 (1 row); `net_pnl` correct; bad cursor 400 |
 
+### 19.11 Wallet tabs (WALLET-TABS-CONTRACT.md v1 frozen 2026-10-08)
+
+Scope: WS1 TRADES (migration 000030 + `ReconstructTrades` entry/exit/size +
+activity sort/filter/counts + keyset cursor by sort), WS2 BALANCES
+(`FetchSpotState` + `withdrawable`/`crossMarginSummary`), WS3 ORDERS,
+WS4 FILLS (`FetchUserFills` + tid paging), WS5 TRANSFERS
+(`FetchLedgerUpdates` + type enum), WS6 PERFORMANCE (Detail metrics +
+equity). Shared: 15s TTL cache keyed by (type,wallet,params), graceful
+degradation on HL error. Endpoints: `GET /traders/{wallet}/{balances,
+fills,orders,transfers,performance}` (new) + `GET .../activity` extended
+(sort/filter/counts/entry-exit) + `GET .../positions` sortable.
+
+#### Unit
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| WT-U-01 | Reconstruct entry/exit | Fixture C partials: 3 opens @100/102/104, 2 closes @110/112 | `entry_price`=wavg opens, `exit_price`=wavg closes, `size`=Σ open qty |
+| WT-U-02 | Flip split | Fixture D long→short flip @px | Closing leg `|before|` exits old cycle, `|after|` opens new cycle at same px |
+| WT-U-03 | Truncated NULL | Cycle with no opening leg in window (fills aged out) | `entry_price`=NULL; `exit_price` computed; pre-000030 rows keep NULL |
+| WT-U-04 | Breakeven entry/exit | Fixture E net 0 with entry 100 exit 100 | Breakeven counted; entry/exit present, `net_pnl`=0 |
+| WT-U-05 | sortActivityRows volume | 3 rows vol 1k/5k/30k, dir asc+desc | asc 1k→30k, desc 30k→1k; tiebreak (closed_at, market, opened_at) stable |
+| WT-U-06 | sort nulls last | entry_price {10, NULL, 5}, dir asc and desc | NULL last in both dirs; non-null ordered |
+| WT-U-07 | filterActivityRows | 2 LONG win, 1 SHORT loss, 1 breakeven | `result=win`→2, `side=long`→2, `win+long`→2; breakeven in neither win nor loss |
+| WT-U-08 | activityCounts stable | Same 4 rows | `{win:2, loss:1, long:2, short:1, total:4}` independent of pagination/filters |
+| WT-U-09 | Activity cursor V2 | Encode→decode roundtrip; tampered sig; wrong fingerprint | Roundtrip stable over (sortKey, closed_at, market, opened_at); tampered/wrong-fp → INVALID_FILTER |
+| WT-U-10 | Balances parse | `clearinghouseState` + `spotClearinghouseState` fixture (withdrawable, crossMarginSummary, balances) | Perp fields mapped; `asset_positions_value`=Σ|value|; spot rows upper-cased coin; bad rows skipped |
+| WT-U-11 | Balances partial | Perp OK + spot error (and vice versa) | Failing side null; `data_status=error`; both fail → stale cache or empty + error |
+| WT-U-12 | mapUserFills | Mixed sides/sz/px/time + bad rows (sz≤0, px<0, time≤0, side unknown) | Bad skipped; valid newest-first (time DESC, tid DESC) |
+| WT-U-13 | mapOpenOrders/mapHistorical | Open + historical fixtures (triggerPx, tpsl, bad side/coin/sz/time) | Bad skipped; open lacks `order_status`; historical has `order_status`+`status_timestamp` |
+| WT-U-14 | mapLedgerUpdates | Deltas: deposit/withdraw/send/subAccountTransfer/unknown-type + bad time/hash | Unknown→`other`; `is_deposit` true/false/nil per rule; newest-first (time DESC, hash ASC) |
+| WT-U-15 | Performance period | `1D/7D/30D/ALL` vs `90D`/empty | Valid pass; empty→30D; `90D` → INVALID_FILTER; lookback 1/7/30/365d |
+| WT-U-16 | OnDemandCache TTL | Set → get fresh → expire → stale retained | Fresh hit returns value; expired returns stale+`fresh=false` for degradation |
+
+#### Handler
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| WT-H-01 | GET /balances | Known wallet, mock service OK | 200; `perp`+`spot` present or null-safe; `data_status` string |
+| WT-H-02 | GET /balances | Unknown wallet | 404 COMMON-903 (Detail error path) |
+| WT-H-03 | GET /balances | Invalid address | 400 INVALID_FILTER/COMMON-902 |
+| WT-H-04 | GET /fills | Default (no limit/cursor) | 200; limit=100; rows newest-first; `has_more`+`next_cursor` |
+| WT-H-05 | GET /fills | `limit=0/201/abc`, tampered cursor | 400 INVALID_FILTER |
+| WT-H-06 | GET /orders | `status=open` vs `historical` | 200; open rows lack status fields, historical has them; `limit` 1..2000 else 400 |
+| WT-H-07 | GET /orders | `status=bad` | 400 INVALID_FILTER |
+| WT-H-08 | GET /transfers | Default days=30 limit=200 | 200; rows newest-first; `has_more`+`next_cursor` |
+| WT-H-09 | GET /transfers | `days=0/181`, `limit=0/501`, tampered cursor | 400 INVALID_FILTER |
+| WT-H-10 | GET /performance | `period=30D` (and 1D/7D/ALL) | 200; `period` echoes; `metrics`+`equity[]` |
+| WT-H-11 | GET /performance | `period=90D` / unknown wallet / invalid address | 400 / 404 / 400 respectively |
+| WT-H-12 | GET /activity sort/filter | `sort=volume&dir=asc`, `result=win&side=long` | 200; server order monotonic; only LONG winners; `counts` unchanged |
+
+#### Integration (`//go:build integration`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| WT-I-01 | Migration 000030 up | Apply on clean DB | `entry_price/exit_price/size` NULLABLE numeric(30,12) on `trader_trades` |
+| WT-I-02 | Migration 000030 down | Rollback | Three columns dropped; 000029 shape intact |
+| WT-I-03 | ReplaceTradesForDay entry/exit | Seed fills closing a cycle with partials | `trader_trades` row carries entry/exit/size; recompute deterministic |
+| WT-I-04 | ListTrades sort/filter/counts | 4-row fixture (LONG win ×2, SHORT loss ×1, breakeven ×1) | `sort=volume asc` ordered; `result=win&side=long` filters rows but `counts` stable |
+| WT-I-05 | Performance wiring | Seed 30D metrics + 3 equity_daily rows | `Performance` returns metrics non-null + 3-point equity curve; unknown period → INVALID_FILTER |
+| WT-I-06 | On-demand nil-client | Service without `WithOnDemand` | Balances `data_status=error`; fills/orders/transfers empty rows (never null, never 500) |
+
+#### E2E (`//go:build e2e`)
+
+| Case | Flow | Steps | Expected |
+|------|------|-------|----------|
+| E2E-T-07 | Wallet-tabs on-demand flow | `traderRandAddr` registry → GET balances/fills/orders(open+historical)/transfers/performance → unknown wallet → invalid params | 200 degraded/empty (nil on-demand) + `data_status`/`rows` shapes; unknown → 404; `limit=0`/`days=0`/`status=bad`/`period=90D` → 400 |
+| E2E-T-08 | Activity sort/filter/counts | Seed 4 trades (LONG win ×2, SHORT loss ×1, breakeven ×1) → `sort=volume&dir=asc` → `result=win&side=long` → cursor walk by sort | Volume monotonic; filter only LONG winners; `counts={win:2,loss:1,long:2,short:1,total:4}` stable across filters/pages; no dup/skip |
+
 Env deviations (M6): no cgo/gcc → gates run WITHOUT `-race` (`go test
 -short -count=1`); no `golangci-lint` → `go vet` + `gofmt -l` substitute;
 `swag init` broken on unrelated files → swagger equivalents hand-edited
-(`docs/swagger.json`, `docs/swagger.yaml`, `docs/docs.go` untouched-ids only
-for the 3 new routes).
+(`docs/swagger.json`, `docs/swagger.yaml`, `docs/docs.go` via
+`C:\Python314\python.exe` JSON-safe: 5 new paths + activity/positions
+descriptions + 5 stub definitions mirrored from `swagger.json`).
 
 ---
 
@@ -969,8 +1038,9 @@ daytime pipelines never silently ingest garbage. CI: `.github/workflows/ci-night
 | FundingArb | 7 | 2 | 0 | 0 | **9** |
 | Collector | 4 | 0 | 2 | 0 | **6** |
 | Trader Scanner v1.1 | 30 | 13 | 22 | 4 | **69** |
+| Wallet Tabs v1 WS1-WS6 (§19.11) | 16 | 12 | 6 | 2 | **36** |
 | Sync Scale | 3 | 0 | 3 | 0 | **6** |
 | Perf & Nightly (perf/nightly tags) | - | - | - | - | **7** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~300** | **~83** | **~63** | **~26** | **~480** |
+| **TOTAL** | **~316** | **~95** | **~69** | **~28** | **~516** |

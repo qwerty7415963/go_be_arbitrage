@@ -526,6 +526,8 @@ func (r *Repository) GetPositionSummary(ctx context.Context, venueID uuid.UUID, 
 // falls on day (UTC) in ONE transaction: DELETE the day window, then INSERT
 // the recomputed list. Empty lists still delete (a recompute that closed the
 // cycle must clear stale rows). Crash-safe recompute (DETAIL-PLAN A4).
+// Entry/exit/size (migration 000030) are written when present; pre-000030
+// rows keep NULL after the backfill window ages out.
 func (r *Repository) ReplaceTradesForDay(ctx context.Context, venueID uuid.UUID, addr string, day time.Time, trades []CompletedTrade) error {
 	day = day.UTC().Truncate(24 * time.Hour)
 	next := day.Add(24 * time.Hour)
@@ -549,14 +551,16 @@ func (r *Repository) ReplaceTradesForDay(ctx context.Context, venueID uuid.UUID,
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO trader_trades
 				(venue_id, wallet_address, market, side, opened_at, closed_at,
-				 volume, pnl, fees, fills, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+				 volume, pnl, fees, fills, entry_price, exit_price, size, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
 			ON CONFLICT (venue_id, wallet_address, market, opened_at, closed_at)
 			DO UPDATE SET volume = EXCLUDED.volume, pnl = EXCLUDED.pnl,
 				fees = EXCLUDED.fees, fills = EXCLUDED.fills,
-				side = EXCLUDED.side, updated_at = NOW()`,
+				side = EXCLUDED.side,
+				entry_price = EXCLUDED.entry_price, exit_price = EXCLUDED.exit_price,
+				size = EXCLUDED.size, updated_at = NOW()`,
 			venueID, addr, t.Market, side, t.OpenTime.UTC(), t.CloseTime.UTC(),
-			t.Volume, t.PnL, t.Fees, t.Fills); err != nil {
+			t.Volume, t.PnL, t.Fees, t.Fills, t.EntryPrice, t.ExitPrice, t.Size); err != nil {
 			return err
 		}
 	}
@@ -567,6 +571,7 @@ func (r *Repository) ReplaceTradesForDay(ctx context.Context, venueID uuid.UUID,
 // (closed_at DESC, market ASC, opened_at ASC). Pass afterClosedAt == nil for
 // the first page; otherwise the cursor triple from the previous page's last
 // row. The caller fetches limit+1 to detect has_more (DETAIL-PLAN A4).
+// Entry/exit/size added by migration 000030 (NULL for old rows).
 func (r *Repository) ListTrades(ctx context.Context, venueID uuid.UUID, addr string, limit int, afterClosedAt *time.Time, afterMarket string, afterOpenedAt *time.Time) ([]CompletedTradeRow, error) {
 	if limit <= 0 {
 		limit = 20
@@ -576,7 +581,8 @@ func (r *Repository) ListTrades(ctx context.Context, venueID uuid.UUID, addr str
 		afterOpened = afterOpenedAt.UTC()
 	}
 	rows, err := r.pool.Query(ctx, `
-		SELECT market, side, opened_at, closed_at, volume, pnl, fees, fills
+		SELECT market, side, opened_at, closed_at, volume, pnl, fees, fills,
+			entry_price, exit_price, size
 		FROM trader_trades
 		WHERE venue_id = $1 AND wallet_address = $2
 		  AND ($3::timestamptz IS NULL
@@ -594,7 +600,36 @@ func (r *Repository) ListTrades(ctx context.Context, venueID uuid.UUID, addr str
 	for rows.Next() {
 		var row CompletedTradeRow
 		if err := rows.Scan(&row.Market, &row.Side, &row.OpenedAt, &row.ClosedAt,
-			&row.Volume, &row.PnL, &row.Fees, &row.Fills); err != nil {
+			&row.Volume, &row.PnL, &row.Fees, &row.Fills,
+			&row.EntryPrice, &row.ExitPrice, &row.Size); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+// ListAllTrades returns every retained closed trade for the wallet (15-day
+// window) with entry/exit/size. The service sorts/filters/paginates in memory
+// so any §1.2 sort key gets a stable keyset cursor without 18 SQL variants.
+// Bounded by retention, so the full scan stays small (hundreds of rows).
+func (r *Repository) ListAllTrades(ctx context.Context, venueID uuid.UUID, addr string) ([]CompletedTradeRow, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT market, side, opened_at, closed_at, volume, pnl, fees, fills,
+			entry_price, exit_price, size
+		FROM trader_trades
+		WHERE venue_id = $1 AND wallet_address = $2`,
+		venueID, addr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CompletedTradeRow{}
+	for rows.Next() {
+		var row CompletedTradeRow
+		if err := rows.Scan(&row.Market, &row.Side, &row.OpenedAt, &row.ClosedAt,
+			&row.Volume, &row.PnL, &row.Fees, &row.Fills,
+			&row.EntryPrice, &row.ExitPrice, &row.Size); err != nil {
 			return nil, err
 		}
 		out = append(out, row)

@@ -134,9 +134,27 @@ func TestReconstruct_Deterministic(t *testing.T) {
 		mkFill("BTC", 2, t0().Add(time.Minute), false, 1, 110, 10, 0),
 	}
 	a, b := ReconstructTrades(in), ReconstructTrades(in)
-	if len(a) != 1 || len(b) != 1 || a[0] != b[0] {
+	if len(a) != 1 || len(b) != 1 || !tradesEqual(a[0], b[0]) {
 		t.Errorf("not deterministic: %+v vs %+v", a, b)
 	}
+}
+
+func floatPtrEqual(a, b *float64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+func tradesEqual(a, b CompletedTrade) bool {
+	return a.Market == b.Market && a.Long == b.Long &&
+		a.OpenTime.Equal(b.OpenTime) && a.CloseTime.Equal(b.CloseTime) &&
+		a.Volume == b.Volume && a.PnL == b.PnL && a.Fees == b.Fees &&
+		a.Fills == b.Fills && floatPtrEqual(a.EntryPrice, b.EntryPrice) &&
+		floatPtrEqual(a.ExitPrice, b.ExitPrice) && floatPtrEqual(a.Size, b.Size)
 }
 
 // Rollup: 1 long win + 1 short loss closed the same UTC day.

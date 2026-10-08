@@ -40,7 +40,7 @@ func TestService_Positions_Ready(t *testing.T) {
 	if _, err := repo.pool.Exec(ctx, `UPDATE trader_sync_state SET last_positions_sync_at=$3 WHERE venue_id=$1 AND wallet_address=$2`, venueID, addr, now); err != nil {
 		t.Fatalf("sync state: %v", err)
 	}
-	dto, err := svc.Positions(ctx, testVenueCode, addr)
+	dto, err := svc.Positions(ctx, testVenueCode, addr, "", "")
 	if err != nil {
 		t.Fatalf("positions: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestService_Positions_Ready(t *testing.T) {
 	if dto.AsOf == nil {
 		t.Error("as_of must be set")
 	}
-	if _, err := svc.Positions(ctx, testVenueCode, testAddr()); err == nil {
+	if _, err := svc.Positions(ctx, testVenueCode, testAddr(), "", ""); err == nil {
 		t.Error("unknown wallet must 404")
 	}
 }
@@ -62,7 +62,7 @@ func TestService_Positions_Ready(t *testing.T) {
 func TestService_Positions_NeverSynced(t *testing.T) {
 	ctx := context.Background()
 	_, svc, addr := serviceFixture(t)
-	dto, err := svc.Positions(ctx, testVenueCode, addr)
+	dto, err := svc.Positions(ctx, testVenueCode, addr, "", "")
 	if err != nil {
 		t.Fatalf("positions: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestService_Activity_PageWalk(t *testing.T) {
 		t.Fatalf("day2: %v", err)
 	}
 
-	p1, err := svc.Activity(ctx, testVenueCode, addr, 2, "")
+	p1, err := svc.Activity(ctx, testVenueCode, addr, ActivityQuery{Limit: 2})
 	if err != nil {
 		t.Fatalf("page1: %v", err)
 	}
@@ -107,17 +107,17 @@ func TestService_Activity_PageWalk(t *testing.T) {
 	if p1.Rows[0].Market != "BTC" || p1.Rows[0].NetPnl != 1470 {
 		t.Errorf("page1 rows: %+v", p1.Rows)
 	}
-	p2, err := svc.Activity(ctx, testVenueCode, addr, 2, p1.NextCursor)
+	p2, err := svc.Activity(ctx, testVenueCode, addr, ActivityQuery{Limit: 2, Cursor: p1.NextCursor})
 	if err != nil {
 		t.Fatalf("page2: %v", err)
 	}
 	if len(p2.Rows) != 1 || p2.Rows[0].Market != "SOL" || p2.HasMore {
 		t.Errorf("page2: %+v", p2)
 	}
-	if _, err := svc.Activity(ctx, testVenueCode, addr, 2, "forged.cursor"); err == nil {
+	if _, err := svc.Activity(ctx, testVenueCode, addr, ActivityQuery{Limit: 2, Cursor: "forged.cursor"}); err == nil {
 		t.Error("bad cursor must 400")
 	}
-	if _, err := svc.Activity(ctx, testVenueCode, addr, 101, ""); err == nil {
+	if _, err := svc.Activity(ctx, testVenueCode, addr, ActivityQuery{Limit: 101}); err == nil {
 		t.Error("limit 101 must 400")
 	}
 }

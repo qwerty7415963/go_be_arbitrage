@@ -6000,6 +6000,289 @@ paths:
       summary: Trader open positions (public)
       tags:
       - traders
+  /api/v1/traders/{wallet}/balances:
+    get:
+      description: Perp + spot balances on-demand with short TTL cache (WALLET-TABS
+        v1 §1.3, WS2). Either side may be null on partial failure; data_status
+        reflects it. No DB.
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.BalancesDTO'
+              type: object
+        "400":
+          description: INVALID_FILTER / validation
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader balances (public, on-demand)
+      tags:
+      - traders
+  /api/v1/traders/{wallet}/fills:
+    get:
+      description: Recent user fills newest-first with tid keyset pagination (WALLET-TABS
+        v1 §1.4, WS4). Source userFills (2000 most recent); FE paginates through
+        the fetched set. Short TTL cache; graceful degradation on HL error.
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 100
+        description: Page size 1..200
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque page cursor (by tid)
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.FillsPage'
+              type: object
+        "400":
+          description: INVALID_FILTER (limit/cursor)
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader fills (public, on-demand)
+      tags:
+      - traders
+  /api/v1/traders/{wallet}/orders:
+    get:
+      description: Open or historical orders (WALLET-TABS v1 §1.5, WS3). order_status/status_timestamp
+        present only for status=historical. Short TTL cache.
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: open
+        description: Order set
+        enum: [open, historical]
+        in: query
+        name: status
+        type: string
+      - default: 200
+        description: Max rows 1..2000
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.OrdersDTO'
+              type: object
+        "400":
+          description: INVALID_FILTER (status/limit)
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader orders (public, on-demand)
+      tags:
+      - traders
+  /api/v1/traders/{wallet}/transfers:
+    get:
+      description: Non-funding ledger transfers newest-first with time+hash keyset
+        pagination (WALLET-TABS v1 §1.6, WS5). Funding excluded by decision. Short
+        TTL cache.
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30
+        description: Lookback 1..180
+        in: query
+        name: days
+        type: integer
+      - default: 200
+        description: Page size 1..500
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque page cursor (by time+hash)
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.TransfersPage'
+              type: object
+        "400":
+          description: INVALID_FILTER (days/limit/cursor)
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader transfers (public, on-demand)
+      tags:
+      - traders
+  /api/v1/traders/{wallet}/performance:
+    get:
+      description: Period metrics + equity curve (WALLET-TABS v1 §1.7, WS6). Reuses
+        Detail metrics + trader_equity_daily; no new source.
+      parameters:
+      - description: Wallet address (0x...)
+        in: path
+        name: wallet
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30D
+        description: Metric window
+        enum: [1D, 7D, 30D, ALL]
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_trader.PerformanceDTO'
+              type: object
+        "400":
+          description: INVALID_FILTER / validation
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+        "404":
+          description: unknown wallet/venue
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody'
+              type: object
+      summary: Trader performance (public)
+      tags:
+      - traders
   /api/v1/traders/ws:
     get:
       description: Realtime fill-level activity for one watched wallet (DETAIL-PLAN

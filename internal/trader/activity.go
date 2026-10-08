@@ -27,15 +27,20 @@ type ActivityClient struct {
 }
 
 // CompletedTradeRow is one durable closed-trade row (trader_trades).
+// EntryPrice/ExitPrice/Size are NULL for pre-000030 rows whose fills aged
+// out of trader_fill_buffer (contract WALLET-TABS v1 §3/§9).
 type CompletedTradeRow struct {
-	Market   string
-	Side     string // LONG | SHORT
-	OpenedAt time.Time
-	ClosedAt time.Time
-	Volume   float64
-	PnL      float64
-	Fees     float64
-	Fills    int
+	Market     string
+	Side       string // LONG | SHORT
+	OpenedAt   time.Time
+	ClosedAt   time.Time
+	Volume     float64
+	PnL        float64
+	Fees       float64
+	Fills      int
+	EntryPrice *float64
+	ExitPrice  *float64
+	Size       *float64
 }
 
 // NetPnl computes net = pnl - fees server-side.

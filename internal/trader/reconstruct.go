@@ -11,15 +11,27 @@ import (
 // flip closes the long first and opens a new short cycle. Close time is the
 // period attribution time. Net = Σ closedPnl − Σ fees; funding is tracked
 // separately and never decides win/loss.
+//
+// Entry/exit (contract WALLET-TABS v1 §3): opening-leg fills (|after|>|before|
+// or from flat) accumulate openQty/openNotional; closing-leg fills
+// (|after|<|before| or flat) accumulate closeQty/closeNotional; a flip fill
+// splits into |before| closing (old cycle exit) + |after| opening (new cycle
+// entry) at the same price. entry_price = Σ(open qty*px)/Σ(open qty),
+// exit_price = Σ(close qty*px)/Σ(close qty), size = Σ open qty (fallback Σ
+// close qty when truncated). Null when the corresponding leg is absent
+// (pre-000030 rows whose fills aged out keep NULL in DB).
 type CompletedTrade struct {
-	Market    string
-	Long      bool // cycle direction
-	OpenTime  time.Time
-	CloseTime time.Time
-	Volume    float64 // Σ |qty*price| over cycle fills
-	PnL       float64 // Σ closedPnl over cycle fills
-	Fees      float64 // Σ fees over cycle fills
-	Fills     int
+	Market     string
+	Long       bool // cycle direction
+	OpenTime   time.Time
+	CloseTime  time.Time
+	Volume     float64 // Σ |qty*price| over cycle fills
+	PnL        float64 // Σ closedPnl over cycle fills
+	Fees       float64 // Σ fees over cycle fills
+	Fills      int
+	EntryPrice *float64
+	ExitPrice  *float64
+	Size       *float64
 }
 
 // Net is the cycle's net PnL.
@@ -57,13 +69,17 @@ func ReconstructTrades(fills []Fill) []CompletedTrade {
 	})
 
 	type cycle struct {
-		market string
-		long   bool
-		open   time.Time
-		volume float64
-		pnl    float64
-		fees   float64
-		fills  int
+		market        string
+		long          bool
+		open          time.Time
+		volume        float64
+		pnl           float64
+		fees          float64
+		fills         int
+		openQty       float64
+		openNotional  float64
+		closeQty      float64
+		closeNotional float64
 	}
 	open := map[string]*cycle{} // market -> open cycle
 	pos := map[string]float64{} // market -> signed open size
@@ -73,6 +89,9 @@ func ReconstructTrades(fills []Fill) []CompletedTrade {
 		out = append(out, CompletedTrade{
 			Market: m, Long: c.long, OpenTime: c.open, CloseTime: at,
 			Volume: c.volume, PnL: c.pnl, Fees: c.fees, Fills: c.fills,
+			EntryPrice: avgPrice(c.openNotional, c.openQty),
+			ExitPrice:  avgPrice(c.closeNotional, c.closeQty),
+			Size:       cycleSize(c.openQty, c.closeQty),
 		})
 	}
 
@@ -86,6 +105,8 @@ func ReconstructTrades(fills []Fill) []CompletedTrade {
 		}
 		before := pos[f.Market]
 		after := before + q
+		qtyAbs := abs(f.Quantity)
+		notional := qtyAbs * f.Price
 
 		c := open[f.Market]
 		if c == nil {
@@ -98,18 +119,68 @@ func ReconstructTrades(fills []Fill) []CompletedTrade {
 		c.fills++
 
 		if before != 0 && sgn(after) != sgn(before) {
+			// Flip: split the fill into a closing portion (|before|) for the
+			// old cycle and an opening portion (|after|) for the new cycle.
+			// Volume/pnl/fees stay attributed to the closed cycle (existing
+			// BE-013/014 behavior); entry/exit split at the same price.
+			closePortion := abs(before)
+			openPortion := abs(after)
+			c.closeQty += closePortion
+			c.closeNotional += closePortion * f.Price
 			// Flat or flipped: close the old cycle at this fill (BE-013/014).
 			emit(f.Market, c, f.FilledAt)
 			delete(open, f.Market)
 			if after != 0 {
-				// Flip: the same fill opens the new cycle (time only —
-				// size/pnl/fees stay attributed to the closed one).
-				open[f.Market] = &cycle{market: f.Market, long: after > 0, open: f.FilledAt}
+				// Flip: the same fill opens the new cycle (time only for
+				// volume/pnl/fees — size/pnl/fees stay attributed to the
+				// closed one; entry carries the opening portion).
+				nc := &cycle{market: f.Market, long: after > 0, open: f.FilledAt}
+				nc.openQty += openPortion
+				nc.openNotional += openPortion * f.Price
+				open[f.Market] = nc
+			}
+		} else if before == 0 {
+			// From flat: opening leg.
+			c.openQty += qtyAbs
+			c.openNotional += notional
+			// Single-fill flat (open then immediate close in one fill) is
+			// impossible from flat (after != 0), so no emit here.
+		} else if abs(after) > abs(before) {
+			// Adding to the position: opening leg.
+			c.openQty += qtyAbs
+			c.openNotional += notional
+		} else {
+			// Reducing toward flat (including reaching flat): closing leg.
+			c.closeQty += qtyAbs
+			c.closeNotional += notional
+			if after == 0 {
+				emit(f.Market, c, f.FilledAt)
+				delete(open, f.Market)
 			}
 		}
 		pos[f.Market] = after
 	}
 	return out
+}
+
+func avgPrice(notional, qty float64) *float64 {
+	if qty == 0 {
+		return nil
+	}
+	v := notional / qty
+	return &v
+}
+
+func cycleSize(openQty, closeQty float64) *float64 {
+	if openQty > 0 {
+		v := openQty
+		return &v
+	}
+	if closeQty > 0 {
+		v := closeQty
+		return &v
+	}
+	return nil
 }
 
 func abs(f float64) float64 {
