@@ -22,10 +22,12 @@ var activityWSUpgrader = websocket.Upgrader{
 	},
 }
 
-// ActivityWSHandler upgrades GET /traders/ws and pumps realtime ActivityFill
-// frames for one watched wallet (DETAIL-PLAN A8, M3 testability).
+// ActivityWSHandler upgrades GET /traders/ws and pumps realtime frames for
+// one watched wallet (LIVE-CONTRACT v1.2 §2: wallet.* envelope; legacy
+// {type:activity} path kept for the global harvest feed).
 type ActivityWSHandler struct {
 	hub      *ActivityHub
+	watcher  *WatcherManager
 	upgrader websocket.Upgrader
 }
 
@@ -36,12 +38,22 @@ func NewActivityWSHandler(hub *ActivityHub) *ActivityWSHandler {
 	return &ActivityWSHandler{hub: hub, upgrader: activityWSUpgrader}
 }
 
+// WithWatcher attaches the per-address WalletWatcher set (WS-D). Nil keeps
+// the hub-only surface (unit routers without upstream watchers).
+func (h *ActivityWSHandler) WithWatcher(m *WatcherManager) *ActivityWSHandler {
+	h.watcher = m
+	return h
+}
+
 // Hub exposes the watched set (wiring + tests).
 func (h *ActivityWSHandler) Hub() *ActivityHub { return h.hub }
 
+// Watcher exposes the manager (wiring/tests; may be nil in hub-only contexts).
+func (h *ActivityWSHandler) Watcher() *WatcherManager { return h.watcher }
+
 // ServeWS godoc
-// @Summary      Trader activity stream (public WS)
-// @Description  Realtime fill-level activity for one watched wallet (DETAIL-PLAN §4.2). Query wallet=0x... (lowercased server-side). Server sends {type:subscribed} on connect, then {type:activity} per fill; client {type:ping} gets {type:pong}. Reconnect/resubscribe is the FE's job. No auth (public read).
+// @Summary      Trader wallet stream (public WS)
+// @Description  Realtime wallet events for one watched wallet (LIVE-CONTRACT v1.2 §2). Query wallet=0x... (lowercased server-side). Transport is GET /traders/ws?wallet= (unchanged); payloads use the wallet.* envelope for incremental updates (no full refetch): wallet.position.updated (REST bootstrap/resync only), wallet.fill.created, wallet.funding.created, wallet.order.updated, wallet.activity.created, wallet.state.updated, wallet.connection.updated (DISCONNECTED→RECONNECT→RESYNC→RECONCILE→LIVE). Server sends {type:subscribed} on connect, then wallet.* frames; legacy {type:activity} frames from the global harvest feed are still forwarded. Client {type:ping} gets {type:pong}. Existing backoff + hidden-suspend + ping/pong stay. No auth (public read).
 // @Tags         traders
 // @Produce      json
 // @Param        wallet  query  string  true  "Watched wallet address (0x...)"
@@ -58,7 +70,17 @@ func (h *ActivityWSHandler) ServeWS(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	client := h.hub.Subscribe(wallet)
+	var client *ActivityClient
+	var onClose func()
+	if h.watcher != nil {
+		// Refcounted WalletWatcher: first subscriber creates the upstream
+		// watcher (4 feeds + REST bootstrap); last unsubscribe tears it down.
+		client = h.watcher.Subscribe(wallet)
+		onClose = func() { h.watcher.Unsubscribe(client) }
+	} else {
+		client = h.hub.Subscribe(wallet)
+		onClose = func() { h.hub.Unsubscribe(client) }
+	}
 	if msg, merr := json.Marshal(map[string]any{
 		"type": "subscribed", "data": map[string]string{"wallet": wallet},
 	}); merr == nil {
@@ -74,7 +96,7 @@ func (h *ActivityWSHandler) ServeWS(c *gin.Context) {
 	var closeOnce sync.Once
 	closeConn := func() { closeOnce.Do(func() { _ = conn.Close() }) }
 	defer closeConn()
-	defer h.hub.Unsubscribe(client)
+	defer onClose()
 	go h.writePump(conn, client, closeConn)
 	h.readPump(conn, client, closeConn)
 }

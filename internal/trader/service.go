@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,53 +15,41 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
 
+// errUpstreamUnavailable signals a nil on-demand client (unit contexts
+// without a venue client): callers degrade to stale cache or empty payloads
+// with data_status=error (never 500).
+var errUpstreamUnavailable = errors.New("upstream unavailable")
+
 // GroupOwner resolves a search group_id's owner (*tradergroup.Repository
 // implements it; declared here so trader never imports the groups package).
 type GroupOwner interface {
 	OwnerOf(ctx context.Context, groupID uuid.UUID) (uuid.UUID, error)
 }
 
-// Service serves the v1.1 scanner reads. Search/detail are public (parity with
-// the legacy scanner); the group filter and trader-groups stay auth-gated.
+// Service serves the scanner reads (search/detail, DB) + the LIVE wallet
+// detail tabs (positions/activity/balances/fills/orders/transfers/performance,
+// LIVE-CONTRACT v1.2 §1.1-§1.7, no sync dependency). Search/detail are public
+// (parity with the legacy scanner); the group filter and trader-groups stay
+// auth-gated. WS-E: syncing/stale machinery removed; detail data_status ∈
+// {ready,error} ONLY.
 type Service struct {
 	repo   *Repository
 	groups GroupOwner
 	secret []byte
-	// positionsStaleAfter bounds positions freshness (DETAIL-PLAN A6):
-	// last_positions_sync_at older than this reports stale; NULL reports
-	// syncing (M5). Default 5m (near-realtime 30s refresh for watched).
-	positionsStaleAfter time.Duration
-	// activityStaleAfter bounds activity freshness (SYNC-FIX v1.1 §2):
-	// last fills success older than this reports stale. Default 24h.
-	// Backfill-incomplete never reports stale (syncing); error beats stale.
-	activityStaleAfter time.Duration
-	// onDemand serves the wallet-tabs on-demand reads (contract WALLET-TABS
-	// v1 §1.3-§1.7, WS2-WS6). Nil disables HL reads (unit contexts without a
-	// venue client); handlers then surface data_status=error via the mock.
+	// onDemand serves the LIVE wallet tabs behind the interactive client (own
+	// pacer, concurrency gate, ctx timeout) + TTL cache + single-flight. Nil
+	// disables HL reads (unit contexts without a venue client); handlers then
+	// surface data_status=error via degradation (never 500).
 	onDemand OnDemandClient
 	cache    *OnDemandCache
 }
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte) *Service {
 	return &Service{repo: repo, groups: groups, secret: cursorSecret,
-		positionsStaleAfter: 5 * time.Minute, activityStaleAfter: 24 * time.Hour,
-		cache: NewOnDemandCache(15 * time.Second)}
+		cache: NewOnDemandCache(LiveCacheTTL)}
 }
 
-// WithPositionsStaleAfter overrides the positions stale threshold (tests).
-func (s *Service) WithPositionsStaleAfter(d time.Duration) *Service {
-	s.positionsStaleAfter = d
-	return s
-}
-
-// WithActivityStaleAfter overrides the activity stale threshold (tests,
-// SYNC-FIX v1.1 §2: fills older than this report stale).
-func (s *Service) WithActivityStaleAfter(d time.Duration) *Service {
-	s.activityStaleAfter = d
-	return s
-}
-
-// WithOnDemand attaches the venue on-demand client + cache (WS2-WS6).
+// WithOnDemand attaches the venue on-demand client + cache (LIVE §1.1-§1.7).
 // Nil client disables HL reads (service returns graceful-degradation payloads).
 func (s *Service) WithOnDemand(c OnDemandClient, cache *OnDemandCache) *Service {
 	s.onDemand = c
@@ -228,14 +217,23 @@ func metricString(sortBy string, m *PeriodMetrics) *string {
 	return nil
 }
 
-// Detail returns the trader header + one period's metrics (nil when never
-// synced). It never calls upstream inline; it ensures a sync-state row so the
-// scheduler prioritizes pending wallets (spec BE-038).
+// Detail returns the LIVE trader overview (LIVE-CONTRACT v1.2 §1.7, was DB).
+// Registry header is a light DB read (404 unknown wallet/venue). Metrics are
+// computed live from the same fills universe as activity/performance
+// (1D/7D/30D from fills via ReconstructTrades + computeLiveMetrics; ALL from
+// portfolio allTime + leaderboard refs passthrough, live-read — same as
+// Performance via fetchLivePerformance reuse). No reads of
+// trader_period_metrics / trader_positions / trader_trades (conformance §7);
+// scanner search still reads period_metrics (unchanged). data_status ∈
+// {ready,error} ONLY (never syncing/stale); as_of = fetch time (null on
+// error without cache). TTL 12s + single-flight per (wallet,venue,period);
+// HL error ⇒ stale with error else metrics null (never 500).
 func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string) (*Detail, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
 		return nil, err
 	}
+	period = strings.ToUpper(strings.TrimSpace(period))
 	if period == "" {
 		period = Period30D
 	}
@@ -244,7 +242,11 @@ func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string)
 	default:
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
 	}
-	venueID, err := s.repo.VenueIDByCode(ctx, strings.ToLower(strings.TrimSpace(venueCode)))
+	venue := strings.ToLower(strings.TrimSpace(venueCode))
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	venueID, err := s.repo.VenueIDByCode(ctx, venue)
 	if err != nil {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
 	}
@@ -252,22 +254,69 @@ func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string)
 	if err != nil {
 		return nil, err
 	}
-	// On-demand priority without inline sync (BE-038).
-	if _, err := s.repo.EnsureSyncState(ctx, venueID, addr); err != nil {
-		return nil, err
+	// LIVE: no EnsureSyncState, no GetPeriodMetrics (WS-E teardown).
+	key := "detail-live|" + venue + "|" + addr + "|" + period
+	now := time.Now().UTC()
+	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
+		return fetchLivePerformance(ctx, s, venueID, addr, venue, period, now)
+	})
+	if fetchErr != nil {
+		if stale, _, found := s.cache.get(key); found {
+			if snap, ok := stale.(*LivePerformanceSnapshot); ok && snap != nil {
+				asOf := snap.AsOf.UTC()
+				m := liveSnapshotToPeriodMetrics(snap, venueID, venue, addr, period, reg.DisplayName, DataError)
+				return &Detail{Registry: reg, Metrics: m, Period: period, DataStatus: DataError, AsOf: &asOf}, nil
+			}
+		}
+		return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil}, nil
 	}
-	m, err := s.repo.GetPeriodMetrics(ctx, venueID, addr, period)
-	if err != nil {
-		return nil, err
+	snap, ok := val.(*LivePerformanceSnapshot)
+	if !ok || snap == nil {
+		return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil}, nil
 	}
-	return &Detail{Registry: reg, Metrics: m, Period: period}, nil
+	asOf := snap.AsOf.UTC()
+	m := liveSnapshotToPeriodMetrics(snap, venueID, venue, addr, period, reg.DisplayName, DataReady)
+	// ALL equity-only (LB missing, portfolio ok): metrics null, still ready.
+	return &Detail{Registry: reg, Metrics: m, Period: period, DataStatus: DataReady, AsOf: &asOf}, nil
 }
 
-// Detail is the GET /api/v1/traders/{wallet} payload.
+// liveSnapshotToPeriodMetrics converts a live performance snapshot into the
+// Detail overview metrics shape (PeriodMetrics). Overlapping fields map 1:1
+// (pnl/realized_pnl, roi, win_rate, trade_count, volume, profit_factor,
+// long/short wins+counts, max_drawdown); non-live columns stay nil. Nil
+// snapshot metrics (ALL equity-only) maps to nil metrics (still ready at the
+// Detail level). data_status mirrors the caller status (ready/error only);
+// as_of = snapshot fetch time; calculation_version stamps the live formula.
+func liveSnapshotToPeriodMetrics(snap *LivePerformanceSnapshot, venueID uuid.UUID, venue, addr, period string, displayName *string, status DataStatus) *PeriodMetrics {
+	if snap == nil || snap.Metrics == nil {
+		return nil
+	}
+	pm := snap.Metrics
+	asOf := snap.AsOf.UTC()
+	return &PeriodMetrics{
+		VenueID: venueID, Venue: venue, WalletAddress: addr, DisplayName: displayName,
+		Period: period, AsOf: asOf,
+		PnL: pm.PnL, RealizedPnL: pm.PnL, ROI: pm.ROI, WinRate: pm.WinRate,
+		TradeCount: pm.TradeCount, Volume: pm.Volume, ProfitFactor: pm.ProfitFactor,
+		LongCount: pm.LongCount, LongWins: pm.LongWins,
+		ShortCount: pm.ShortCount, ShortWins: pm.ShortWins,
+		MaxDrawdownPct:     pm.MaxDrawdownPct,
+		DataStatus:         status,
+		IsPartial:          snap.Partial,
+		CalculationVersion: CurrentCalculationVersion,
+	}
+}
+
+// Detail is the GET /api/v1/traders/{wallet} payload (LIVE-CONTRACT v1.2
+// §1.7). Registry + Period shape kept; DataStatus ∈ {ready,error} ONLY with
+// AsOf = live fetch time (null on error without cache). Metrics is the live
+// overview (nil only on error without cache or ALL equity-only).
 type Detail struct {
-	Registry *RegistryEntry `json:"registry"`
-	Metrics  *PeriodMetrics `json:"metrics"`
-	Period   string         `json:"period"`
+	Registry   *RegistryEntry `json:"registry"`
+	Metrics    *PeriodMetrics `json:"metrics"`
+	Period     string         `json:"period"`
+	DataStatus DataStatus     `json:"data_status"`
+	AsOf       *time.Time     `json:"as_of"`
 }
 
 // PositionDTO is one open position row (snake_case per DETAIL-PLAN §4.1).
@@ -303,8 +352,12 @@ type PositionSnapshotDTO struct {
 	AsOf       *time.Time          `json:"as_of"`
 }
 
-// ActivityTradeDTO is one durable closed trade with server-computed net_pnl.
-// DurationSec = closed-open seconds; Entry/Exit NULL for pre-000030 rows.
+// ActivityTradeDTO is one live closed trade with server-computed net_pnl
+// (LIVE-CONTRACT v1.2 §1.2). DurationSec = closed-open seconds;
+// entry_price/exit_price are avg open/close legs (never NULL for live rows;
+// pre-000030 DB rows kept NULL for backward compat). funding is signed
+// (negative = paid), informational only: net_pnl = pnl − fees (UNCHANGED),
+// win/loss/counts still on net_pnl.
 type ActivityTradeDTO struct {
 	Market      string    `json:"market"`
 	Side        string    `json:"side"`
@@ -316,6 +369,7 @@ type ActivityTradeDTO struct {
 	ExitPrice   *float64  `json:"exit_price"`
 	PnL         float64   `json:"pnl"`
 	Fees        float64   `json:"fees"`
+	Funding     float64   `json:"funding"`
 	NetPnl      float64   `json:"net_pnl"`
 	Fills       int       `json:"fills"`
 }
@@ -331,16 +385,21 @@ type ActivityCounts struct {
 	Total int `json:"total"`
 }
 
-// ActivityPage is the GET /traders/{wallet}/activity payload (§1.2 +
-// SYNC-FIX v1.1 §2: data_status derived from trader_sync_state —
-// backfill incomplete → syncing (never stale), last pass error → error,
-// fills older than 24h → stale, else ready).
+// ActivityPage is the GET /traders/{wallet}/activity payload
+// (LIVE-CONTRACT v1.2 §1.2: LIVE, was DB). Rows from the trailing 30d fills
+// window (in-memory ReconstructTrades + funding attribution). counts over the
+// fetched 30d universe (stable across pagination/filters). data_status ∈
+// {ready,error} ONLY (never syncing/stale); as_of = fetch time; partial=true
+// when the venue truncated the window (10k-fill cap, timeouts). Rows never
+// null.
 type ActivityPage struct {
 	Rows       []ActivityTradeDTO `json:"rows"`
 	NextCursor string             `json:"next_cursor,omitempty"`
 	HasMore    bool               `json:"has_more"`
 	Counts     ActivityCounts     `json:"counts"`
 	DataStatus DataStatus         `json:"data_status"`
+	AsOf       *time.Time         `json:"as_of"`
+	Partial    bool               `json:"partial"`
 }
 
 // ActivityQuery carries the §1.2 query params (defaults applied by the handler
@@ -424,14 +483,17 @@ func DecodeActivityCursor(secret []byte, fp, raw string) (closedAt time.Time, ma
 	return ct.UTC(), c.M, ot.UTC(), nil
 }
 
-// Positions returns the latest open-position snapshot (DETAIL-PLAN A6 +
-// WALLET-TABS v1 §1.1: server-side sort). It never calls upstream inline;
-// freshness comes from trader_sync_state.last_positions_sync_at: NULL (never
-// synced) reports syncing (M5), older than the stale threshold reports stale,
-// else ready. Unknown wallet → 404 (Detail error path).
+// Positions returns the LIVE open-position snapshot (LIVE-CONTRACT v1.2 §1.1).
+// Source: live clearinghouseState per request behind the interactive client
+// (own pacer floor ~200ms, concurrency ~4, ctx timeout) + TTL 12s cache +
+// single-flight. No DB reads (zero queries to trader_positions;
+// conformance §7). Unknown wallet → 404.
 // sort ∈ {coin,size,entry_price,mark_price,position_value,unrealized_pnl,
 // return_on_equity,leverage} default coin; dir ∈ {asc,desc} default asc.
 // Null numerics sort last regardless of dir; tiebreak coin ASC.
+// data_status ∈ {ready,error} ONLY (never syncing/stale); as_of = fetch time
+// (never null on success). HL error ⇒ last cached with error, else empty
+// rows (never null).
 func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir string) (*PositionSnapshotDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -451,44 +513,57 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir s
 	if dir != "asc" && dir != "desc" {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir: want asc|desc")
 	}
-	venueID, err := s.repo.VenueIDByCode(ctx, strings.ToLower(strings.TrimSpace(venueCode)))
+	venue := strings.ToLower(strings.TrimSpace(venueCode))
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	venueID, err := s.repo.VenueIDByCode(ctx, venue)
 	if err != nil {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
 	}
 	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
 		return nil, err
 	}
-	state, err := s.repo.EnsureSyncState(ctx, venueID, addr)
-	if err != nil {
-		return nil, err
-	}
-	summary, err := s.repo.GetPositionSummary(ctx, venueID, addr)
-	if err != nil {
-		return nil, err
-	}
-	positions, err := s.repo.GetPositions(ctx, venueID, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	status := DataSyncing // M5: never synced reports syncing, never stale.
-	var asOf *time.Time
-	if state != nil && state.LastPositionsSyncAt != nil {
-		status = DataReady
-		if s.positionsStaleAfter > 0 && time.Since(*state.LastPositionsSyncAt) > s.positionsStaleAfter {
-			status = DataStale
+	key := "positions-live|" + venue + "|" + addr
+	cached, freshHit, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
+		if s.onDemand == nil {
+			return nil, errUpstreamUnavailable
 		}
-	}
-	var summaryDTO *PositionSummaryDTO
-	if summary != nil {
-		t := summary.AsOf.UTC()
-		summaryDTO = &PositionSummaryDTO{
-			AccountValue: summary.AccountValue, TotalNtlPos: summary.TotalNtlPos,
-			TotalMarginUsed: summary.TotalMarginUsed, AsOf: &t,
+		state, err := s.onDemand.FetchClearinghouseState(ctx, addr)
+		if err != nil {
+			return nil, err
 		}
-		asOf = &t
+		now := time.Now().UTC()
+		return MapClearinghouseToSnapshot(state, now), nil
+	})
+	_ = freshHit
+	if fetchErr != nil {
+		if cached != nil {
+			if snap, ok := cached.(*PositionSnapshot); ok {
+				return snapshotToDTO(snap, sort, dir, DataError), nil
+			}
+		}
+		if stale, _, found := s.cache.get(key); found {
+			if snap, ok := stale.(*PositionSnapshot); ok {
+				return snapshotToDTO(snap, sort, dir, DataError), nil
+			}
+		}
+		return &PositionSnapshotDTO{
+			Summary: nil, Positions: []PositionDTO{}, DataStatus: DataError, AsOf: nil,
+		}, nil
 	}
+	snap, ok := cached.(*PositionSnapshot)
+	if !ok || snap == nil {
+		return &PositionSnapshotDTO{
+			Summary: nil, Positions: []PositionDTO{}, DataStatus: DataError, AsOf: nil,
+		}, nil
+	}
+	return snapshotToDTO(snap, sort, dir, DataReady), nil
+}
 
+func snapshotToDTO(snap *PositionSnapshot, sort, dir string, status DataStatus) *PositionSnapshotDTO {
+	asOf := snap.AsOf.UTC()
+	positions := append([]Position(nil), snap.Positions...)
 	sortPositions(positions, sort, dir)
 	rows := make([]PositionDTO, 0, len(positions))
 	for _, p := range positions {
@@ -498,12 +573,16 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir s
 			PositionValue: p.PositionValue, UnrealizedPnl: p.UnrealizedPnl,
 			ReturnOnEquity: p.ReturnOnEquity, LiquidationPrice: p.LiquidationPrice,
 			Leverage: p.Leverage, MaxLeverage: p.MaxLeverage,
-			MarginUsed: p.MarginUsed, AsOf: asOf,
+			MarginUsed: p.MarginUsed, AsOf: &asOf,
 		})
 	}
+	summary := &PositionSummaryDTO{
+		AccountValue: snap.AccountValue, TotalNtlPos: snap.TotalNtlPos,
+		TotalMarginUsed: snap.TotalMarginUsed, AsOf: &asOf,
+	}
 	return &PositionSnapshotDTO{
-		Summary: summaryDTO, Positions: rows, DataStatus: status, AsOf: asOf,
-	}, nil
+		Summary: summary, Positions: rows, DataStatus: status, AsOf: &asOf,
+	}
 }
 
 func validPositionSort(sort string) bool {
@@ -515,39 +594,25 @@ func validPositionSort(sort string) bool {
 	return false
 }
 
-// deriveActivityStatus maps trader_sync_state to the SYNC-FIX v1.1 §2
-// data_status: backfill never completed → syncing (never stale); last pass
-// errored → error; last fills success older than staleAfter → stale; else
-// ready. Nil state (never initialized) reports syncing.
-func deriveActivityStatus(state *SyncState, now time.Time, staleAfter time.Duration) DataStatus {
-	if state == nil {
-		return DataSyncing
-	}
-	if state.SyncStatus == "error" {
-		return DataError
-	}
-	if state.BackfillCompletedAt == nil {
-		return DataSyncing
-	}
-	if state.LastFillsSyncAt == nil {
-		return DataSyncing
-	}
-	if staleAfter > 0 && now.Sub(*state.LastFillsSyncAt) > staleAfter {
-		return DataStale
-	}
-	return DataReady
-}
+// WS-E: deriveActivityStatus (syncing/stale machinery) removed. Detail
+// data_status ∈ {ready,error} ONLY (LIVE-CONTRACT v1.2 §1.1/§1.2/§1.7).
 
-// Activity returns durable closed trades with server-side sort/filter and
-// keyset cursor + has_more + stable counts (WALLET-TABS v1 §1.2).
+// Activity returns LIVE closed trades (LIVE-CONTRACT v1.2 §1.2, was DB).
+// Source: live userFillsByTime over the trailing 30d → in-memory
+// ReconstructTrades (reuse) → rows with entry_price/exit_price (avg),
+// duration_sec, volume, pnl, fees, funding (signed, negative = paid),
+// net_pnl = pnl − fees (UNCHANGED), fills. Funding attribution: sum
+// userFunding payments with openTime ≤ time ≤ closeTime per coin,
+// informational only; win/loss/counts still on net_pnl.
+// counts over the fetched 30d window (stable across pagination/filters).
+// Cursor: same HMAC keyset scheme, computed in-memory (reuse helpers).
+// data_status ∈ {ready,error} ONLY; plus as_of + partial (true when the venue
+// truncated the window, e.g. 10k-fill cap, or on timeout fallback). Rows never
+// null. No DB reads (zero queries to trader_trades; conformance §7).
 // limit 1..100 default 20; sort ∈ {closed_at,opened_at,market,volume,pnl,
 // net_pnl,duration,entry_price,exit_price} default closed_at; dir ∈ {asc,desc}
 // default desc; result ∈ {all,win,loss} default all; side ∈ {all,long,short}
-// default all. net_pnl = pnl - fees server-side. counts across the whole
-// retained window independent of pagination/result/side. Cursor HMAC-sealed
-// over (sortKey, closed_at, market, opened_at) honouring dir. Unknown wallet
-// → 404. Backwards compat: legacy (closed_at DESC, market ASC, opened_at ASC)
-// triple cursors are NOT accepted here; callers refetch page 1 on 400.
+// default all. Unknown wallet → 404.
 func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q ActivityQuery) (*ActivityPage, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -588,25 +653,17 @@ func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q Act
 	if side != "all" && side != "long" && side != "short" {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid side: want all|long|short")
 	}
-	venueID, err := s.repo.VenueIDByCode(ctx, strings.ToLower(strings.TrimSpace(venueCode)))
+	venue := strings.ToLower(strings.TrimSpace(venueCode))
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	venueID, err := s.repo.VenueIDByCode(ctx, venue)
 	if err != nil {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
 	}
 	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
 		return nil, err
 	}
-	syncState, err := s.repo.EnsureSyncState(ctx, venueID, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	all, err := s.repo.ListAllTrades(ctx, venueID, addr)
-	if err != nil {
-		return nil, err
-	}
-	counts := activityCounts(all)
-	filtered := filterActivityRows(all, result, side)
-	sortActivityRows(filtered, sort, dir)
 
 	fp := activityQueryFingerprint(venueID, addr, sort, dir, result, side)
 	var after *activityAfter
@@ -617,6 +674,46 @@ func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q Act
 		}
 		after = a
 	}
+
+	key := "activity-live|" + venue + "|" + addr
+	now := time.Now().UTC()
+	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
+		return fetchLiveActivity(ctx, s.onDemand, addr, now)
+	})
+	var snap *LiveActivitySnapshot
+	if fetchErr != nil {
+		if stale, _, found := s.cache.get(key); found {
+			if st, ok := stale.(*LiveActivitySnapshot); ok {
+				snap = st
+			}
+		}
+		if snap == nil {
+			// No data: empty universe with error + partial (truncated/timeout
+			// fallback), never null rows.
+			return &ActivityPage{
+				Rows: []ActivityTradeDTO{}, HasMore: false,
+				Counts: ActivityCounts{}, DataStatus: DataError,
+				AsOf: nil, Partial: true,
+			}, nil
+		}
+		return activityPageFromSnapshot(s, fp, snap, after, sort, dir, result, side, limit, DataError), nil
+	}
+	st, ok := val.(*LiveActivitySnapshot)
+	if !ok || st == nil {
+		return &ActivityPage{
+			Rows: []ActivityTradeDTO{}, HasMore: false,
+			Counts: ActivityCounts{}, DataStatus: DataError,
+			AsOf: nil, Partial: true,
+		}, nil
+	}
+	return activityPageFromSnapshot(s, fp, st, after, sort, dir, result, side, limit, DataReady), nil
+}
+
+func activityPageFromSnapshot(s *Service, fp string, snap *LiveActivitySnapshot, after *activityAfter, sort, dir, result, side string, limit int, status DataStatus) *ActivityPage {
+	counts := activityCounts(snap.Rows)
+	filtered := filterActivityRows(snap.Rows, result, side)
+	// filterActivityRows returns a fresh slice; sort in place is safe.
+	sortActivityRows(filtered, sort, dir)
 	paged := applyActivityCursor(filtered, sort, dir, after)
 	hasMore := len(paged) > limit
 	if hasMore {
@@ -629,19 +726,18 @@ func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q Act
 			OpenedAt: r.OpenedAt.UTC(), ClosedAt: r.ClosedAt.UTC(),
 			DurationSec: r.ClosedAt.Sub(r.OpenedAt).Seconds(),
 			Volume:      r.Volume, EntryPrice: r.EntryPrice, ExitPrice: r.ExitPrice,
-			PnL: r.PnL, Fees: r.Fees,
+			PnL: r.PnL, Fees: r.Fees, Funding: r.Funding,
 			NetPnl: r.PnL - r.Fees, Fills: r.Fills,
 		})
 	}
+	asOf := snap.AsOf.UTC()
 	page := &ActivityPage{Rows: rows, HasMore: hasMore, Counts: counts,
-		DataStatus: deriveActivityStatus(syncState, time.Now().UTC(), s.activityStaleAfter)}
+		DataStatus: status, AsOf: &asOf, Partial: snap.Partial}
 	if hasMore {
 		last := paged[len(paged)-1]
-		cur, err := encodeActivityCursorV2(s.secret, fp, sort, last)
-		if err != nil {
-			return nil, err
+		if cur, err := encodeActivityCursorV2(s.secret, fp, sort, last); err == nil {
+			page.NextCursor = cur
 		}
-		page.NextCursor = cur
 	}
-	return page, nil
+	return page
 }

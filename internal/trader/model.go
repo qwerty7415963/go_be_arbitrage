@@ -46,7 +46,11 @@ var LBWindowForPeriod = map[string]string{
 	PeriodALL: "allTime",
 }
 
-// DataStatus is the per-row freshness exposed to FE (ready/syncing/stale/error).
+// DataStatus is the per-row freshness exposed to FE.
+// Scanner period rows (trader_period_metrics) use all four values
+// (ready/syncing/stale/error via SyncService.recalcAll).
+// LIVE wallet detail (positions/activity/performance, LIVE-CONTRACT v1.2
+// §1.1/§1.2/§1.7) uses ready/error ONLY (never syncing/stale; WS-E teardown).
 type DataStatus string
 
 const (

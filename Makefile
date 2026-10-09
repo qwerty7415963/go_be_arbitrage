@@ -109,6 +109,9 @@ build: ## Build binary
 run: ## Run the application
 	@go run ./cmd/server
 
+run-supervised: ## Run supervised (single instance, auto-restart, PORT=8080)
+	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/be-supervised.ps1 -Port $(or $(PORT),8080)
+
 dev: ## Run with hot-reload (air)
 	@which air > /dev/null 2>&1 || go install github.com/air-verse/air@latest
 	@air

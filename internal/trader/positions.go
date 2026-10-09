@@ -66,18 +66,20 @@ func parseOpt(s hyperliquid.DecimalString) *float64 {
 	return &f
 }
 
-// FetchPositions calls clearinghouseState and maps decimal strings.
+// MapClearinghouseToSnapshot maps a clearinghouseState payload onto the
+// venue-agnostic snapshot (shared by the sync adapter and the live read path).
 // Side from szi sign (>0 LONG else SHORT), size = |szi|; rows with
 // unparseable/zero szi are skipped. MarkPrice is derived as
 // positionValue/|szi| (upstream has no per-position markPx); nil when
-// positionValue is absent or size is zero. AsOf = now UTC.
-func (a HLPositionAdapter) FetchPositions(ctx context.Context, address string) (*PositionSnapshot, error) {
-	state, err := a.C.FetchClearinghouseState(ctx, address)
-	if err != nil {
-		return nil, err
+// positionValue is absent or size is zero.
+func MapClearinghouseToSnapshot(state *hyperliquid.ClearinghouseState, now time.Time) *PositionSnapshot {
+	if now.IsZero() {
+		now = time.Now().UTC()
 	}
-	now := time.Now().UTC()
-	snap := &PositionSnapshot{AsOf: now, Positions: []Position{}}
+	snap := &PositionSnapshot{AsOf: now.UTC(), Positions: []Position{}}
+	if state == nil {
+		return snap
+	}
 	snap.AccountValue = parseOpt(state.MarginSummary.AccountValue)
 	snap.TotalNtlPos = parseOpt(state.MarginSummary.TotalNtlPos)
 	snap.TotalMarginUsed = parseOpt(state.MarginSummary.TotalMarginUsed)
@@ -111,5 +113,14 @@ func (a HLPositionAdapter) FetchPositions(ctx context.Context, address string) (
 		}
 		snap.Positions = append(snap.Positions, pos)
 	}
-	return snap, nil
+	return snap
+}
+
+// FetchPositions calls clearinghouseState and maps decimal strings.
+func (a HLPositionAdapter) FetchPositions(ctx context.Context, address string) (*PositionSnapshot, error) {
+	state, err := a.C.FetchClearinghouseState(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+	return MapClearinghouseToSnapshot(state, time.Now().UTC()), nil
 }

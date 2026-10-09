@@ -13,10 +13,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
+	"golang.org/x/sync/singleflight"
 )
 
-// OnDemandClient is the venue on-demand seam for the wallet tabs (contract
-// WALLET-TABS v1 §1.3-§1.6). *hyperliquid.Client implements it; tests mock it.
+// OnDemandClient is the venue on-demand seam for the wallet tabs
+// (LIVE-CONTRACT v1.2 §1.1-§1.7: balances/fills/orders/transfers on the
+// interactive client; activity/performance window fetches + funding + equity).
+// *hyperliquid.Client and *hyperliquid.LiveClient both implement it.
 type OnDemandClient interface {
 	FetchClearinghouseState(ctx context.Context, address string) (*hyperliquid.ClearinghouseState, error)
 	FetchSpotState(ctx context.Context, address string) (*hyperliquid.SpotState, error)
@@ -24,18 +27,28 @@ type OnDemandClient interface {
 	FetchOpenOrders(ctx context.Context, address string) ([]hyperliquid.OpenOrder, error)
 	FetchHistoricalOrders(ctx context.Context, address string) ([]hyperliquid.HistoricalOrder, error)
 	FetchLedgerUpdates(ctx context.Context, address string, startTimeMs int64) ([]hyperliquid.LedgerUpdate, error)
+	// Live window seams (§1.2 activity 30d, §1.7 performance windows):
+	FetchFillsWindow(ctx context.Context, address string, startMs, endMs int64) ([]hyperliquid.Fill, bool, error)
+	FetchUserFunding(ctx context.Context, address string, startMs, endMs int64) ([]hyperliquid.FundingUpdate, error)
+	FetchPortfolio(ctx context.Context, address string) (map[string][]hyperliquid.PortfolioPoint, error)
 }
 
 var _ OnDemandClient = (*hyperliquid.Client)(nil)
+var _ OnDemandClient = (*hyperliquid.LiveClient)(nil)
 
 // OnDemandCache is a tiny in-memory TTL cache keyed by (type,wallet,params)
-// (contract §4 shared). Default TTL 15s. Expired entries are kept for graceful
-// degradation: on HL error the last value is returned with an error
-// data_status instead of an empty failure.
+// (LIVE-CONTRACT v1.2 §3: TTL 10-15s, default 12s). Expired entries are kept
+// for graceful degradation: on HL error the last value is returned with an
+// error data_status instead of an empty failure.
+//
+// Bursts coalesce via single-flight: concurrent GetOrFetch calls for the same
+// key share one upstream fetch (contract §3: repeat views within TTL cost
+// zero HL calls).
 type OnDemandCache struct {
 	mu  sync.Mutex
 	ttl time.Duration
 	m   map[string]cacheItem
+	sf  singleflight.Group
 }
 
 type cacheItem struct {
@@ -44,11 +57,22 @@ type cacheItem struct {
 	fetchedAt time.Time
 }
 
+// LiveCacheTTL is the contract §3 default (10-15s window, middle).
+const LiveCacheTTL = 12 * time.Second
+
 func NewOnDemandCache(ttl time.Duration) *OnDemandCache {
 	if ttl <= 0 {
-		ttl = 15 * time.Second
+		ttl = LiveCacheTTL
 	}
 	return &OnDemandCache{ttl: ttl, m: map[string]cacheItem{}}
+}
+
+// TTL reports the configured TTL (tests/observability).
+func (c *OnDemandCache) TTL() time.Duration {
+	if c == nil {
+		return 0
+	}
+	return c.ttl
 }
 
 func (c *OnDemandCache) get(key string) (any, bool, bool) {
@@ -72,6 +96,44 @@ func (c *OnDemandCache) set(key string, data any) {
 	defer c.mu.Unlock()
 	now := time.Now()
 	c.m[key] = cacheItem{data: data, expiresAt: now.Add(c.ttl), fetchedAt: now}
+}
+
+// GetOrFetch returns the fresh cached value when present, else coalesces
+// concurrent fetches for key via single-flight, caches the success and
+// returns it. fetch runs at most once per burst; shared reports whether the
+// result was shared with another caller. Errors are NOT cached: callers fall
+// back to stale entries via get (graceful degradation).
+func (c *OnDemandCache) GetOrFetch(key string, fetch func() (any, error)) (val any, freshHit bool, shared bool, err error) {
+	if c == nil {
+		return fetchSingle(fetch)
+	}
+	if data, fresh, found := c.get(key); found && fresh {
+		return data, true, false, nil
+	}
+	v, err, shared := c.sf.Do(key, func() (any, error) {
+		if data, fresh, found := c.get(key); found && fresh {
+			return data, nil
+		}
+		return fetch()
+	})
+	if err != nil {
+		return nil, false, shared, err
+	}
+	// If the single-flight winner returned a fresh-cached value (inner
+	// re-check hit), do not extend its TTL.
+	if data, fresh, found := c.get(key); found && fresh && data == v {
+		return v, false, shared, nil
+	}
+	c.set(key, v)
+	return v, false, shared, nil
+}
+
+func fetchSingle(fetch func() (any, error)) (any, bool, bool, error) {
+	v, err := fetch()
+	if err != nil {
+		return nil, false, false, err
+	}
+	return v, false, false, nil
 }
 
 // BalancesDTO is GET /traders/{wallet}/balances (§1.3).

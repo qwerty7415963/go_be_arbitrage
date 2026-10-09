@@ -6924,14 +6924,14 @@ const docTemplate = `{
         },
         "/api/v1/traders/{wallet}": {
             "get": {
-                "description": "Registry header + one period's metrics by wallet address (period query, default 30D; venue query, default hyperliquid). Unknown wallet is 404. Never calls upstream inline.",
+                "description": "LIVE registry header + overview metrics for one wallet (LIVE-CONTRACT v1.2 §1.7). Registry is a light DB read (404 unknown wallet); metrics are computed live from the same fills universe as activity/performance (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read) via computeLiveMetrics + portfolio + LB refs (same as performance). No reads of trader_period_metrics / trader_positions / trader_trades; scanner search still reads period_metrics (unchanged). data_status is ready or error only (never syncing/stale); as_of is fetch time (null on error without cache).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "traders"
                 ],
-                "summary": "Trader detail (public)",
+                "summary": "Trader detail (public, live)",
                 "parameters": [
                     {
                         "type": "string",
@@ -7021,14 +7021,14 @@ const docTemplate = `{
         },
         "/api/v1/traders/{wallet}/activity": {
             "get": {
-                "description": "Durable closed trades with server-computed net_pnl (WALLET-TABS v1 \u00a7.2 + SYNC-FIX v1.1 \u00a7 data_status). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
+                "description": "LIVE closed trades for one wallet (LIVE-CONTRACT v1.2 \u00a71.2). Source is live userFillsByTime over the trailing 30d → in-memory ReconstructTrades → rows with entry_price/exit_price (avg), duration_sec, volume, pnl, fees, funding (signed, negative = paid), net_pnl = pnl - fees (unchanged), fills. Funding attribution sums userFunding payments with openTime <= time <= closeTime per coin (informational only; win/loss/counts still on net_pnl). Counts over the fetched 30d window (stable across pagination/filters). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). data_status is ready or error only; plus as_of + partial (true when the venue truncated the window). Rows never null. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "traders"
                 ],
-                "summary": "Trader recent activity (public)",
+                "summary": "Trader recent activity (public, live)",
                 "parameters": [
                     {
                         "type": "string",
@@ -7169,118 +7169,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/sync": {
-            "post": {
-                "description": "Enqueue ONE priority full SyncWallet pass (SYNC-FIX v1.1 B1: singleflight + 10-min debounce). 202 statuses: queued (enqueued for the priority lane), in_flight (already running), recent (completed within the debounce window, no-op). Priority drain shares the venue pacer + worker limit with SyncAll; 6h cadence unchanged.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "traders"
-                ],
-                "summary": "Trigger priority wallet sync (public)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Wallet address (0x...)",
-                        "name": "wallet",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "hyperliquid",
-                        "description": "Venue code",
-                        "name": "venue",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_trader.SyncResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "INVALID_FILTER / validation (bad address)",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "unknown wallet/venue",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "429": {
-                        "description": "COMMON-905 sync queue full, retry later",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/traders/{wallet}/positions": {
             "get": {
-                "description": "Latest open-position snapshot for a watched wallet (DETAIL-PLAN §4.1 + WALLET-TABS v1 §1.1). Never calls upstream inline; freshness from last_positions_sync_at (NULL/never synced reports data_status=syncing per M5). Summary null when never synced; positions is [] (never null). Server-side sort.",
+                "description": "LIVE open-position snapshot for one wallet (LIVE-CONTRACT v1.2 \u00a71.1). Source is live clearinghouseState per request behind the interactive client (own pacer floor ~200ms, concurrency ~4, ctx timeout) + TTL 12s cache + single-flight. data_status is ready or error only (never syncing/stale); as_of is fetch time (never null on success). Positions is [] (never null). Server-side sort.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "traders"
                 ],
-                "summary": "Trader open positions (public)",
+                "summary": "Trader open positions (public, live)",
                 "parameters": [
                     {
                         "type": "string",
@@ -8858,14 +8756,14 @@ const docTemplate = `{
         },
         "/api/v1/traders/{wallet}/performance": {
             "get": {
-                "description": "Period metrics + equity curve (WALLET-TABS v1 §1.7, WS6). Reuses Detail metrics + trader_equity_daily; no new source.",
+                "description": "LIVE overview metrics + equity curve for one wallet (LIVE-CONTRACT v1.2 \u00a71.7). Metrics computed live from the same fills universe as activity (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read). Equity is live portfolio (FetchPortfolio + AggregateEquityDaily). Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "traders"
                 ],
-                "summary": "Trader performance (public)",
+                "summary": "Trader performance (public, live)",
                 "parameters": [
                     {
                         "type": "string",
@@ -11080,19 +10978,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_trader.SyncResponse": {
-            "type": "object",
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "queued",
-                        "in_flight",
-                        "recent"
-                    ]
-                }
-            }
-        },
         "internal_trader.PositionSnapshotDTO": {
             "type": "object",
             "properties": {
@@ -11131,6 +11016,12 @@ const docTemplate = `{
         "internal_trader.Detail": {
             "type": "object",
             "properties": {
+                "as_of": {
+                    "type": "string"
+                },
+                "data_status": {
+                    "$ref": "#/definitions/internal_trader.DataStatus"
+                },
                 "metrics": {
                     "$ref": "#/definitions/internal_trader.PeriodMetrics"
                 },

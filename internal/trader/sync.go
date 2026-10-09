@@ -2,7 +2,6 @@ package trader
 
 import (
 	"context"
-	"hash/fnv"
 	"log"
 	"sync"
 	"time"
@@ -33,33 +32,23 @@ type SyncOptions struct {
 	ColdInterval time.Duration
 	// PortfolioInterval is the minimum gap between equity refreshes.
 	PortfolioInterval time.Duration
-	// PositionInterval is the minimum gap between position refreshes for
-	// watched wallets (M2: ActivityHub.WatchSet = currently-viewed detail
-	// pages). Default 30s. Unwatched wallets use PositionColdInterval.
-	PositionInterval time.Duration
-	// PositionColdInterval is the minimum gap between position refreshes for
-	// unwatched wallets (M2: long interval, no HL load bomb). Default 24h.
-	PositionColdInterval time.Duration
-	// PositionJitter spreads unwatched position refreshes deterministically
-	// (hash of address mod jitter, added to PositionColdInterval).
-	// Default 1h.
-	PositionJitter time.Duration
+	// LIVE-CONTRACT v1.2 WS-E: positions-30s sync removed. Detail positions
+	// are LIVE (§1.1 REST, short TTL); the sync engine keeps daily/period for
+	// the scanner only. PositionInterval/PositionColdInterval/PositionJitter
+	// are retired (zero values ignored).
 }
 
 func DefaultSyncOptions() SyncOptions {
 	return SyncOptions{
-		FullLookback:         365 * 24 * time.Hour,
-		PurgeRetention:       60 * 24 * time.Hour,
-		StaleAfter:           24 * time.Hour,
-		LBRefFresh:           24 * time.Hour,
-		WalletTimeout:        10 * time.Minute,
-		Workers:              1,
-		ColdAfter:            7 * 24 * time.Hour,
-		ColdInterval:         24 * time.Hour,
-		PortfolioInterval:    24 * time.Hour,
-		PositionInterval:     30 * time.Second,
-		PositionColdInterval: 24 * time.Hour,
-		PositionJitter:       time.Hour,
+		FullLookback:      365 * 24 * time.Hour,
+		PurgeRetention:    60 * 24 * time.Hour,
+		StaleAfter:        24 * time.Hour,
+		LBRefFresh:        24 * time.Hour,
+		WalletTimeout:     10 * time.Minute,
+		Workers:           1,
+		ColdAfter:         7 * 24 * time.Hour,
+		ColdInterval:      24 * time.Hour,
+		PortfolioInterval: 24 * time.Hour,
 	}
 }
 
@@ -92,15 +81,6 @@ func (o *SyncOptions) withDefaults() SyncOptions {
 	if o.PortfolioInterval > 0 {
 		d.PortfolioInterval = o.PortfolioInterval
 	}
-	if o.PositionInterval > 0 {
-		d.PositionInterval = o.PositionInterval
-	}
-	if o.PositionColdInterval > 0 {
-		d.PositionColdInterval = o.PositionColdInterval
-	}
-	if o.PositionJitter > 0 {
-		d.PositionJitter = o.PositionJitter
-	}
 	return d
 }
 
@@ -113,154 +93,29 @@ var periodLookbacks = map[string]time.Duration{
 }
 
 // SyncService ingests venue fills per registry wallet and maintains daily
-// aggregates + the period metric cache the scanner reads. Work is
+// aggregates + the period metric cache the scanner reads (LIVE-CONTRACT v1.2
+// WS-E: scanner only; detail is LIVE and never reads sync tables). Work is
 // recompute-based (never blind increments): reruns are identical (BE-020) and
 // crash recovery only replays (BE-033).
 type SyncService struct {
 	repo      *Repository
 	fetch     FillFetcher
 	portfolio PortfolioFetcher // optional; nil skips equity (V1.1 wiring sets it)
-	positions PositionFetcher  // optional; nil skips positions (DETAIL-PLAN A5)
-	hub       *ActivityHub     // optional; nil = no wallet watched (M2 scope)
 	venueID   uuid.UUID
 	opts      SyncOptions
 	logf      func(format string, args ...any)
 	counters  syncCounters
-	// SYNC-FIX v1.1 B1 priority lane: dedicated drain, shared venue pacer
-	// (same HL client) + worker cap (sequential drain <= opts.Workers).
-	// singleflight via prioInflight, debounce via prioLastDone + DB
-	// LastFillsSyncAt. Initialized in NewSyncService; ensurePriorityInit
-	// keeps zero-value services usable in tests.
-	prioMu       sync.Mutex
-	prioInflight map[string]bool
-	prioLastDone map[string]time.Time
-	prioCh       chan string
-	prioDebounce time.Duration
-	prioNow      func() time.Time
 }
 
 func NewSyncService(repo *Repository, fetch FillFetcher, venueID uuid.UUID, opts SyncOptions) *SyncService {
-	s := &SyncService{repo: repo, fetch: fetch, venueID: venueID,
+	return &SyncService{repo: repo, fetch: fetch, venueID: venueID,
 		opts: opts.withDefaults(), logf: log.Printf}
-	s.ensurePriorityInit()
-	return s
 }
 
 // WithPortfolio enables the equity-curve job (V1.1); nil disables it.
 func (s *SyncService) WithPortfolio(p PortfolioFetcher) *SyncService {
 	s.portfolio = p
 	return s
-}
-
-// WithPositions enables the open-position snapshot job (DETAIL-PLAN A5);
-// nil disables it.
-func (s *SyncService) WithPositions(p PositionFetcher) *SyncService {
-	s.positions = p
-	return s
-}
-
-// WithActivityHub sets the watched-wallet set for M2 position scope
-// (wallets with a live WS subscriber = currently-viewed detail pages).
-// Nil disables watched fast-path (all wallets use the cold interval).
-func (s *SyncService) WithActivityHub(h *ActivityHub) *SyncService {
-	s.hub = h
-	return s
-}
-
-// isWatched reports whether addr has a live WS subscriber.
-func (s *SyncService) isWatched(addr string) bool {
-	return s.hub != nil && s.hub.IsWatched(addr)
-}
-
-// positionJitter spreads unwatched refreshes deterministically over
-// [0, PositionJitter) keyed by address (M2: no thundering herd).
-func (s *SyncService) positionJitter(addr string) time.Duration {
-	if s.opts.PositionJitter <= 0 {
-		return 0
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(addr))
-	return time.Duration(h.Sum32()%uint32(s.opts.PositionJitter)) * time.Nanosecond
-}
-
-// shouldSyncPositions implements the M2 scope: first sync always (one-off
-// snapshot); watched wallets every PositionInterval (30s); all others every
-// PositionColdInterval + deterministic jitter.
-func (s *SyncService) shouldSyncPositions(state *SyncState, addr string, now time.Time) bool {
-	if s.positions == nil || state == nil {
-		return false
-	}
-	if state.LastPositionsSyncAt == nil {
-		return true
-	}
-	elapsed := now.Sub(*state.LastPositionsSyncAt)
-	if s.isWatched(addr) {
-		return elapsed >= s.opts.PositionInterval
-	}
-	return elapsed >= s.opts.PositionColdInterval+s.positionJitter(addr)
-}
-
-// syncPositions refreshes the open-position snapshot from clearinghouseState.
-// Auxiliary like syncEquity: failure never fails the wallet pass (keeps the
-// last snapshot, leaves last_positions_sync_at untouched).
-func (s *SyncService) syncPositions(ctx context.Context, addr string, now time.Time) {
-	snap, err := s.positions.FetchPositions(ctx, addr)
-	if err != nil {
-		s.logf("sync %s: positions failed: %v", addr, err)
-		return
-	}
-	if err := s.repo.ReplacePositions(ctx, s.venueID, addr, snap); err != nil {
-		s.logf("sync %s: positions persist failed: %v", addr, err)
-		return
-	}
-	_, _ = s.repo.pool.Exec(ctx, `UPDATE trader_sync_state SET last_positions_sync_at=$3, updated_at=NOW()
-		WHERE venue_id=$1 AND wallet_address=$2`, s.venueID, addr, now.UTC())
-}
-
-// SyncPositionsWatched refreshes positions for currently-watched wallets only
-// (M2 fast path, driven by a 30s ticker in app.Run; no per-wallet timer).
-// Unwatched wallets are covered by their normal SyncWallet pass.
-// SYNC-FIX v1.1 B3: nil sync-state (no row yet) is ensured then synced —
-// never skipped — so the first detail view gets a snapshot on the next tick.
-func (s *SyncService) SyncPositionsWatched(ctx context.Context, now time.Time) (done int) {
-	if s.positions == nil || s.hub == nil {
-		return 0
-	}
-	for _, addr := range s.hub.WatchSet() {
-		state, err := s.repo.GetSyncState(ctx, s.venueID, addr)
-		if err != nil {
-			continue
-		}
-		if state == nil {
-			state, err = s.repo.EnsureSyncState(ctx, s.venueID, addr)
-			if err != nil || state == nil {
-				continue
-			}
-		}
-		if !s.shouldSyncPositions(state, addr, now) {
-			continue
-		}
-		s.syncPositions(ctx, addr, now)
-		done++
-	}
-	return done
-}
-
-// StartPositions runs SyncPositionsWatched immediately and on every interval
-// until ctx ends (M2: watched wallets near-realtime, bounded by the shared
-// venue pacer — no per-wallet timer).
-func (s *SyncService) StartPositions(ctx context.Context, interval time.Duration) {
-	s.SyncPositionsWatched(ctx, time.Now().UTC())
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.SyncPositionsWatched(ctx, time.Now().UTC())
-		}
-	}
 }
 
 // SyncWallet runs one full pass for an address: fetch → stage → recompute
@@ -344,19 +199,15 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		now.Sub(*state.LastPortfolioSyncAt) >= s.opts.PortfolioInterval) {
 		s.syncEquity(ctx, addr, now)
 	}
-	if s.shouldSyncPositions(state, addr, now) {
-		s.syncPositions(ctx, addr, now)
-	}
+	// WS-E: positions-30s sync + durable trades writes removed. Detail is
+	// LIVE (§1.1 positions REST, §1.2 activity 30d); sync keeps daily/period
+	// for the scanner only (no ReplaceTradesForDay, no PruneTrades, no
+	// last_positions_sync_at writes here).
 	if err := s.recalcAll(ctx, addr, now, truncated, &now, false); err != nil {
 		return err
 	}
 	if _, err := s.repo.PurgeBuffer(ctx, s.venueID, addr, now.Add(-s.opts.PurgeRetention)); err != nil {
 		return err
-	}
-	// 15-day retention for durable closed trades (DETAIL-PLAN D5).
-	// Best-effort: prune failure is logged, never fails the wallet pass.
-	if _, err := s.repo.PruneTrades(ctx, s.venueID, addr, now.Add(-15*24*time.Hour)); err != nil {
-		s.logf("sync %s: prune trades failed: %v", addr, err)
 	}
 	return nil
 }
@@ -429,14 +280,9 @@ func (s *SyncService) recomputeAffected(ctx context.Context, addr string, fetche
 		if err := s.repo.UpsertDailyStats(ctx, row); err != nil {
 			return err
 		}
-		// Persist durable closed trades for the day (DETAIL-PLAN A5):
-		// crash-safe recompute — delete the day window, then insert the
-		// recomputed list. Empty lists still delete (a recompute that
-		// closed the cycle must clear stale rows). daySet only holds days
-		// >= cutoff (same guard as the daily loop).
-		if err := s.repo.ReplaceTradesForDay(ctx, s.venueID, addr, day, byCloseDay[key]); err != nil {
-			return err
-		}
+		// WS-E: durable trades writes removed (ReplaceTradesForDay calls in
+		// the sync path). Detail activity is LIVE (§1.2 30d); sync keeps
+		// daily/period for the scanner only.
 	}
 	return nil
 }

@@ -537,8 +537,9 @@ func TestE2E_Trader_WSdiscovery(t *testing.T) {
 	}
 }
 
-// E2E-T-05 (M7): positions flow — seed registry + sync-state +
-// positions/summary → GET positions 200; unknown wallet 404.
+// E2E-T-05 (M7 → LIVE-CONTRACT v1.2 WS-E teardown): positions are LIVE
+// (nil on-demand ⇒ error degradation, never DB reads). Seed DB positions to
+// prove they are IGNORED; unknown wallet still 404.
 func TestE2E_Trader_PositionsFlow(t *testing.T) {
 	s := setupTraderSuite(t)
 	ctx := context.Background()
@@ -576,15 +577,17 @@ func TestE2E_Trader_PositionsFlow(t *testing.T) {
 		t.Fatalf("positions: %d %v", code, resp)
 	}
 	data := resp["data"].(map[string]any)
-	if data["data_status"] != "ready" {
-		t.Errorf("data_status: %v", data)
+	// LIVE v1.2 with nil on-demand: DB seed ignored, degrades to error +
+	// empty rows (never 500, never DB reads).
+	if data["data_status"] != "error" {
+		t.Errorf("data_status: want error (live degradation), got %v", data)
 	}
-	if data["summary"] == nil {
-		t.Errorf("summary must be present: %v", data)
+	if data["summary"] != nil {
+		t.Errorf("summary must be null on live error: %v", data)
 	}
 	rows, ok := data["positions"].([]any)
-	if !ok || len(rows) != 1 || rows[0].(map[string]any)["coin"] != "BTC" {
-		t.Errorf("positions rows: %v", data["positions"])
+	if !ok || len(rows) != 0 {
+		t.Errorf("positions rows must be [] on live error: %v", data["positions"])
 	}
 
 	unknown := traderRandAddr(t)
@@ -594,8 +597,8 @@ func TestE2E_Trader_PositionsFlow(t *testing.T) {
 	}
 }
 
-// E2E-T-06 (M7): activity flow — seed 3 closed trades → GET activity limit=2
-// → follow next_cursor; net_pnl correct; bad cursor 400.
+// E2E-T-06 (M7 → LIVE-CONTRACT v1.2 WS-E teardown): activity is LIVE
+// (nil on-demand ⇒ error + empty, DB trades IGNORED); bad cursor still 400.
 func TestE2E_Trader_ActivityFlow(t *testing.T) {
 	s := setupTraderSuite(t)
 	ctx := context.Background()
@@ -628,29 +631,16 @@ func TestE2E_Trader_ActivityFlow(t *testing.T) {
 		t.Fatalf("activity p1: %d %v", code, resp)
 	}
 	data := resp["data"].(map[string]any)
+	// LIVE v1.2 with nil on-demand: DB seeds ignored, error + empty universe.
 	rows, ok := data["rows"].([]any)
-	if !ok || len(rows) != 2 {
-		t.Fatalf("page 1 rows: %v", data)
+	if !ok || len(rows) != 0 {
+		t.Fatalf("live error rows must be []: %v", data)
 	}
-	if data["has_more"] != true || data["next_cursor"] == nil || data["next_cursor"] == "" {
-		t.Fatalf("page 1 pagination: %v", data)
-	}
-	if rows[0].(map[string]any)["market"] != "BTC" || rows[0].(map[string]any)["net_pnl"] != 1470.0 {
-		t.Errorf("page 1 content: %v", rows)
-	}
-	cursor := data["next_cursor"].(string)
-
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&limit=2&cursor="+cursor, "", "")
-	if code != http.StatusOK {
-		t.Fatalf("activity p2: %d %v", code, resp)
-	}
-	data = resp["data"].(map[string]any)
-	rows, ok = data["rows"].([]any)
-	if !ok || len(rows) != 1 || rows[0].(map[string]any)["market"] != "SOL" {
-		t.Errorf("page 2 rows: %v", data)
+	if data["data_status"] != "error" {
+		t.Fatalf("live error data_status: %v", data)
 	}
 	if data["has_more"] != false {
-		t.Errorf("page 2 has_more: %v", data)
+		t.Fatalf("live error has_more: %v", data)
 	}
 
 	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&cursor=forged.cursor", "", "")
@@ -731,8 +721,11 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 		t.Fatalf("performance empty: %d %v", code, resp)
 	}
 	pdata := resp["data"].(map[string]any)
-	if pdata["period"] != "30D" || pdata["metrics"] != nil {
-		t.Errorf("no metrics ⇒ null: %v", pdata)
+	// LIVE v1.2: performance is live (nil on-demand ⇒ error metrics object,
+	// never null; DB seeds ignored).
+	met0, ok := pdata["metrics"].(map[string]any)
+	if pdata["period"] != "30D" || !ok || met0["data_status"] != "error" {
+		t.Errorf("live error metrics object: %v", pdata)
 	}
 	pnl := 1234.5
 	tc := int64(7)
@@ -754,12 +747,14 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 		t.Fatalf("performance seeded: %d %v", code, resp)
 	}
 	pdata = resp["data"].(map[string]any)
+	// LIVE v1.2: performance is live (nil on-demand ⇒ error degradation);
+	// DB period/equity seeds are IGNORED (never read on detail flows).
 	met, ok := pdata["metrics"].(map[string]any)
-	if !ok || met["pnl"] != 1234.5 {
-		t.Errorf("metrics pnl: %v", pdata)
+	if !ok || met["data_status"] != "error" {
+		t.Errorf("live error metrics: %v", pdata)
 	}
-	if eq := pdata["equity"].([]any); len(eq) == 0 {
-		t.Errorf("equity curve: %v", pdata)
+	if eq := pdata["equity"].([]any); len(eq) != 0 {
+		t.Errorf("live error equity must be []: %v", pdata)
 	}
 	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/performance"+v+"&period=90D", "", ""); code != http.StatusBadRequest {
 		t.Errorf("performance period=90D must 400, got %d", code)
@@ -776,10 +771,10 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 	}
 }
 
-// E2E-T-08 (wallet-tabs WS1): activity sort/filter/counts — seed 4 trades
-// (LONG win ×2, SHORT loss ×1, LONG breakeven ×1) → sort=volume asc monotonic
-// → result=win&side=long only winners → counts stable across filters/pages →
-// cursor walk by sort has no dup/skip; entry_price nulls last.
+// E2E-T-08 (wallet-tabs WS1 → LIVE-CONTRACT v1.2 WS-E teardown): activity
+// sort/filter/counts are in-memory over the LIVE 30d universe (unit-covered).
+// E2E with nil on-demand asserts live degradation: DB seeds IGNORED, error +
+// empty rows + zero counts (never 500, never DB reads).
 func TestE2E_Trader_ActivitySortFilterCounts(t *testing.T) {
 	s := setupTraderSuite(t)
 	ctx := context.Background()
@@ -806,30 +801,24 @@ func TestE2E_Trader_ActivitySortFilterCounts(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	v := "?venue=trader-e2e-venue"
-	wantCounts := map[string]float64{"win": 2, "loss": 1, "long": 3, "short": 1, "total": 4}
 
 	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=10", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("sort volume: %d %v", code, resp)
 	}
 	data := resp["data"].(map[string]any)
+	// LIVE v1.2 nil on-demand: DB seeds ignored.
 	rows := data["rows"].([]any)
-	if len(rows) != 4 {
-		t.Fatalf("rows: %v", data)
+	if len(rows) != 0 {
+		t.Fatalf("live error rows must be []: %v", data)
 	}
-	vols := []float64{rows[0].(map[string]any)["volume"].(float64), rows[1].(map[string]any)["volume"].(float64), rows[2].(map[string]any)["volume"].(float64), rows[3].(map[string]any)["volume"].(float64)}
-	for i := 1; i < len(vols); i++ {
-		if vols[i] < vols[i-1] {
-			t.Fatalf("volume asc monotonic: %v", vols)
-		}
+	if data["data_status"] != "error" {
+		t.Fatalf("live error data_status: %v", data)
 	}
-	for k, want := range wantCounts {
+	for k, want := range map[string]float64{"win": 0, "loss": 0, "long": 0, "short": 0, "total": 0} {
 		if got := data["counts"].(map[string]any)[k].(float64); got != want {
-			t.Errorf("counts %s: want %v got %v (%v)", k, want, got, data["counts"])
+			t.Errorf("live error counts %s: want %v got %v", k, want, got)
 		}
-	}
-	if rows[3].(map[string]any)["market"] != "BTC" || rows[3].(map[string]any)["entry_price"] != 50000.0 {
-		t.Errorf("largest volume (BTC) must carry entry_price 50000: %v", rows[3])
 	}
 
 	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&result=win&side=long", "", "")
@@ -837,59 +826,7 @@ func TestE2E_Trader_ActivitySortFilterCounts(t *testing.T) {
 		t.Fatalf("filter: %d %v", code, resp)
 	}
 	data = resp["data"].(map[string]any)
-	rows = data["rows"].([]any)
-	if len(rows) != 2 {
-		t.Fatalf("win+long rows: %v", data)
-	}
-	for _, r := range rows {
-		m := r.(map[string]any)
-		if m["side"] != "LONG" || m["net_pnl"].(float64) <= 0 {
-			t.Errorf("only LONG winners: %v", m)
-		}
-	}
-	for k, want := range wantCounts {
-		if got := data["counts"].(map[string]any)[k].(float64); got != want {
-			t.Errorf("filtered counts %s stable: want %v got %v", k, want, got)
-		}
-	}
-
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=entry_price&dir=asc&limit=10", "", "")
-	if code != http.StatusOK {
-		t.Fatalf("sort entry: %d %v", code, resp)
-	}
-	rows = resp["data"].(map[string]any)["rows"].([]any)
-	if len(rows) != 4 || rows[3].(map[string]any)["entry_price"] != nil {
-		t.Errorf("entry nulls last: %v", rows)
-	}
-
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=2", "", "")
-	if code != http.StatusOK {
-		t.Fatalf("p1: %d %v", code, resp)
-	}
-	data = resp["data"].(map[string]any)
-	p1 := data["rows"].([]any)
-	if len(p1) != 2 || data["has_more"] != true {
-		t.Fatalf("p1: %v", data)
-	}
-	cursor := data["next_cursor"].(string)
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=2&cursor="+cursor, "", "")
-	if code != http.StatusOK {
-		t.Fatalf("p2: %d %v", code, resp)
-	}
-	data = resp["data"].(map[string]any)
-	p2 := data["rows"].([]any)
-	if len(p2) != 2 {
-		t.Fatalf("p2: %v", data)
-	}
-	seen := map[string]bool{}
-	for _, r := range append(p1, p2...) {
-		mk := r.(map[string]any)["market"].(string)
-		if seen[mk] {
-			t.Fatalf("dup %s across sort pages", mk)
-		}
-		seen[mk] = true
-	}
-	if len(seen) != 4 {
-		t.Errorf("pages cover 4: %v", seen)
+	if rows := data["rows"].([]any); len(rows) != 0 {
+		t.Fatalf("live error filtered rows must be []: %v", data)
 	}
 }

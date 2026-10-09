@@ -1006,6 +1006,101 @@ error beats stale; fills >24h → `stale`; else `ready`). B3
 |------|------|-------|----------|
 | SYNC11-E-01 | Unsynced→ready via priority lane | Seed registry → GET activity (`syncing`, rows `[]`) → POST /sync twice fast (`queued`+`in_flight`) → unknown 404 + bad 400 → drain → GET activity (`ready` + rows) → POST again `recent` | No manual refresh; one pass runs; debounce holds (`TestE2E_Trader_SyncFlow` in `e2e_trader_sync_test.go`) |
 
+### 19.13 LIVE-CONTRACT v1.2 — Wallet Detail Live (contract `LIVE-CONTRACT.md` frozen v1.2)
+
+Scope: every number on Wallet Detail is LIVE for the one viewed wallet. No sync
+state, no polling-for-sync, no `syncing` states in detail. Positions stay REST
+(`clearinghouseState`, TTL 12s); fills/orders/fundings/ledger go WS
+(`userFills`, `orderUpdates`, `userFundings`, `userNonFundingLedgerUpdates`;
+`webData2` rejected → positions REST-only). Activity = live `userFillsByTime`
+trailing 30d → `ReconstructTrades` → funding attribution (`userFunding`,
+informational only, `net_pnl = pnl − fees` unchanged). Performance = same fills
+universe (1D/7D/30D) + portfolio/LB for ALL. One refcounted `WalletWatcher`
+per watched address over `GET /traders/ws?wallet=`. Interactive HL client
+(`hlLive`) has its OWN pacer (floor ~200ms), own 429 backoff, concurrency ~4,
+per-request ctx timeouts; sync's 2s pacer untouched. TTL 12s cache +
+single-flight per (endpoint,wallet,params). Teardown WS-E: POST /sync +
+priority lane + `deriveActivityStatus` + syncing machinery + durable trades
+writes in sync path + migration 000030 withdrawn (local-dev only, never
+released); scanner keeps daily/period/equity (6h cadence) untouched. No new
+migration.
+
+Supersedes for detail: §19.12 SYNC-FIX v1.1 detail cases (SYNC11-H-06,
+SYNC11-I-05, SYNC11-E-01, `deriveActivityStatus` matrix SYNC11-U-05,
+`RequestSync`/`StartPriority`/`SyncPositionsWatched` cases) are RETIRED for
+detail — replaced by LIVE-* below. Scanner-only sync engine cases (§20.1,
+SYNC-U-01..03, SYNC-I-04..06, `SyncWallet`/`SyncAll`/tiers/backoff) stay green
+and untouched. `DataSyncing`/`DataStale` constants stay for scanner
+`trader_period_metrics` rows only; detail asserts ready/error exclusively.
+
+#### Unit
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| LIVE-U-01 | `mapHLFillsToTrader` skip rules | Mixed side B/A/unknown, qty≤0, px<0, time≤0, bad closedPnl, bad fee, empty coin | Bad rows skipped; fee-invalid keeps row with fee 0; valid mapped (`TestMapHLFillsToTrader_SkipRules`) |
+| LIVE-U-02 | `parseFundingPayments` normalize | Valid + time≤0 + empty coin + bad usdc + negative paid usdc | Bad skipped; signed usdc kept as-is; coin upper-cased (`TestParseFundingPayments_Normalize`) |
+| LIVE-U-03 | `attributeFunding` window | 2 trades (BTC Jan 1-10, ETH Jan 5-15) + payments inside/outside/boundary per coin | Only `openTime ≤ time ≤ closeTime` same-coin summed; cross-coin ignored; empty → zeros (`TestAttributeFunding_Window`) |
+| LIVE-U-04 | `completedTradesToRows` net/funding | Long win + short loss with funding array (incl. short array) | Side LONG/SHORT; `funding` attached by index (missing→0); `NetPnl()=pnl-fees` (`TestCompletedTradesToRows_NetFunding`) |
+| LIVE-U-05 | `computeLiveMetrics` fold | 2 wins + 1 loss + 1 breakeven, volumes, equity curve | `pnl`=Σnet; `roi`=pnl/volume fallback; win_rate excludes breakeven; profit_factor finite; maxDD from curve else nil (`TestComputeLiveMetrics_Fold`) |
+| LIVE-U-06 | `periodFillsLookback` map | 1D/7D/30D/ALL/empty | 1/7/30d true; ALL false (no fills window); default 30d (`TestPeriodFillsLookback_Map`) |
+| LIVE-U-07 | `aggregateLiveEquity` fold | day/week/month/allTime points + out-of-range + bad value/time | Only [from,now] valid folded via `AggregateEquityDaily`; DTOs oldest-first; curve for drawdown (`TestAggregateLiveEquity_Fold`) |
+| LIVE-U-08 | `NewLiveClient` defaults | Zero floor/concurrency/timeout | Floor 200ms, concurrency 4, single 12s, window 25s; `Interval()`/`Concurrency()` report (`TestNewLiveClient_Defaults`) |
+| LIVE-U-09 | `OnDemandCache` TTL/expiry | Set → fresh get → expire → stale retained | Fresh hit returns value; expired keeps stale for degradation; errors not cached (`TestOnDemandCache_TTLExpiry`) |
+| LIVE-U-10 | `OnDemandCache` single-flight | N concurrent `GetOrFetch` same key, counting fetch | Fetch runs once per burst; all callers share value (`TestOnDemandCache_SingleFlight`) |
+| LIVE-U-11 | Live pacer floor | `LiveClient` floor 200ms vs sync 2s | Live interval ~200ms; sync pacer untouched (`TestLivePacer_Floor`) |
+| LIVE-U-12 | `SubscriptionMessage` shape | `userFills`/`orderUpdates`/`userFundings`/`userNonFundingLedgerUpdates` + addr | `{method:subscribe, subscription:{type,user}}`; fills adds `aggregateByTime:false` (`TestSubscriptionMessage_Shape`) |
+| LIVE-U-13 | Watcher refcount/lifecycle | 1 sub → 10 subs same wallet → unsub to 0 | Exactly 1 upstream watcher; `WatcherCount()=1`; last unsub tears down + memory released (`TestWatcher_RefcountLifecycle`) |
+| LIVE-U-14 | Watcher reconnect states | `Subscribe` → `Reconnect` (fake dialer kill) | `DISCONNECTED→RECONNECT→RESYNC→RECONCILE→LIVE`; events carry state; never stale-as-LIVE (`TestWatcher_ReconnectStates`) |
+| LIVE-U-15 | Watcher concurrency gate | Gate 4, N concurrent bootstraps | At most 4 concurrent RESYNCs; overflow retries without hang (`TestWatcher_ConcurrencyGate`) |
+| LIVE-U-16 | Watcher `OnFill`/`OnFunding`/`OnOrder` | Fill + funding + order ingests in LIVE vs non-LIVE | LIVE emits `wallet.fill.created`+`state.updated`; non-LIVE buffers with current state; funding/order envelopes emitted (`TestWatcher_OnFillFundingOrder`) |
+
+#### Handler
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| LIVE-H-01 | GET /positions | Known wallet, mock live OK | 200 `ready`, `as_of` set, `positions[]` never null, server sort (`TestHandler_Positions_LiveReady`) |
+| LIVE-H-02 | GET /positions | HL error with stale cache / without cache | Stale+`error` / empty+`error` (never null, never 500) (`TestHandler_Positions_LiveError`) |
+| LIVE-H-03 | GET /positions | Unknown wallet / bad address / bad sort/dir / unknown venue | 404 / 400 INVALID_FILTER / 400 / 404 (`TestHandler_Positions_LiveValidation`) |
+| LIVE-H-04 | GET /activity | Default (no params), mock 30d universe | 200 `ready`, limit 20, `as_of`+`partial:false`, `counts` over universe, rows never null (`TestHandler_Activity_LiveReady`) |
+| LIVE-H-05 | GET /activity | HL error with/without stale | Stale+`error` / empty+`error`+`partial:true` (`TestHandler_Activity_LiveError`) |
+| LIVE-H-06 | GET /activity | limit 0/101/abc, bad cursor, bad sort/dir/result/side, unknown wallet | 400 INVALID_FILTER (cursor sig/fp), 404 unknown (`TestHandler_Activity_LiveValidation`) |
+| LIVE-H-07 | GET /performance | period 1D/7D/30D/ALL, mock live | 200 `period` echoes, `metrics`+`equity[]` (ALL equity-only when LB missing) (`TestHandler_Performance_LiveReady`) |
+| LIVE-H-08 | GET /performance | HL error; period=90D; unknown/invalid | Stale+`error` / empty+`error`; 400 / 404 / 400 (`TestHandler_Performance_LiveErrorValidation`) |
+| LIVE-H-09 | GET /balances|fills|orders|transfers | Interactive client paths (valid + validation) | Same shapes as §19.11 WT-H-01..09 but behind `hlLive` (TTL+single-flight); HL error degrades (never 500) (`TestHandler_LiveTabs_Interactive`) |
+| LIVE-H-10 | GET /traders/ws | Connect → subscribed → wallet.* frames; ping; close | `{type:subscribed}` then `wallet.connection.updated`/`wallet.position.updated`; ping→pong; close unsubscribes (`TestHandler_WS_WalletEnvelope`) |
+| LIVE-H-11 | POST /traders/{wallet}/sync | Any call (route removed) | 404/405 (no route); no `SyncResponse` in swagger (`TestHandler_Sync_Removed`) |
+
+#### Integration (`//go:build integration`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| LIVE-I-01 | Positions live (fake HL) | Registry + fake `FetchClearinghouseState` → `Positions` twice 3s apart | Equal snapshot (TTL hit), `as_of` set, `ready`; zero queries to `trader_positions` (`TestRepo_LivePositions_TTL`) |
+| LIVE-I-02 | Activity live (fake HL) | Fake 30d fills + funding → `Activity` default + filtered + paged | Rows ⊆ trailing 30d; `counts` match universe; `net=pnl-fees`; funding attributed; `partial` on 10k-cap (`TestRepo_LiveActivity_Window`) |
+| LIVE-I-03 | Performance live (fake HL) | Same fills universe → `Performance?period=30D` + ALL | Metrics consistent with `/activity` universe; ALL from portfolio/LB; equity from `FetchPortfolio` (`TestRepo_LivePerformance_Consistent`) |
+| LIVE-I-04 | Watcher multi-subscriber | 10+ browser subs one wallet (fake upstream dialer) | Exactly 1 upstream watcher (`UpstreamSubscribes=1`); last unsub tears down (`TestRepo_Watcher_SharedUpstream`) |
+| LIVE-I-05 | Watcher reconnect | Kill upstream (test double) → `Reconnect` | `RECONNECT→RESYNC→LIVE`, no stale-as-LIVE; resync snapshot refreshed (`TestRepo_Watcher_Reconnect`) |
+| LIVE-I-06 | Detail never reads sync tables | Positions/activity/performance flows with query-log/counting test double | Zero queries to `trader_positions`/`trader_trades`/`trader_period_metrics` (`TestRepo_LiveDetail_NoSyncReads`) |
+| LIVE-I-07 | Scanner pipeline intact | `SyncWallet`/`SyncAll` daily/period/equity after teardown | Daily/period rows written; scanner suites green; no `ReplaceTradesForDay` in path (`TestRepo_ScannerAfterTeardown_Intact`) |
+
+#### E2E (`//go:build e2e`)
+
+| Case | Flow | Steps | Expected |
+|------|------|-------|----------|
+| LIVE-E-01 | Open wallet → data without sync tables | Seed registry only (no sync rows) → GET positions/activity/performance → GET ws subscribe | 200 `ready` on all tabs without any sync pass; `as_of` set; rows never null (`TestE2E_Trader_LiveDetailFlow`) |
+| LIVE-E-02 | Watcher share + teardown | 10 WS subs one wallet → last unsub | 1 upstream watcher during; 0 after; memory released (`TestE2E_Trader_WatcherShare`) |
+| LIVE-E-03 | Reconnect E2E | Kill upstream WS (test double) during live session | `RECONNECT→RESYNC→LIVE` frames; no full refetch; badge never LIVE on stale (`TestE2E_Trader_WatcherReconnect`) |
+
+Teardown evidence (WS-E, no migration): `git status` shows `D migrations/000030_*`
+(files withdrawn); `grep -rn "RequestSync\|StartPriority\|deriveActivityStatus\|SyncPositionsWatched\|sync_priority"` hits Go = 0 (only TESTPLAN history +
+one `service.go` removal comment); `POST /traders/{wallet}/sync` + `SyncResponse`
+absent from `docs/swagger.{json,yaml}` + `docs/docs.go` (0 hits); detail
+`data_status` ∈ {ready,error} asserted in LIVE-H-01..08 (no syncing/stale);
+scanner `trader_daily_stats`/`trader_period_metrics`/`trader_equity_daily`
+pipeline + 6h cadence unchanged (LIVE-I-07).
+
+Env deviations (M6): no cgo/gcc → gates WITHOUT `-race` (`CGO=0 go test
+-count=1`); no `golangci-lint` → `go vet` + `gofmt -l` substitute.
+
 ---
 
 ## 20. Scale, Perf & Nightly
@@ -1093,8 +1188,9 @@ daytime pipelines never silently ingest garbage. CI: `.github/workflows/ci-night
 | Collector | 4 | 0 | 2 | 0 | **6** |
 | Trader Scanner v1.1 | 30 | 13 | 22 | 4 | **69** |
 | Wallet Tabs v1 WS1-WS6 (§19.11) | 16 | 12 | 6 | 2 | **36** |
+| Wallet Detail Live v1.2 (§19.13) | 16 | 11 | 7 | 3 | **37** |
 | Sync Scale | 3 | 0 | 3 | 0 | **6** |
 | Perf & Nightly (perf/nightly tags) | - | - | - | - | **7** |
 | Cross-module | - | - | - | 5 | **5** |
 | Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~316** | **~95** | **~69** | **~28** | **~516** |
+| **TOTAL** | **~332** | **~106** | **~76** | **~31** | **~553** |

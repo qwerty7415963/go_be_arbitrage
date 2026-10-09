@@ -52,6 +52,8 @@ type App struct {
 	discoveryService   *trader.DiscoveryService
 	traderSyncService  *trader.SyncService
 	hlClient           *hyperliquid.Client
+	hlLive             *hyperliquid.LiveClient
+	watcherManager     *trader.WatcherManager
 	wsStream           *hyperliquid.TradeStream
 	wsHarvest          *trader.WSHarvestService
 }
@@ -155,34 +157,51 @@ func New(cfg *config.Config) (*App, error) {
 	traderHandler := trader.NewHandler(traderService)
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
 
-	// DETAIL-PLAN A7/A8: realtime activity hub (venue-independent; WS
-	// subscribers = M2 watched set for positions scope).
+	// LIVE-CONTRACT v1.2 §2 (WS-D): realtime path is one refcounted
+	// WalletWatcher per watched address (first browser subscriber creates the
+	// 4-feed upstream watcher; last unsubscribe tears it down) over the shared
+	// browser transport GET /traders/ws?wallet=. The legacy global harvest
+	// feed (addresses) stays for the scanner; browser fills also flow through
+	// the harvest-derived activity path until per-wallet WS multiplexing lands.
 	activityHub := trader.NewActivityHub()
 	traderActivitySvc := trader.NewWSActivityService(activityHub)
-	traderHandler.WithWS(trader.NewActivityWSHandler(activityHub))
+	activityWS := trader.NewActivityWSHandler(activityHub)
+	traderHandler.WithWS(activityWS)
 
 	var discoverySvc *trader.DiscoveryService
 	var traderSyncSvc *trader.SyncService
 	var hlClient *hyperliquid.Client
+	var hlLive *hyperliquid.LiveClient
+	var watcherManager *trader.WatcherManager
 	var wsStream *hyperliquid.TradeStream
 	var wsHarvest *trader.WSHarvestService
 	if venueID, verr := traderRepo.VenueIDByCode(ctx, hyperliquid.VenueCode); verr != nil {
 		log.Warn("hyperliquid venue missing; trader discovery/sync disabled", "error", verr)
 	} else {
 		hlClient = hyperliquid.NewClient("", 30*time.Second, 2*time.Second)
-		// WALLET-TABS v1 WS2-WS5: on-demand tabs share the HL client + 15s TTL
-		// cache behind the existing pacer; graceful degradation on HL error.
-		traderService.WithOnDemand(hlClient, trader.NewOnDemandCache(15*time.Second))
+		// LIVE-CONTRACT v1.2 §3 (WS-A): interactive reads use a SEPARATE HL
+		// client (hlLive) with its OWN pacer (floor 200ms), own 429 backoff,
+		// bounded concurrency (~4) and per-request ctx timeouts. Sync's
+		// 2s-floor pacer is untouched. TTL 12s cache + single-flight behind
+		// it; graceful degradation on HL error.
+		hlLive = hyperliquid.NewLiveClient("", 12*time.Second, 200*time.Millisecond, 4)
+		traderService.WithOnDemand(hlLive, trader.NewOnDemandCache(trader.LiveCacheTTL))
+		// WS-D: one refcounted WalletWatcher per watched address (first
+		// browser subscriber creates the 4-feed upstream watcher + REST
+		// bootstrap RESYNC→RECONCILE→LIVE; last unsubscribe tears it down).
+		// Shared upstream WS multiplexing is interface-ready (UpstreamDialer);
+		// production runs REST-bootstrap + envelope + reconnect states on the
+		// existing transport; the global harvest feed stays for the scanner.
+		watcherManager = trader.NewWatcherManager(activityHub, hlLive, nil, 4)
+		activityWS.WithWatcher(watcherManager)
 		discoverySvc = trader.NewDiscoveryService(traderRepo,
 			trader.HLDiscoveryAdapter{C: hlClient}, venueID, traderDiscoveryLimit)
+		// WS-E: scanner sync keeps daily/period (+equity) only. Detail is
+		// LIVE (no positions-30s sync, no durable trades writes, no POST
+		// /sync priority lane). Live reads use hlLive (WS-A).
 		traderSyncSvc = trader.NewSyncService(traderRepo,
 			trader.HLFillAdapter{C: hlClient}, venueID, traderSyncOptions()).
-			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient}).
-			WithPositions(trader.HLPositionAdapter{C: hlClient}).
-			WithActivityHub(activityHub)
-		// SYNC-FIX v1.1 B1: priority lane trigger for POST /sync (dedicated
-		// drain sharing the venue pacer + worker limit; 6h SyncAll unchanged).
-		traderHandler.WithSync(traderSyncSvc)
+			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient})
 		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
 		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
 			func(evs []hyperliquid.WSTradeEvent) { wsHarvest.Submit(trader.AdaptWSBatch(evs)) })
@@ -223,20 +242,22 @@ func New(cfg *config.Config) (*App, error) {
 		discoveryService:   discoverySvc,
 		traderSyncService:  traderSyncSvc,
 		hlClient:           hlClient,
+		hlLive:             hlLive,
+		watcherManager:     watcherManager,
 		wsStream:           wsStream,
 		wsHarvest:          wsHarvest,
 	}, nil
 }
 
-// Trader Scanner v1.1 worker tuning: leaderboard refresh (39MB dump) every
-// 15 minutes; metric sync every 6 hours (parity with the legacy backfill);
-// WS trade discovery subscribes the perp universe with hourly meta refresh.
+// Trader Scanner worker tuning: leaderboard refresh (39MB dump) every 15
+// minutes; metric sync every 6 hours (parity with the legacy backfill, WS-E:
+// scanner only — detail is LIVE, no positions-30s ticker); WS trade discovery
+// subscribes the perp universe with hourly meta refresh.
 const (
 	traderDiscoveryLimit    = 500
 	traderDiscoveryInterval = 15 * time.Minute
 	traderSyncInterval      = 6 * time.Hour
 	traderSyncWorkers       = 4
-	traderPositionInterval  = 30 * time.Second
 	traderWSRefreshInterval = time.Hour
 	retentionInterval       = 24 * time.Hour
 )
@@ -344,19 +365,15 @@ func (a *App) Run() error {
 		go runRetentionWorker(ctx, a.logger, a.retentionService)
 	}
 
-	// Start Trader Scanner v1.1 workers: leaderboard discovery refreshes the
-	// registry; the sync engine maintains the period metric cache.
+	// Start Trader Scanner workers (WS-E: scanner only): leaderboard discovery
+	// refreshes the registry; the sync engine maintains daily/period for the
+	// scanner (6h cadence). Detail is LIVE (no positions ticker, no priority
+	// lane); WalletWatcher runs on-demand per browser subscriber (no daemon).
 	if a.discoveryService != nil {
 		go a.discoveryService.Start(ctx, traderDiscoveryInterval)
 	}
 	if a.traderSyncService != nil {
 		go a.traderSyncService.Start(ctx, traderSyncInterval)
-		// M2 fast path: watched wallets (live detail pages) get
-		// near-realtime position snapshots; the 6h SyncAll covers the rest.
-		go a.traderSyncService.StartPositions(ctx, traderPositionInterval)
-		// SYNC-FIX v1.1 B1: dedicated priority drain (sequential <= workers,
-		// shared venue pacer); SyncAll 6h cadence unchanged.
-		go a.traderSyncService.StartPriority(ctx)
 	}
 
 	// Start WS trade discovery (V1.1): harvest trade counterparties into the

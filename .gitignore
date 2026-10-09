@@ -50,6 +50,10 @@ docker-compose.override.yml
 *.db
 *.sqlite
 
+# Supervisor (scripts/be-supervised.ps1)
+*.pid
+.be-supervised-*.stop
+
 # Keys (never commit)
 *.pem
 *.key

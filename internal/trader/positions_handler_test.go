@@ -75,18 +75,20 @@ func TestHandler_Positions_InvalidAddress(t *testing.T) {
 	}
 }
 
-// POS-H-04: never synced -> syncing, summary null, positions [].
+// POS-H-04 (LIVE-CONTRACT v1.2 WS-E teardown): HL error degrades to error,
+// summary null, positions [] (never syncing/stale; detail data_status is
+// ready or error only).
 func TestHandler_Positions_NeverSynced(t *testing.T) {
 	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
-		return &PositionSnapshotDTO{Summary: nil, Positions: []PositionDTO{}, DataStatus: DataSyncing}, nil
+		return &PositionSnapshotDTO{Summary: nil, Positions: []PositionDTO{}, DataStatus: DataError}, nil
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
 	data := decodeData(t, w.Body.Bytes())
-	if data["data_status"] != "syncing" {
-		t.Errorf("M5: never synced must be syncing, got %v", data["data_status"])
+	if data["data_status"] != "error" {
+		t.Errorf("LIVE v1.2: HL error must degrade to error, got %v", data["data_status"])
 	}
 	if data["summary"] != nil {
 		t.Errorf("summary must be null: %v", data["summary"])

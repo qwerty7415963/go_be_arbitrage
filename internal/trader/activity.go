@@ -26,9 +26,14 @@ type ActivityClient struct {
 	send   chan []byte
 }
 
-// CompletedTradeRow is one durable closed-trade row (trader_trades).
-// EntryPrice/ExitPrice/Size are NULL for pre-000030 rows whose fills aged
-// out of trader_fill_buffer (contract WALLET-TABS v1 §3/§9).
+// CompletedTradeRow is one closed-trade row (live universe or durable
+// trader_trades). EntryPrice/ExitPrice/Size are NULL for pre-000030 rows
+// whose fills aged out of trader_fill_buffer (contract WALLET-TABS v1 §3/§9).
+// Funding is the signed informational attribution (negative = paid,
+// LIVE-CONTRACT v1.2 §1.2): sum of userFunding payments with
+// openTime ≤ time ≤ closeTime per coin. Never decides win/loss; NetPnl stays
+// pnl − fees. DB rows carry 0 (column does not exist); live rows carry the
+// attributed sum.
 type CompletedTradeRow struct {
 	Market     string
 	Side       string // LONG | SHORT
@@ -37,6 +42,7 @@ type CompletedTradeRow struct {
 	Volume     float64
 	PnL        float64
 	Fees       float64
+	Funding    float64
 	Fills      int
 	EntryPrice *float64
 	ExitPrice  *float64

@@ -297,8 +297,11 @@ func TestService_Search_GroupFilter(t *testing.T) {
 	_ = venueID
 }
 
-// TRD-H-01/02: detail header + metrics; unknown 404; bad address 400;
-// sync-state created on demand (BE-038).
+// TRD-H-01/02 (LIVE-CONTRACT v1.2 WS-E): detail header is live, not DB.
+// Registry is a light DB read (404 unknown); metrics are computed live from
+// fills/portfolio (no on-demand client here => graceful degradation to
+// data_status=error with nil metrics, never DB period_metrics). Detail never
+// ensures sync state and never reads trader_period_metrics.
 func TestService_Detail(t *testing.T) {
 	svc, repo, _, venueID, _, addrs := searchFixture(t)
 	ctx := context.Background()
@@ -310,8 +313,12 @@ func TestService_Detail(t *testing.T) {
 	if d.Registry == nil || d.Registry.WalletAddress != addrs[0] {
 		t.Errorf("header: %+v", d.Registry)
 	}
-	if d.Metrics == nil || d.Metrics.PnL == nil || *d.Metrics.PnL != 5000 {
-		t.Errorf("metrics: %+v", d.Metrics)
+	// LIVE: no upstream client => error degradation, never fixture DB PnL 5000.
+	if d.Metrics != nil {
+		t.Errorf("live detail without upstream must degrade to nil metrics: %+v", d.Metrics)
+	}
+	if d.DataStatus != DataError {
+		t.Errorf("live detail without upstream must be error, got %v", d.DataStatus)
 	}
 
 	if _, err := svc.Detail(ctx, testVenueCode, testAddr(), "30D"); err == nil {
@@ -337,10 +344,13 @@ func TestService_Detail(t *testing.T) {
 		t.Fatalf("fresh detail: %v", err)
 	}
 	if d2.Metrics != nil {
-		t.Errorf("never-synced wallet must have null metrics: %+v", d2.Metrics)
+		t.Errorf("live detail without upstream must have null metrics: %+v", d2.Metrics)
 	}
-	if st, _ := repo.GetSyncState(ctx, venueID, fresh); st == nil {
-		t.Error("detail must ensure sync state (on-demand priority)")
+	if d2.DataStatus != DataError {
+		t.Errorf("live detail without upstream must be error, got %v", d2.DataStatus)
+	}
+	if st, _ := repo.GetSyncState(ctx, venueID, fresh); st != nil {
+		t.Error("live detail must not ensure sync state (WS-E teardown)")
 	}
 }
 

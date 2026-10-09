@@ -35,10 +35,12 @@ func parseFloat(s string) (float64, bool) {
 	return f, true
 }
 
-// Balances returns perp + spot summaries on-demand (§1.3, WS2). Either side
-// may be null on partial failure; data_status ready only when both succeed,
-// error otherwise (stale cache returned when available). TTL 15s keyed by
-// (balances,wallet,venue).
+// Balances returns perp + spot summaries on-demand (LIVE-CONTRACT v1.2 §1.3).
+// Source stays clearinghouseState + spotClearinghouseState behind the
+// interactive client (own pacer, concurrency gate, ctx timeout) + TTL 12s
+// cache + single-flight. Either side may be null on partial failure;
+// data_status ready only when both succeed, error otherwise (stale cache
+// returned when available). Keyed by (balances,wallet,venue).
 func (s *Service) Balances(ctx context.Context, venueCode, rawAddr string) (*BalancesDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -56,77 +58,76 @@ func (s *Service) Balances(ctx context.Context, venueCode, rawAddr string) (*Bal
 		return nil, err
 	}
 	key := "balances|" + venue + "|" + addr
-	if cached, fresh, found := s.cache.get(key); found && fresh {
-		if dto, ok := cached.(*BalancesDTO); ok {
-			return dto, nil
+	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
+		if s.onDemand == nil {
+			return nil, errUpstreamUnavailable
 		}
-	}
-	if s.onDemand == nil {
-		if cached, _, found := s.cache.get(key); found {
-			if dto, ok := cached.(*BalancesDTO); ok {
-				cpy := *dto
-				cpy.DataStatus = DataError
-				return &cpy, nil
+		now := time.Now().UTC()
+		var perp *PerpBalancesDTO
+		var spot *SpotBalancesDTO
+		var perpErr, spotErr error
+		// Perp via clearinghouseState (incl. withdrawable + crossMarginSummary).
+		func() {
+			state, err := s.onDemand.FetchClearinghouseState(ctx, addr)
+			if err != nil {
+				perpErr = err
+				return
 			}
-		}
-		return &BalancesDTO{Perp: nil, Spot: nil, DataStatus: DataError}, nil
-	}
-	now := time.Now().UTC()
-	var perp *PerpBalancesDTO
-	var spot *SpotBalancesDTO
-	var perpErr, spotErr error
-	// Perp via clearinghouseState (incl. withdrawable + crossMarginSummary).
-	func() {
-		state, err := s.onDemand.FetchClearinghouseState(ctx, addr)
-		if err != nil {
-			perpErr = err
-			return
-		}
-		p := &PerpBalancesDTO{AsOf: &now}
-		p.AccountValue = optFloat(state.MarginSummary.AccountValue)
-		p.TotalNtlPos = optFloat(state.MarginSummary.TotalNtlPos)
-		p.TotalMarginUsed = optFloat(state.MarginSummary.TotalMarginUsed)
-		p.Withdrawable = optFloat(state.Withdrawable)
-		p.CrossAccountValue = optFloat(state.CrossMarginSummary.AccountValue)
-		p.CrossTotalNtlPos = optFloat(state.CrossMarginSummary.TotalNtlPos)
-		p.CrossTotalMarginUsed = optFloat(state.CrossMarginSummary.TotalMarginUsed)
-		var sum float64
-		for _, ap := range state.AssetPositions {
-			if v, err := ap.Position.PositionValue.Float(); err == nil {
-				if v < 0 {
-					v = -v
+			p := &PerpBalancesDTO{AsOf: &now}
+			p.AccountValue = optFloat(state.MarginSummary.AccountValue)
+			p.TotalNtlPos = optFloat(state.MarginSummary.TotalNtlPos)
+			p.TotalMarginUsed = optFloat(state.MarginSummary.TotalMarginUsed)
+			p.Withdrawable = optFloat(state.Withdrawable)
+			p.CrossAccountValue = optFloat(state.CrossMarginSummary.AccountValue)
+			p.CrossTotalNtlPos = optFloat(state.CrossMarginSummary.TotalNtlPos)
+			p.CrossTotalMarginUsed = optFloat(state.CrossMarginSummary.TotalMarginUsed)
+			var sum float64
+			for _, ap := range state.AssetPositions {
+				if v, err := ap.Position.PositionValue.Float(); err == nil {
+					if v < 0 {
+						v = -v
+					}
+					sum += v
 				}
-				sum += v
 			}
+			sumCopy := sum
+			p.AssetPositionsValue = &sumCopy
+			perp = p
+		}()
+		func() {
+			st, err := s.onDemand.FetchSpotState(ctx, addr)
+			if err != nil {
+				spotErr = err
+				return
+			}
+			rows := make([]SpotBalanceDTO, 0, len(st.Balances))
+			for _, b := range st.Balances {
+				rows = append(rows, SpotBalanceDTO{
+					Coin: strings.ToUpper(strings.TrimSpace(b.Coin)), Token: b.Token,
+					Total: parseFloatPtr(b.Total), Hold: parseFloatPtr(b.Hold),
+					EntryNtl: parseFloatPtr(b.EntryNtl),
+				})
+			}
+			t := now
+			spot = &SpotBalancesDTO{Balances: rows, AsOf: &t}
+		}()
+		if perp == nil && spot == nil {
+			// Both sides failed: do not cache empty; caller degrades to
+			// stale or empty with data_status=error.
+			if perpErr != nil {
+				return nil, perpErr
+			}
+			return nil, spotErr
 		}
-		sumCopy := sum
-		p.AssetPositionsValue = &sumCopy
-		perp = p
-	}()
-	func() {
-		st, err := s.onDemand.FetchSpotState(ctx, addr)
-		if err != nil {
-			spotErr = err
-			return
+		status := DataReady
+		if perpErr != nil || spotErr != nil {
+			status = DataError
 		}
-		rows := make([]SpotBalanceDTO, 0, len(st.Balances))
-		for _, b := range st.Balances {
-			rows = append(rows, SpotBalanceDTO{
-				Coin: strings.ToUpper(strings.TrimSpace(b.Coin)), Token: b.Token,
-				Total: parseFloatPtr(b.Total), Hold: parseFloatPtr(b.Hold),
-				EntryNtl: parseFloatPtr(b.EntryNtl),
-			})
-		}
-		t := now
-		spot = &SpotBalancesDTO{Balances: rows, AsOf: &t}
-	}()
-	status := DataReady
-	if perpErr != nil || spotErr != nil {
-		status = DataError
-	}
-	if perp == nil && spot == nil {
-		if cached, _, found := s.cache.get(key); found {
-			if dto, ok := cached.(*BalancesDTO); ok {
+		return &BalancesDTO{Perp: perp, Spot: spot, DataStatus: status}, nil
+	})
+	if fetchErr != nil {
+		if stale, _, found := s.cache.get(key); found {
+			if dto, ok := stale.(*BalancesDTO); ok {
 				cpy := *dto
 				cpy.DataStatus = DataError
 				return &cpy, nil
@@ -134,9 +135,10 @@ func (s *Service) Balances(ctx context.Context, venueCode, rawAddr string) (*Bal
 		}
 		return &BalancesDTO{Perp: nil, Spot: nil, DataStatus: DataError}, nil
 	}
-	dto := &BalancesDTO{Perp: perp, Spot: spot, DataStatus: status}
-	s.cache.set(key, dto)
-	return dto, nil
+	if dto, ok := val.(*BalancesDTO); ok {
+		return dto, nil
+	}
+	return &BalancesDTO{Perp: nil, Spot: nil, DataStatus: DataError}, nil
 }
 
 func optFloat(d hyperliquid.DecimalString) *float64 {
@@ -151,10 +153,11 @@ func optFloat(d hyperliquid.DecimalString) *float64 {
 	return &f
 }
 
-// Fills returns user fills newest-first with tid keyset pagination (§1.4,
-// WS4). The fetched 2000-row set is cached 15s keyed (fills,wallet,venue);
-// FE paginates through it. On HL error the last cached set is paged, else
-// empty rows (never null).
+// Fills returns user fills newest-first with tid keyset pagination
+// (LIVE-CONTRACT v1.2 §1.4, unchanged shape, interactive client). The fetched
+// 2000-row set is cached 12s keyed (fills,wallet,venue) + single-flight; FE
+// paginates through it. On HL error the last cached set is paged, else empty
+// rows (never null).
 func (s *Service) Fills(ctx context.Context, venueCode, rawAddr string, limit int, cursor string) (*FillsPage, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -178,41 +181,31 @@ func (s *Service) Fills(ctx context.Context, venueCode, rawAddr string, limit in
 		return nil, err
 	}
 	key := "fills|" + venue + "|" + addr
-	var all []FillDTO
-	if cached, fresh, found := s.cache.get(key); found && fresh {
-		if v, ok := cached.([]FillDTO); ok {
-			all = v
-		}
-	}
-	fetched := all != nil
-	if !fetched {
+	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
 		if s.onDemand == nil {
-			if cached, _, found := s.cache.get(key); found {
-				if v, ok := cached.([]FillDTO); ok {
-					all = v
-					fetched = true
-				}
+			return nil, errUpstreamUnavailable
+		}
+		raw, err := s.onDemand.FetchUserFills(ctx, addr)
+		if err != nil {
+			return nil, err
+		}
+		return mapUserFills(raw), nil
+	})
+	var all []FillDTO
+	if fetchErr != nil {
+		if stale, _, found := s.cache.get(key); found {
+			if v, ok := stale.([]FillDTO); ok {
+				all = v
 			}
-			if !fetched {
-				return &FillsPage{Rows: []FillDTO{}}, nil
-			}
+		}
+		if all == nil {
+			return &FillsPage{Rows: []FillDTO{}}, nil
+		}
+	} else {
+		if v, ok := val.([]FillDTO); ok {
+			all = v
 		} else {
-			raw, err := s.onDemand.FetchUserFills(ctx, addr)
-			if err != nil {
-				if cached, _, found := s.cache.get(key); found {
-					if v, ok := cached.([]FillDTO); ok {
-						all = v
-						fetched = true
-					}
-				}
-				if !fetched {
-					return &FillsPage{Rows: []FillDTO{}}, nil
-				}
-			} else {
-				all = mapUserFills(raw)
-				s.cache.set(key, all)
-				fetched = true
-			}
+			all = []FillDTO{}
 		}
 	}
 	fp := fillsFingerprint(venueID, addr)
@@ -302,9 +295,10 @@ func mapUserFills(raw []hyperliquid.Fill) []FillDTO {
 	return out
 }
 
-// Orders returns open or historical orders (§1.5, WS3). Cached 15s keyed
-// (orders,wallet,venue,status); limit slices the cached set. order_status /
-// status_timestamp present only for historical.
+// Orders returns open or historical orders (LIVE-CONTRACT v1.2 §1.5,
+// unchanged shape, interactive client). Cached 12s keyed
+// (orders,wallet,venue,status) + single-flight; limit slices the cached set.
+// order_status / status_timestamp present only for historical.
 func (s *Service) Orders(ctx context.Context, venueCode, rawAddr, status string, limit int) (*OrdersDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -335,52 +329,38 @@ func (s *Service) Orders(ctx context.Context, venueCode, rawAddr, status string,
 		return nil, err
 	}
 	key := "orders|" + venue + "|" + addr + "|" + status
-	var all []OrderDTO
-	if cached, fresh, found := s.cache.get(key); found && fresh {
-		if v, ok := cached.([]OrderDTO); ok {
-			all = v
-		}
-	}
-	if all == nil {
+	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
 		if s.onDemand == nil {
-			if cached, _, found := s.cache.get(key); found {
-				if v, ok := cached.([]OrderDTO); ok {
-					all = v
-				}
-			}
-			if all == nil {
-				all = []OrderDTO{}
-			}
-		} else if status == "open" {
+			return nil, errUpstreamUnavailable
+		}
+		if status == "open" {
 			raw, err := s.onDemand.FetchOpenOrders(ctx, addr)
 			if err != nil {
-				if cached, _, found := s.cache.get(key); found {
-					if v, ok := cached.([]OrderDTO); ok {
-						all = v
-					}
-				}
-				if all == nil {
-					all = []OrderDTO{}
-				}
-			} else {
-				all = mapOpenOrders(raw, false)
-				s.cache.set(key, all)
+				return nil, err
 			}
+			return mapOpenOrders(raw, false), nil
+		}
+		raw, err := s.onDemand.FetchHistoricalOrders(ctx, addr)
+		if err != nil {
+			return nil, err
+		}
+		return mapHistoricalOrders(raw), nil
+	})
+	var all []OrderDTO
+	if fetchErr != nil {
+		if stale, _, found := s.cache.get(key); found {
+			if v, ok := stale.([]OrderDTO); ok {
+				all = v
+			}
+		}
+		if all == nil {
+			all = []OrderDTO{}
+		}
+	} else {
+		if v, ok := val.([]OrderDTO); ok {
+			all = v
 		} else {
-			raw, err := s.onDemand.FetchHistoricalOrders(ctx, addr)
-			if err != nil {
-				if cached, _, found := s.cache.get(key); found {
-					if v, ok := cached.([]OrderDTO); ok {
-						all = v
-					}
-				}
-				if all == nil {
-					all = []OrderDTO{}
-				}
-			} else {
-				all = mapHistoricalOrders(raw)
-				s.cache.set(key, all)
-			}
+			all = []OrderDTO{}
 		}
 	}
 	if len(all) > limit {
@@ -490,9 +470,10 @@ var transferTypeEnum = map[string]bool{
 }
 
 // Transfers returns ledger transfers newest-first with time+hash keyset
-// pagination (§1.6, WS5). Cached 15s keyed (transfers,wallet,venue,days).
-// Unknown delta types map to "other"; funding never appears (non-funding
-// source by decision).
+// pagination (LIVE-CONTRACT v1.2 §1.6, unchanged shape, interactive client).
+// Cached 12s keyed (transfers,wallet,venue,days) + single-flight. Unknown
+// delta types map to "other"; funding never appears (non-funding source by
+// decision).
 func (s *Service) Transfers(ctx context.Context, venueCode, rawAddr string, days, limit int, cursor string) (*TransfersPage, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -522,38 +503,32 @@ func (s *Service) Transfers(ctx context.Context, venueCode, rawAddr string, days
 		return nil, err
 	}
 	key := "transfers|" + venue + "|" + addr + "|" + strconv.Itoa(days)
-	var all []TransferDTO
-	if cached, fresh, found := s.cache.get(key); found && fresh {
-		if v, ok := cached.([]TransferDTO); ok {
-			all = v
-		}
-	}
-	if all == nil {
+	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
 		if s.onDemand == nil {
-			if cached, _, found := s.cache.get(key); found {
-				if v, ok := cached.([]TransferDTO); ok {
-					all = v
-				}
+			return nil, errUpstreamUnavailable
+		}
+		startMs := time.Now().AddDate(0, 0, -days).UnixMilli()
+		raw, err := s.onDemand.FetchLedgerUpdates(ctx, addr, startMs)
+		if err != nil {
+			return nil, err
+		}
+		return mapLedgerUpdates(raw), nil
+	})
+	var all []TransferDTO
+	if fetchErr != nil {
+		if stale, _, found := s.cache.get(key); found {
+			if v, ok := stale.([]TransferDTO); ok {
+				all = v
 			}
-			if all == nil {
-				all = []TransferDTO{}
-			}
+		}
+		if all == nil {
+			all = []TransferDTO{}
+		}
+	} else {
+		if v, ok := val.([]TransferDTO); ok {
+			all = v
 		} else {
-			startMs := time.Now().AddDate(0, 0, -days).UnixMilli()
-			raw, err := s.onDemand.FetchLedgerUpdates(ctx, addr, startMs)
-			if err != nil {
-				if cached, _, found := s.cache.get(key); found {
-					if v, ok := cached.([]TransferDTO); ok {
-						all = v
-					}
-				}
-				if all == nil {
-					all = []TransferDTO{}
-				}
-			} else {
-				all = mapLedgerUpdates(raw)
-				s.cache.set(key, all)
-			}
+			all = []TransferDTO{}
 		}
 	}
 	fp := transfersFingerprint(venueID, addr, days)
@@ -702,9 +677,17 @@ func boolField(delta map[string]json.RawMessage, keys ...string) (*bool, bool) {
 	return nil, false
 }
 
-// Performance reuses Detail metrics + trader_equity_daily (§1.7, WS6). No new
-// source, no HL call, no cache (DB reads). period ∈ {1D,7D,30D,ALL} default
-// 30D. Metrics null when never synced; equity [] when no curve.
+// Performance returns LIVE overview metrics (LIVE-CONTRACT v1.2 §1.7, was DB).
+// Metrics computed live from the same fills universe as §1.2 (1D/7D/30D from
+// fills; ALL from portfolio/LB): roi (pnl/volume fallback), pnl (realized
+// sum), win_rate, volume, trade_count, profit_factor, long/short wins+counts,
+// max_drawdown (from live equity when available else null). Kỳ ALL: portfolio
+// allTime + leaderboard refs passthrough (existing resolve semantics,
+// live-read). Equity: live portfolio endpoint (reuse FetchPortfolio +
+// AggregateEquityDaily). period ∈ {1D,7D,30D,ALL} default 30D. No reads of
+// trader_period_metrics / trader_equity_daily (conformance §7); LB refs are
+// read live. TTL 12s + single-flight per (wallet,venue,period); HL error ⇒
+// stale with error else metrics null + equity [] (never null).
 func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period string) (*PerformanceDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -730,38 +713,47 @@ func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period st
 	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
 		return nil, err
 	}
-	if _, err := s.repo.EnsureSyncState(ctx, venueID, addr); err != nil {
-		return nil, err
-	}
-	m, err := s.repo.GetPeriodMetrics(ctx, venueID, addr, period)
-	if err != nil {
-		return nil, err
-	}
-	var metrics *PerformanceMetricsDTO
-	if m != nil {
-		asOf := m.AsOf.UTC()
-		metrics = &PerformanceMetricsDTO{
-			ROI: m.ROI, PnL: m.PnL, WinRate: m.WinRate, Volume: m.Volume,
-			TradeCount: m.TradeCount, ProfitFactor: m.ProfitFactor,
-			MaxDrawdownPct: m.MaxDrawdownPct, LongWins: m.LongWins,
-			LongCount: m.LongCount, ShortWins: m.ShortWins, ShortCount: m.ShortCount,
-			DataStatus: m.DataStatus, IsPartial: m.IsPartial, MetricsAsOf: &asOf,
-		}
-	}
+	key := "performance-live|" + venue + "|" + addr + "|" + period
 	now := time.Now().UTC()
-	from := now.Add(-periodLookback(period))
-	rows, err := s.repo.ListEquityDailyRows(ctx, venueID, addr, from, now)
-	if err != nil {
-		return nil, err
+	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
+		return fetchLivePerformance(ctx, s, venueID, addr, venue, period, now)
+	})
+	if fetchErr != nil {
+		if stale, _, found := s.cache.get(key); found {
+			if snap, ok := stale.(*LivePerformanceSnapshot); ok && snap != nil {
+				cpy := *snap
+				if cpy.Metrics != nil {
+					mcpy := *cpy.Metrics
+					mcpy.DataStatus = DataError
+					cpy.Metrics = &mcpy
+				} else {
+					cpy.Metrics = &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true}
+				}
+				if cpy.Equity == nil {
+					cpy.Equity = []EquityPointDTO{}
+				}
+				return &PerformanceDTO{Period: period, Metrics: cpy.Metrics, Equity: cpy.Equity}, nil
+			}
+		}
+		return &PerformanceDTO{
+			Period:  period,
+			Metrics: &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true},
+			Equity:  []EquityPointDTO{},
+		}, nil
 	}
-	equity := make([]EquityPointDTO, 0, len(rows))
-	for _, r := range rows {
-		equity = append(equity, EquityPointDTO{
-			Date:      r.Date.UTC().Format("2006-01-02"),
-			EndEquity: r.EndEquity, DailyReturn: r.DailyReturn,
-		})
+	snap, ok := val.(*LivePerformanceSnapshot)
+	if !ok || snap == nil {
+		return &PerformanceDTO{
+			Period:  period,
+			Metrics: &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true},
+			Equity:  []EquityPointDTO{},
+		}, nil
 	}
-	return &PerformanceDTO{Period: period, Metrics: metrics, Equity: equity}, nil
+	equity := snap.Equity
+	if equity == nil {
+		equity = []EquityPointDTO{}
+	}
+	return &PerformanceDTO{Period: period, Metrics: snap.Metrics, Equity: equity}, nil
 }
 
 func periodLookback(period string) time.Duration {
