@@ -30,6 +30,10 @@ type Service struct {
 	// last_positions_sync_at older than this reports stale; NULL reports
 	// syncing (M5). Default 5m (near-realtime 30s refresh for watched).
 	positionsStaleAfter time.Duration
+	// activityStaleAfter bounds activity freshness (SYNC-FIX v1.1 §2):
+	// last fills success older than this reports stale. Default 24h.
+	// Backfill-incomplete never reports stale (syncing); error beats stale.
+	activityStaleAfter time.Duration
 	// onDemand serves the wallet-tabs on-demand reads (contract WALLET-TABS
 	// v1 §1.3-§1.7, WS2-WS6). Nil disables HL reads (unit contexts without a
 	// venue client); handlers then surface data_status=error via the mock.
@@ -39,12 +43,20 @@ type Service struct {
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte) *Service {
 	return &Service{repo: repo, groups: groups, secret: cursorSecret,
-		positionsStaleAfter: 5 * time.Minute, cache: NewOnDemandCache(15 * time.Second)}
+		positionsStaleAfter: 5 * time.Minute, activityStaleAfter: 24 * time.Hour,
+		cache: NewOnDemandCache(15 * time.Second)}
 }
 
 // WithPositionsStaleAfter overrides the positions stale threshold (tests).
 func (s *Service) WithPositionsStaleAfter(d time.Duration) *Service {
 	s.positionsStaleAfter = d
+	return s
+}
+
+// WithActivityStaleAfter overrides the activity stale threshold (tests,
+// SYNC-FIX v1.1 §2: fills older than this report stale).
+func (s *Service) WithActivityStaleAfter(d time.Duration) *Service {
+	s.activityStaleAfter = d
 	return s
 }
 
@@ -319,12 +331,16 @@ type ActivityCounts struct {
 	Total int `json:"total"`
 }
 
-// ActivityPage is the GET /traders/{wallet}/activity payload (§1.2).
+// ActivityPage is the GET /traders/{wallet}/activity payload (§1.2 +
+// SYNC-FIX v1.1 §2: data_status derived from trader_sync_state —
+// backfill incomplete → syncing (never stale), last pass error → error,
+// fills older than 24h → stale, else ready).
 type ActivityPage struct {
 	Rows       []ActivityTradeDTO `json:"rows"`
 	NextCursor string             `json:"next_cursor,omitempty"`
 	HasMore    bool               `json:"has_more"`
 	Counts     ActivityCounts     `json:"counts"`
+	DataStatus DataStatus         `json:"data_status"`
 }
 
 // ActivityQuery carries the §1.2 query params (defaults applied by the handler
@@ -499,6 +515,29 @@ func validPositionSort(sort string) bool {
 	return false
 }
 
+// deriveActivityStatus maps trader_sync_state to the SYNC-FIX v1.1 §2
+// data_status: backfill never completed → syncing (never stale); last pass
+// errored → error; last fills success older than staleAfter → stale; else
+// ready. Nil state (never initialized) reports syncing.
+func deriveActivityStatus(state *SyncState, now time.Time, staleAfter time.Duration) DataStatus {
+	if state == nil {
+		return DataSyncing
+	}
+	if state.SyncStatus == "error" {
+		return DataError
+	}
+	if state.BackfillCompletedAt == nil {
+		return DataSyncing
+	}
+	if state.LastFillsSyncAt == nil {
+		return DataSyncing
+	}
+	if staleAfter > 0 && now.Sub(*state.LastFillsSyncAt) > staleAfter {
+		return DataStale
+	}
+	return DataReady
+}
+
 // Activity returns durable closed trades with server-side sort/filter and
 // keyset cursor + has_more + stable counts (WALLET-TABS v1 §1.2).
 // limit 1..100 default 20; sort ∈ {closed_at,opened_at,market,volume,pnl,
@@ -556,7 +595,8 @@ func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q Act
 	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
 		return nil, err
 	}
-	if _, err := s.repo.EnsureSyncState(ctx, venueID, addr); err != nil {
+	syncState, err := s.repo.EnsureSyncState(ctx, venueID, addr)
+	if err != nil {
 		return nil, err
 	}
 
@@ -593,7 +633,8 @@ func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q Act
 			NetPnl: r.PnL - r.Fees, Fills: r.Fills,
 		})
 	}
-	page := &ActivityPage{Rows: rows, HasMore: hasMore, Counts: counts}
+	page := &ActivityPage{Rows: rows, HasMore: hasMore, Counts: counts,
+		DataStatus: deriveActivityStatus(syncState, time.Now().UTC(), s.activityStaleAfter)}
 	if hasMore {
 		last := paged[len(paged)-1]
 		cur, err := encodeActivityCursorV2(s.secret, fp, sort, last)

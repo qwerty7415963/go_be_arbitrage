@@ -7021,7 +7021,7 @@ const docTemplate = `{
         },
         "/api/v1/traders/{wallet}/activity": {
             "get": {
-                "description": "Durable closed trades with server-computed net_pnl (WALLET-TABS v1 §1.2). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
+                "description": "Durable closed trades with server-computed net_pnl (WALLET-TABS v1 \u00a7.2 + SYNC-FIX v1.1 \u00a7 data_status). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
                 "produces": [
                     "application/json"
                 ],
@@ -7150,6 +7150,108 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}/sync": {
+            "post": {
+                "description": "Enqueue ONE priority full SyncWallet pass (SYNC-FIX v1.1 B1: singleflight + 10-min debounce). 202 statuses: queued (enqueued for the priority lane), in_flight (already running), recent (completed within the debounce window, no-op). Priority drain shares the venue pacer + worker limit with SyncAll; 6h cadence unchanged.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trigger priority wallet sync (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.SyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation (bad address)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "429": {
+                        "description": "COMMON-905 sync queue full, retry later",
                         "schema": {
                             "allOf": [
                                 {
@@ -10958,6 +11060,12 @@ const docTemplate = `{
         "internal_trader.ActivityPage": {
             "type": "object",
             "properties": {
+                "counts": {
+                    "type": "object"
+                },
+                "data_status": {
+                    "$ref": "#/definitions/internal_trader.DataStatus"
+                },
                 "has_more": {
                     "type": "boolean"
                 },
@@ -10969,6 +11077,19 @@ const docTemplate = `{
                     "items": {
                         "type": "object"
                     }
+                }
+            }
+        },
+        "internal_trader.SyncResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "queued",
+                        "in_flight",
+                        "recent"
+                    ]
                 }
             }
         },

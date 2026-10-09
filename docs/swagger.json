@@ -560,7 +560,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Executions for the caller's tenant (currently always an empty array \u00e2\u20ac\u201d storage not wired). Requires JWT + admin role (401 AUTH-003 without token, 403 AUTH-005 for non-admin).",
+                "description": "Executions for the caller's tenant (currently always an empty array â€” storage not wired). Requires JWT + admin role (401 AUTH-003 without token, 403 AUTH-005 for non-admin).",
                 "produces": [
                     "application/json"
                 ],
@@ -2262,7 +2262,7 @@
         },
         "/api/v1/opportunities": {
             "get": {
-                "description": "All in-memory opportunities from the live scanner, newest first; empty array when none. Public endpoint \u00e2\u20ac\u201d no auth.",
+                "description": "All in-memory opportunities from the live scanner, newest first; empty array when none. Public endpoint â€” no auth.",
                 "produces": [
                     "application/json"
                 ],
@@ -2297,7 +2297,7 @@
         },
         "/api/v1/opportunities/instrument/{instrument_id}": {
             "get": {
-                "description": "Opportunities for one instrument ID. Public endpoint \u00e2\u20ac\u201d no auth.",
+                "description": "Opportunities for one instrument ID. Public endpoint â€” no auth.",
                 "produces": [
                     "application/json"
                 ],
@@ -2359,7 +2359,7 @@
         },
         "/api/v1/opportunities/scan": {
             "post": {
-                "description": "Runs the opportunity scanner synchronously and returns what it found (count, venues, duration). Public endpoint \u00e2\u20ac\u201d no auth.",
+                "description": "Runs the opportunity scanner synchronously and returns what it found (count, venues, duration). Public endpoint â€” no auth.",
                 "produces": [
                     "application/json"
                 ],
@@ -2391,7 +2391,7 @@
         },
         "/api/v1/opportunities/type/{type}": {
             "get": {
-                "description": "Opportunities filtered by arbitrage type. Public endpoint \u00e2\u20ac\u201d no auth.",
+                "description": "Opportunities filtered by arbitrage type. Public endpoint â€” no auth.",
                 "produces": [
                     "application/json"
                 ],
@@ -2458,7 +2458,7 @@
         },
         "/api/v1/opportunities/{id}": {
             "get": {
-                "description": "One opportunity by ID. Public endpoint \u00e2\u20ac\u201d no auth.",
+                "description": "One opportunity by ID. Public endpoint â€” no auth.",
                 "produces": [
                     "application/json"
                 ],
@@ -2533,7 +2533,7 @@
                 }
             },
             "delete": {
-                "description": "Drops one opportunity from the in-memory store; idempotent. Public endpoint \u00e2\u20ac\u201d no auth.",
+                "description": "Drops one opportunity from the in-memory store; idempotent. Public endpoint â€” no auth.",
                 "produces": [
                     "application/json"
                 ],
@@ -7019,7 +7019,7 @@
         },
         "/api/v1/traders/{wallet}/activity": {
             "get": {
-                "description": "Durable closed trades with server-computed net_pnl (WALLET-TABS v1 \u00a71.2). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
+                "description": "Durable closed trades with server-computed net_pnl (WALLET-TABS v1 §1.2 + SYNC-FIX v1.1 §2 data_status). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
                 "produces": [
                     "application/json"
                 ],
@@ -7169,7 +7169,7 @@
         },
         "/api/v1/traders/{wallet}/positions": {
             "get": {
-                "description": "Latest open-position snapshot for a watched wallet (DETAIL-PLAN \u00a74.1 + WALLET-TABS v1 \u00a71.1). Never calls upstream inline; freshness from last_positions_sync_at (NULL/never synced reports data_status=syncing per M5). Summary null when never synced; positions is [] (never null). Server-side sort.",
+                "description": "Latest open-position snapshot for a watched wallet (DETAIL-PLAN §4.1 + WALLET-TABS v1 §1.1). Never calls upstream inline; freshness from last_positions_sync_at (NULL/never synced reports data_status=syncing per M5). Summary null when never synced; positions is [] (never null). Server-side sort.",
                 "produces": [
                     "application/json"
                 ],
@@ -7281,7 +7281,7 @@
         },
         "/api/v1/traders/ws": {
             "get": {
-                "description": "Realtime fill-level activity for one watched wallet (DETAIL-PLAN \u00c2\u00a74.2). Query wallet=0x... (lowercased server-side). Server sends {type:subscribed} on connect, then {type:activity} per fill; client {type:ping} gets {type:pong}. Reconnect/resubscribe is the FE's job. No auth (public read).",
+                "description": "Realtime fill-level activity for one watched wallet (DETAIL-PLAN Â§4.2). Query wallet=0x... (lowercased server-side). Server sends {type:subscribed} on connect, then {type:activity} per fill; client {type:ping} gets {type:pong}. Reconnect/resubscribe is the FE's job. No auth (public read).",
                 "produces": [
                     "application/json"
                 ],
@@ -8367,7 +8367,7 @@
         },
         "/api/v1/traders/{wallet}/balances": {
             "get": {
-                "description": "Perp + spot balances on-demand with short TTL cache (WALLET-TABS v1 \u00a71.3, WS2). Either side may be null on partial failure; data_status reflects it. No DB.",
+                "description": "Perp + spot balances on-demand with short TTL cache (WALLET-TABS v1 §1.3, WS2). Either side may be null on partial failure; data_status reflects it. No DB.",
                 "produces": [
                     "application/json"
                 ],
@@ -8451,7 +8451,7 @@
         },
         "/api/v1/traders/{wallet}/fills": {
             "get": {
-                "description": "Recent user fills newest-first with tid keyset pagination (WALLET-TABS v1 \u00a71.4, WS4). Source userFills (2000 most recent); FE paginates through the fetched set. Short TTL cache; graceful degradation on HL error.",
+                "description": "Recent user fills newest-first with tid keyset pagination (WALLET-TABS v1 §1.4, WS4). Source userFills (2000 most recent); FE paginates through the fetched set. Short TTL cache; graceful degradation on HL error.",
                 "produces": [
                     "application/json"
                 ],
@@ -8548,7 +8548,7 @@
         },
         "/api/v1/traders/{wallet}/orders": {
             "get": {
-                "description": "Open or historical orders (WALLET-TABS v1 \u00a71.5, WS3). order_status/status_timestamp present only for status=historical. Short TTL cache.",
+                "description": "Open or historical orders (WALLET-TABS v1 §1.5, WS3). order_status/status_timestamp present only for status=historical. Short TTL cache.",
                 "produces": [
                     "application/json"
                 ],
@@ -8650,7 +8650,7 @@
         },
         "/api/v1/traders/{wallet}/transfers": {
             "get": {
-                "description": "Non-funding ledger transfers newest-first with time+hash keyset pagination (WALLET-TABS v1 \u00a71.6, WS5). Funding excluded by decision. Short TTL cache.",
+                "description": "Non-funding ledger transfers newest-first with time+hash keyset pagination (WALLET-TABS v1 §1.6, WS5). Funding excluded by decision. Short TTL cache.",
                 "produces": [
                     "application/json"
                 ],
@@ -8754,7 +8754,7 @@
         },
         "/api/v1/traders/{wallet}/performance": {
             "get": {
-                "description": "Period metrics + equity curve (WALLET-TABS v1 \u00a71.7, WS6). Reuses Detail metrics + trader_equity_daily; no new source.",
+                "description": "Period metrics + equity curve (WALLET-TABS v1 §1.7, WS6). Reuses Detail metrics + trader_equity_daily; no new source.",
                 "produces": [
                     "application/json"
                 ],
@@ -8830,6 +8830,108 @@
                     },
                     "404": {
                         "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/{wallet}/sync": {
+            "post": {
+                "description": "Enqueue ONE priority full SyncWallet pass (SYNC-FIX v1.1 B1: singleflight + 10-min debounce). 202 statuses: queued (enqueued for the priority lane), in_flight (already running), recent (completed within the debounce window, no-op). Priority drain shares the venue pacer + worker limit with SyncAll; 6h cadence unchanged.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trigger priority wallet sync (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Wallet address (0x...)",
+                        "name": "wallet",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_trader.SyncResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "INVALID_FILTER / validation (bad address)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "unknown wallet/venue",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/github_com_qwerty7415963_go_be_arbitrage_internal_api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "429": {
+                        "description": "COMMON-905 sync queue full, retry later",
                         "schema": {
                             "allOf": [
                                 {
@@ -10970,6 +11072,9 @@
                 },
                 "counts": {
                     "type": "object"
+                },
+                "data_status": {
+                    "$ref": "#/definitions/internal_trader.DataStatus"
                 }
             }
         },
@@ -11879,6 +11984,19 @@
                     "items": {
                         "type": "object"
                     }
+                }
+            }
+        },
+        "internal_trader.SyncResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "queued",
+                        "in_flight",
+                        "recent"
+                    ]
                 }
             }
         }

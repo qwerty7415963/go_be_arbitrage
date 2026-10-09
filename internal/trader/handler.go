@@ -28,10 +28,17 @@ type ServiceInterface interface {
 
 var _ ServiceInterface = (*Service)(nil)
 
+// SyncTrigger enqueues one priority full SyncWallet pass (*SyncService
+// implements it; mocked in handler tests).
+type SyncTrigger interface {
+	RequestSync(ctx context.Context, venueCode, addr string) (string, error)
+}
+
 // Handler serves the public v1.1 scanner reads.
 type Handler struct {
-	svc ServiceInterface
-	ws  *ActivityWSHandler
+	svc  ServiceInterface
+	ws   *ActivityWSHandler
+	sync SyncTrigger
 }
 
 func NewHandler(svc ServiceInterface) *Handler { return &Handler{svc: svc} }
@@ -40,6 +47,14 @@ func NewHandler(svc ServiceInterface) *Handler { return &Handler{svc: svc} }
 // the REST-only surface (unit/E2E routers without a hub).
 func (h *Handler) WithWS(ws *ActivityWSHandler) *Handler {
 	h.ws = ws
+	return h
+}
+
+// WithSync attaches the priority sync trigger (SYNC-FIX v1.1 B1). Nil keeps
+// the read-only surface (unit routers without a sync engine); POST /sync
+// then reports 500.
+func (h *Handler) WithSync(s SyncTrigger) *Handler {
+	h.sync = s
 	return h
 }
 
@@ -57,6 +72,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, _ ...gin.HandlerFunc) 
 	t.GET("/:wallet/orders", h.Orders)
 	t.GET("/:wallet/transfers", h.Transfers)
 	t.GET("/:wallet/performance", h.Performance)
+	t.POST("/:wallet/sync", h.Sync)
 	t.GET("/:wallet", h.Detail)
 }
 
@@ -159,7 +175,7 @@ func (h *Handler) Positions(c *gin.Context) {
 
 // Activity godoc
 // @Summary      Trader recent activity (public)
-// @Description  Durable closed trades with server-computed net_pnl (WALLET-TABS v1 §1.2). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.
+// @Description  Durable closed trades with server-computed net_pnl (WALLET-TABS v1 §1.2 + SYNC-FIX v1.1 §2 data_status). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). Counts across the whole retained window. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.
 // @Tags         traders
 // @Produce      json
 // @Param        wallet  path   string  true   "Wallet address (0x...)"
@@ -347,4 +363,30 @@ func (h *Handler) Performance(c *gin.Context) {
 		return
 	}
 	api.RespondSuccess(c, d)
+}
+
+// Sync godoc
+// @Summary      Trigger priority wallet sync (public)
+// @Description  Enqueue ONE priority full SyncWallet pass (SYNC-FIX v1.1 B1: singleflight + 10-min debounce). 202 statuses: queued (enqueued for the priority lane), in_flight (already running), recent (completed within the debounce window, no-op). Priority drain shares the venue pacer + worker limit with SyncAll; 6h cadence unchanged.
+// @Tags         traders
+// @Produce      json
+// @Param        wallet  path   string  true   "Wallet address (0x...)"
+// @Param        venue   query  string  false  "Venue code" default(hyperliquid)
+// @Success      202  {object}  api.Response{data=SyncResponse}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER / validation (bad address)"
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
+// @Failure      429  {object}  api.Response{error=api.ErrorBody}  "COMMON-905 sync queue full, retry later"
+// @Router       /api/v1/traders/{wallet}/sync [post]
+func (h *Handler) Sync(c *gin.Context) {
+	if h.sync == nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "sync unavailable"))
+		return
+	}
+	venue := c.DefaultQuery("venue", DefaultVenue)
+	status, err := h.sync.RequestSync(c.Request.Context(), venue, c.Param("wallet"))
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	c.JSON(http.StatusAccepted, api.Response{Success: true, Data: SyncResponse{Status: status}})
 }

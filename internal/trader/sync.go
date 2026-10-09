@@ -126,11 +126,24 @@ type SyncService struct {
 	opts      SyncOptions
 	logf      func(format string, args ...any)
 	counters  syncCounters
+	// SYNC-FIX v1.1 B1 priority lane: dedicated drain, shared venue pacer
+	// (same HL client) + worker cap (sequential drain <= opts.Workers).
+	// singleflight via prioInflight, debounce via prioLastDone + DB
+	// LastFillsSyncAt. Initialized in NewSyncService; ensurePriorityInit
+	// keeps zero-value services usable in tests.
+	prioMu       sync.Mutex
+	prioInflight map[string]bool
+	prioLastDone map[string]time.Time
+	prioCh       chan string
+	prioDebounce time.Duration
+	prioNow      func() time.Time
 }
 
 func NewSyncService(repo *Repository, fetch FillFetcher, venueID uuid.UUID, opts SyncOptions) *SyncService {
-	return &SyncService{repo: repo, fetch: fetch, venueID: venueID,
+	s := &SyncService{repo: repo, fetch: fetch, venueID: venueID,
 		opts: opts.withDefaults(), logf: log.Printf}
+	s.ensurePriorityInit()
+	return s
 }
 
 // WithPortfolio enables the equity-curve job (V1.1); nil disables it.
@@ -207,13 +220,24 @@ func (s *SyncService) syncPositions(ctx context.Context, addr string, now time.T
 // SyncPositionsWatched refreshes positions for currently-watched wallets only
 // (M2 fast path, driven by a 30s ticker in app.Run; no per-wallet timer).
 // Unwatched wallets are covered by their normal SyncWallet pass.
+// SYNC-FIX v1.1 B3: nil sync-state (no row yet) is ensured then synced —
+// never skipped — so the first detail view gets a snapshot on the next tick.
 func (s *SyncService) SyncPositionsWatched(ctx context.Context, now time.Time) (done int) {
 	if s.positions == nil || s.hub == nil {
 		return 0
 	}
 	for _, addr := range s.hub.WatchSet() {
 		state, err := s.repo.GetSyncState(ctx, s.venueID, addr)
-		if err != nil || !s.shouldSyncPositions(state, addr, now) {
+		if err != nil {
+			continue
+		}
+		if state == nil {
+			state, err = s.repo.EnsureSyncState(ctx, s.venueID, addr)
+			if err != nil || state == nil {
+				continue
+			}
+		}
+		if !s.shouldSyncPositions(state, addr, now) {
 			continue
 		}
 		s.syncPositions(ctx, addr, now)

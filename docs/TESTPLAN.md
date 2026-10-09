@@ -952,6 +952,60 @@ Env deviations (M6): no cgo/gcc → gates run WITHOUT `-race` (`go test
 `C:\Python314\python.exe` JSON-safe: 5 new paths + activity/positions
 descriptions + 5 stub definitions mirrored from `swagger.json`).
 
+### 19.12 SYNC-FIX v1.1 (contract `SYNC-FIX-CONTRACT.md` frozen 2026-10-08)
+
+Additive over v1 (backfill 365d unchanged, no migration). B1 `POST
+/api/v1/traders/{wallet}/sync` (202 `queued`/`in_flight`/`recent`, 404 unknown
+wallet/venue, 400 bad address; singleflight + 10-min debounce const
+`SyncPriorityDebounceWindow`; dedicated drain sharing venue pacer + worker
+limit, 6h SyncAll unchanged). B2 `ActivityPage.data_status`
+(`ready`/`syncing`/`stale`/`error`: never-completed → `syncing` never `stale`;
+error beats stale; fills >24h → `stale`; else `ready`). B3
+`SyncPositionsWatched` nil-state ⇒ `EnsureSyncState` + sync (never skip).
+`counts` still 15d retention window (unchanged).
+
+#### Unit
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| SYNC11-U-01 | `SyncPriorityDebounceWindow` | Const check | `10m` (`TestSyncPriorityDebounceWindow_Value`) |
+| SYNC11-U-02 | `priorityCheckAndMark` queued→in_flight | First trigger then concurrent second | First `queued`+enq, second `in_flight` no enq (`TestPriorityCheckAndMark_QueuedThenInFlight`) |
+| SYNC11-U-03 | `priorityCheckAndMark` recent | Complete then retrigger +1m / +11m | +1m `recent` no enq; +11m `queued` (`TestPriorityCheckAndMark_RecentWithinDebounce`) |
+| SYNC11-U-04 | `priorityCheckAndMark` concurrent | 2 goroutines same wallet | Exactly 1×`queued` + 1×`in_flight` (`TestPriorityCheckAndMark_ConcurrentDoubleTrigger_OnePass`) |
+| SYNC11-U-05 | `deriveActivityStatus` matrix | nil state / incomplete / error / old fills>24h / fresh / nil fills | `syncing` (nil, incomplete, incomplete+old, nil-fills) / `error` (error beats all) / `stale` (>24h) / `ready` (fresh) (`TestDeriveActivityStatus_Matrix`) |
+| SYNC11-U-06 | `evictPriorityDone` bounds memory | 2051 entries (2050 old + 1 fresh) vs 1 entry | past-cap drops old, keeps fresh; under cap no-op (`TestEvictPriorityDone_BoundsMemory`) |
+
+#### Handler
+
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| SYNC11-H-01 | POST /traders/{wallet}/sync | Known wallet, fresh (mock service) | 202 `queued` (`TestHandler_Sync_Queued`) |
+| SYNC11-H-02 | POST /traders/{wallet}/sync | Second fast trigger (inflight) | 202 `in_flight` (`TestHandler_Sync_InFlight`) |
+| SYNC11-H-03 | POST /traders/{wallet}/sync | Fresh sync completed (debounce) | 202 `recent` (`TestHandler_Sync_Recent`) |
+| SYNC11-H-04 | POST /traders/{wallet}/sync | Unknown wallet | 404 (`TestHandler_Sync_UnknownWallet`) |
+| SYNC11-H-05 | POST /traders/{wallet}/sync | Bad address | 400 INVALID_FILTER (`TestHandler_Sync_BadAddress`) |
+| SYNC11-H-06 | GET /traders/{wallet}/activity | Unsynced vs synced (mock service) | Unsynced 200 `data_status=syncing` rows `[]`; synced `ready` (`TestHandler_Activity_DataStatus`) |
+| SYNC11-H-07 | POST /traders/{wallet}/sync | Full backlog (mock 429) | 429 COMMON-905 (`TestHandler_Sync_Busy`) |
+
+#### Integration (`//go:build integration`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SYNC11-I-01 | `RequestSync` validation | Unknown wallet / bad address / unknown venue | 404 / 400 / 404, no enqueue (`TestRequestSync_Validation`) |
+| SYNC11-I-02 | `RequestSync` queued→recent | Queue then drain then retrigger | First `queued`, after pass `recent` durable via `LastFillsSyncAt` (`TestRequestSync_QueuedThenRecent`) |
+| SYNC11-I-03 | `RequestSync` concurrent | 2 goroutines same wallet (DB) | One `queued` + one `in_flight`, queue len 1 (`TestRequestSync_ConcurrentDoubleTrigger`) |
+| SYNC11-I-04 | Priority drain | Seed unsynced registry → `RequestSync` → `StartPriority` | `backfill_completed_at` set, one pass, no manual refresh (`TestPriorityDrain_UnsyncedToReady`) |
+| SYNC11-I-05 | Activity `data_status` | Never-synced / error / stale>24h / fresh states | `syncing` / `error` / `stale` / `ready` from DB (`TestActivity_DataStatus_FromSyncState`) |
+| SYNC11-I-06 | `SyncPositionsWatched` nil-state | Watched wallet with no sync row | `EnsureSyncState` + snapshot written on tick, never skipped (`TestSyncPositionsWatched_NilState`) |
+| SYNC11-I-07 | `RequestSync` full backlog | Fill prioCh to 1024 then trigger | 429 COMMON-905, mark released; freed slot re-queues (`TestRequestSync_QueueFullBusy`) |
+| SYNC11-I-08 | `RequestSync` failed pass | Erroring fetcher, drain, retrigger | Re-queues (`queued`), never `recent` (`TestRequestSync_FailedPassNoDebounce`) |
+
+#### E2E (`//go:build e2e`)
+
+| Case | Flow | Steps | Expected |
+|------|------|-------|----------|
+| SYNC11-E-01 | Unsynced→ready via priority lane | Seed registry → GET activity (`syncing`, rows `[]`) → POST /sync twice fast (`queued`+`in_flight`) → unknown 404 + bad 400 → drain → GET activity (`ready` + rows) → POST again `recent` | No manual refresh; one pass runs; debounce holds (`TestE2E_Trader_SyncFlow` in `e2e_trader_sync_test.go`) |
+
 ---
 
 ## 20. Scale, Perf & Nightly

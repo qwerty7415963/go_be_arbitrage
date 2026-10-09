@@ -180,6 +180,9 @@ func New(cfg *config.Config) (*App, error) {
 			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient}).
 			WithPositions(trader.HLPositionAdapter{C: hlClient}).
 			WithActivityHub(activityHub)
+		// SYNC-FIX v1.1 B1: priority lane trigger for POST /sync (dedicated
+		// drain sharing the venue pacer + worker limit; 6h SyncAll unchanged).
+		traderHandler.WithSync(traderSyncSvc)
 		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
 		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
 			func(evs []hyperliquid.WSTradeEvent) { wsHarvest.Submit(trader.AdaptWSBatch(evs)) })
@@ -351,6 +354,9 @@ func (a *App) Run() error {
 		// M2 fast path: watched wallets (live detail pages) get
 		// near-realtime position snapshots; the 6h SyncAll covers the rest.
 		go a.traderSyncService.StartPositions(ctx, traderPositionInterval)
+		// SYNC-FIX v1.1 B1: dedicated priority drain (sequential <= workers,
+		// shared venue pacer); SyncAll 6h cadence unchanged.
+		go a.traderSyncService.StartPriority(ctx)
 	}
 
 	// Start WS trade discovery (V1.1): harvest trade counterparties into the
