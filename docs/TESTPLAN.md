@@ -1053,6 +1053,12 @@ and untouched. `DataSyncing`/`DataStale` constants stay for scanner
 | LIVE-U-14 | Watcher reconnect states | `Subscribe` → `Reconnect` (fake dialer kill) | `DISCONNECTED→RECONNECT→RESYNC→RECONCILE→LIVE`; events carry state; never stale-as-LIVE (`TestWatcher_ReconnectStates`) |
 | LIVE-U-15 | Watcher concurrency gate | Gate 4, N concurrent bootstraps | At most 4 concurrent RESYNCs; overflow retries without hang (`TestWatcher_ConcurrencyGate`) |
 | LIVE-U-16 | Watcher `OnFill`/`OnFunding`/`OnOrder` | Fill + funding + order ingests in LIVE vs non-LIVE | LIVE emits `wallet.fill.created`+`state.updated`; non-LIVE buffers with current state; funding/order envelopes emitted (`TestWatcher_OnFillFundingOrder`) |
+| LIVE-U-20 | `getFillsUniverse` sharing | 3 concurrent consumers, counting fake + 120ms delay, same (venue,addr,now) | Exactly 1 `FetchFillsWindow`; all share `FetchedAt=now` (`TestUniverse_Sharing_SingleFetch`) |
+| LIVE-U-21 | `sliceUniverse` windows | 5 fills (12h/3d/10d/20d/29d) + boundary/future/nil/zero-window | 1D→1, 7D→2, 30D→5; boundary inclusive; future excluded; nil/zero→empty (`TestSliceUniverse_Windows`) |
+| LIVE-U-22 | Truncated propagate | Universe `truncated=true` → `fetchLiveActivity` + `fetchLivePerformance` 7D | Both `partial:true`, `as_of=FetchedAt`, no refill (still 1 fetch) (`TestUniverse_TruncatedPropagates`) |
+| LIVE-U-23 | Universe evict 128+2xTTL | 130 universes (65 stale >2xTTL) + pinned non-universe keys | All stale dropped, universes ≤128, non-universe kept (`TestUniverse_EvictKeepsFreshDropOld`) |
+| LIVE-U-24 | Universe TTL expiry | Short TTL 60ms: hit→hit→sleep 90ms→miss | 2 hits cost 1 fetch; expiry refetches (count 2) (`TestUniverse_TTLExpiryRefetch`) |
+| LIVE-U-25 | Shared Detail+Activity+Performance | Integration counting-fake, 3 endpoints concurrent (150ms delay) | 1 window-fetch; 1 BTC cycle in all payloads; `as_of` equal; ready+not partial (`TestRepo_LiveUniverse_SharedFetch`) |
 
 #### Handler
 

@@ -148,31 +148,34 @@ func completedTradesToRows(trades []CompletedTrade, funding []float64) []Complet
 	return rows
 }
 
-// fetchLiveActivity fetches the 30d fills window + funding, reconstructs via
-// ReconstructTrades (reuse) and attributes funding. truncated (venue 10k cap)
-// flows to partial. Funding failure degrades to 0 (informational): the fills
-// universe still returns ready.
-func fetchLiveActivity(ctx context.Context, client OnDemandClient, addr string, now time.Time) (*LiveActivitySnapshot, error) {
-	if client == nil {
+// fetchLiveActivity builds the 30d activity from the shared fills universe +
+// funding, reconstructs via ReconstructTrades (reuse) and attributes funding.
+// The fills leg is the shared 30d universe (getFillsUniverse, single fetch per
+// wallet per TTL); funding stays a separate direct fetch. Truncated (venue 10k
+// cap) flows to partial without any refill fetch. Funding failure degrades to
+// 0 (informational): the fills universe still returns ready. as_of is the
+// universe fetch time.
+func fetchLiveActivity(ctx context.Context, s *Service, venue, addr string, now time.Time) (*LiveActivitySnapshot, error) {
+	if s == nil || s.onDemand == nil {
 		return nil, errUpstreamUnavailable
 	}
-	startMs := now.Add(-LiveActivityWindow).UnixMilli()
-	endMs := now.UnixMilli()
-	raw, truncated, err := client.FetchFillsWindow(ctx, addr, startMs, endMs)
+	universe, err := getFillsUniverse(ctx, s, venue, addr, now)
 	if err != nil {
 		return nil, err
 	}
-	fills := mapHLFillsToTrader(raw)
+	fills := sliceUniverse(universe.Fills, universe.FetchedAt, LiveActivityWindow)
 	trades := ReconstructTrades(fills)
+	startMs := universe.FetchedAt.Add(-LiveActivityWindow).UnixMilli()
+	endMs := universe.FetchedAt.UnixMilli()
 	var payments []hyperliquid.FundingPayment
-	if fraw, ferr := client.FetchUserFunding(ctx, addr, startMs, endMs); ferr == nil {
+	if fraw, ferr := s.onDemand.FetchUserFunding(ctx, addr, startMs, endMs); ferr == nil {
 		payments = parseFundingPayments(fraw)
 	}
 	// Funding error ⇒ 0 attribution (informational), still ready.
 	funding := attributeFunding(trades, payments)
 	return &LiveActivitySnapshot{
 		Rows:    completedTradesToRows(trades, funding),
-		AsOf:    now.UTC(),
-		Partial: truncated,
+		AsOf:    universe.FetchedAt.UTC(),
+		Partial: universe.Truncated,
 	}, nil
 }

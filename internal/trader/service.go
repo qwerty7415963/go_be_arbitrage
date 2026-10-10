@@ -678,7 +678,7 @@ func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q Act
 	key := "activity-live|" + venue + "|" + addr
 	now := time.Now().UTC()
 	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
-		return fetchLiveActivity(ctx, s.onDemand, addr, now)
+		return fetchLiveActivity(ctx, s, venue, addr, now)
 	})
 	var snap *LiveActivitySnapshot
 	if fetchErr != nil {

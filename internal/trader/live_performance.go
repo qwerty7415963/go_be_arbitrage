@@ -156,8 +156,12 @@ func parseFloatStrict(s string) (float64, error) {
 }
 
 // fetchLivePerformance computes one period's live performance:
-// 1D/7D/30D from live fills (reconstruct reuse) + live equity;
-// ALL from portfolio allTime + LB refs passthrough (live-read).
+// 1D/7D/30D from the shared 30d fills universe (slice + reconstruct reuse) +
+// live equity; ALL from portfolio allTime + LB refs passthrough (live-read).
+// The fills leg never fetches directly: 1D/7D/30D slice the 30d universe
+// (getFillsUniverse, single fetch per wallet per TTL); portfolio/LB stay
+// separate direct fetches. as_of is the universe fetch time. Truncated
+// universes slice + emit partial:true without any refill fetch.
 // No reads of trader_period_metrics / trader_equity_daily (conformance §7);
 // LB refs are read live (existing resolve semantics).
 func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, addr, venue, period string, now time.Time) (*LivePerformanceSnapshot, error) {
@@ -212,19 +216,18 @@ func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, ad
 		return &LivePerformanceSnapshot{Metrics: m, Equity: equity, AsOf: now.UTC(), Partial: false}, nil
 	}
 
-	// 1D/7D/30D: fills window → reconstruct → metrics + live equity drawdown.
+	// 1D/7D/30D: shared 30d universe → slice → reconstruct → metrics + live equity drawdown.
 	lookback, ok := periodFillsLookback(period)
 	if !ok {
 		lookback = 30 * 24 * time.Hour
 	}
-	startMs := now.Add(-lookback).UnixMilli()
-	endMs := now.UnixMilli()
-	raw, truncated, err := s.onDemand.FetchFillsWindow(ctx, addr, startMs, endMs)
+	universe, err := getFillsUniverse(ctx, s, venue, addr, now)
 	if err != nil {
 		return nil, err
 	}
-	trades := ReconstructTrades(mapHLFillsToTrader(raw))
-	metrics := computeLiveMetrics(trades, curve, now, truncated, DataReady)
+	sliced := sliceUniverse(universe.Fills, universe.FetchedAt, lookback)
+	trades := ReconstructTrades(sliced)
+	metrics := computeLiveMetrics(trades, curve, universe.FetchedAt, universe.Truncated, DataReady)
 	// If equity fetch failed but fills succeeded, still ready (drawdown null).
-	return &LivePerformanceSnapshot{Metrics: metrics, Equity: equity, AsOf: now.UTC(), Partial: truncated}, nil
+	return &LivePerformanceSnapshot{Metrics: metrics, Equity: equity, AsOf: universe.FetchedAt.UTC(), Partial: universe.Truncated}, nil
 }
