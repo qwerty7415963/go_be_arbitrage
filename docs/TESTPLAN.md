@@ -1107,6 +1107,33 @@ pipeline + 6h cadence unchanged (LIVE-I-07).
 Env deviations (M6): no cgo/gcc → gates WITHOUT `-race` (`CGO=0 go test
 -count=1`); no `golangci-lint` → `go vet` + `gofmt -l` substitute.
 
+### 19.14 Sidebar 3-event deltas (contract `SIDEBAR-3EVENTS.md` frozen 2026-10-10)
+
+Additive over v1.2, WS-only (no swagger, no migration). Sidebar listens ONLY
+to limit placements, open-dir fills, completed-cycle closes. BE deltas: D1
+`wallet.fill.created` data gains `dir` (+`closedPnl` already present,
+populated from userFills mapping on the watcher path); D2 NEW
+`wallet.order.created` on first-seen oid (watcher `snapshot.Orders` map,
+payload OrderDTO + `status:"open"`), afterwards `wallet.order.updated` as
+today; D3 no change to legacy `{type:activity}` harvest path (sidebar
+ignores it, trades tab untouched).
+
+#### Unit
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| SB-U-01 | `WatcherManager.OnOrder` first-seen vs repeat | New oid 111 → same oid ×2 → new oid 222 | `wallet.order.created` once (payload OrderDTO + `status:"open"`) → 2× `wallet.order.updated` (old shape, no `status`) → new oid `created` once; snapshot holds both oids (`TestWatcher_OrderCreatedOncePerOid`) |
+| SB-U-02 | `mapUserFills` dir/closedPnl | Open Long/0, Close Long/12.5 + bad sz row | Dir verbatim, closedPnl parsed, bad skipped; DTO JSON always has `dir` + `closed_pnl` keys (`TestMapUserFills_PreservesDirClosedPnl`) |
+| SB-U-03 | `WatcherManager.OnFill` envelope | FillDTO dir Open Long, closedPnl 0 | First frame `wallet.fill.created` data carries dir + closedPnl (`TestWatcher_OnFillEmitsDirClosedPnl`) |
+| SB-U-04 | `WatcherManager.OnRawUserFill` mapping | Valid userFills row + invalid sz + unwatched wallet | Valid maps via same rules and emits (dir kept); invalid/unwatched return false, emit nothing (`TestWatcher_OnRawUserFill_MapsDir`) |
+
+#### Integration (`//go:build integration`)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| SB-I-01 | Watcher order created shared | Fake live seeds oid 9001 → 10 subs → OnOrder seeded/new/repeat | 1 watcher + 1 upstream subscribe; seeded → `updated` on all 10; new oid → `created` once (status open) on all 10; repeat → `updated`; last unsub tears down (`TestRepo_Watcher_OrderCreatedOnceShared`) |
+| SB-I-02 | Watcher fill dir end-to-end | Subscribe → OnRawUserFill Open Short/7.5 | `wallet.fill.created` data keeps dir/closedPnl/coin (`TestRepo_Watcher_FillCreatedDirEndToEnd`) |
+
 ---
 
 ## 20. Scale, Perf & Nightly
@@ -1195,8 +1222,9 @@ daytime pipelines never silently ingest garbage. CI: `.github/workflows/ci-night
 | Trader Scanner v1.1 | 30 | 13 | 22 | 4 | **69** |
 | Wallet Tabs v1 WS1-WS6 (§19.11) | 16 | 12 | 6 | 2 | **36** |
 | Wallet Detail Live v1.2 (§19.13) | 16 | 11 | 7 | 3 | **37** |
+| Sidebar 3-event deltas (§19.14) | 4 | 0 | 2 | 0 | **6** |
 | Sync Scale | 3 | 0 | 3 | 0 | **6** |
 | Perf & Nightly (perf/nightly tags) | - | - | - | - | **7** |
-| Cross-module | - | - | - | 5 | **5** |
-| Security | - | - | - | 6 | **6** |
-| **TOTAL** | **~332** | **~106** | **~76** | **~31** | **~553** |
+| Cross-module | - | - | - | - | **5** |
+| Security | - | - | - | - | **6** |
+| **TOTAL** | **~336** | **~106** | **~78** | **~31** | **~559** |

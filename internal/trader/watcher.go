@@ -29,10 +29,24 @@ const (
 	EvtFillCreated       = "wallet.fill.created"
 	EvtFundingCreated    = "wallet.funding.created"
 	EvtOrderUpdated      = "wallet.order.updated"
+	EvtOrderCreated      = "wallet.order.created"
 	EvtActivityCreated   = "wallet.activity.created"
 	EvtStateUpdated      = "wallet.state.updated"
 	EvtConnectionUpdated = "wallet.connection.updated"
 )
+
+// OrderCreatedPayload is the wallet.order.created data (SIDEBAR-3EVENTS D2):
+// OrderDTO fields flattened + status:"open" for sidebar limit rows
+// (coin, oid, status open, side, limit_px, size/orig_size, timestamp).
+type OrderCreatedPayload struct {
+	OrderDTO
+	Status string `json:"status"`
+}
+
+// toOrderCreatedPayload wraps an open order with status open.
+func toOrderCreatedPayload(o OrderDTO) OrderCreatedPayload {
+	return OrderCreatedPayload{OrderDTO: o, Status: "open"}
+}
 
 // WalletEvent is the wallet.* envelope sent to browser subscribers.
 type WalletEvent struct {
@@ -419,7 +433,30 @@ func (m *WatcherManager) OnFunding(wallet string, p hyperliquid.FundingPayment) 
 	m.emit(wallet, EvtFundingCreated, p, st)
 }
 
-// OnOrder ingests one upstream order update.
+// OnRawUserFill ingests one upstream userFills WS row (hyperliquid.Fill):
+// maps via the same mapUserFills rules (side/sz/px/time validation) so the
+// wallet.fill.created envelope always carries dir + closedPnl
+// (SIDEBAR-3EVENTS D1). Returns false when the row is skipped (invalid) or
+// the wallet is unwatched, true when emitted via OnFill.
+func (m *WatcherManager) OnRawUserFill(wallet string, f hyperliquid.Fill) bool {
+	mapped := mapUserFills([]hyperliquid.Fill{f})
+	if len(mapped) != 1 {
+		return false
+	}
+	m.mu.Lock()
+	_, ok := m.watchers[strings.ToLower(strings.TrimSpace(wallet))]
+	m.mu.Unlock()
+	if !ok {
+		return false
+	}
+	m.OnFill(wallet, mapped[0])
+	return true
+}
+
+// OnOrder ingests one upstream order update (SIDEBAR-3EVENTS D2): first-seen
+// oid (absent from snapshot.Orders) emits wallet.order.created once with
+// payload OrderDTO + status open; later updates for the same oid keep
+// wallet.order.updated as before (never re-emit created).
 func (m *WatcherManager) OnOrder(wallet string, o OrderDTO) {
 	m.mu.Lock()
 	w, ok := m.watchers[strings.ToLower(strings.TrimSpace(wallet))]
@@ -432,8 +469,13 @@ func (m *WatcherManager) OnOrder(wallet string, o OrderDTO) {
 	if w.snapshot.Orders == nil {
 		w.snapshot.Orders = map[int64]OrderDTO{}
 	}
+	_, exists := w.snapshot.Orders[o.Oid]
 	w.snapshot.Orders[o.Oid] = o
 	w.mu.Unlock()
+	if !exists {
+		m.emit(wallet, EvtOrderCreated, toOrderCreatedPayload(o), st)
+		return
+	}
 	m.emit(wallet, EvtOrderUpdated, o, st)
 }
 
