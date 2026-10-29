@@ -2,7 +2,9 @@ package trader
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
@@ -123,4 +125,131 @@ func (a HLPositionAdapter) FetchPositions(ctx context.Context, address string) (
 		return nil, err
 	}
 	return MapClearinghouseToSnapshot(state, time.Now().UTC()), nil
+}
+
+// perpDexClient is the seam used by the multi-dex aggregation helpers.
+type perpDexClient interface {
+	FetchPerpDexs(ctx context.Context) ([]string, error)
+	FetchClearinghouseState(ctx context.Context, address string, dex ...string) (*hyperliquid.ClearinghouseState, error)
+}
+
+// fetchPositionsAllDexes aggregates open positions across the default dex and
+// every named perp dex (HIP-3). Per-dex failures are non-fatal; the result is
+// an error only when every dex fails.
+func fetchPositionsAllDexes(ctx context.Context, client any, addr string) (*PositionSnapshot, error) {
+	c, ok := client.(perpDexClient)
+	if !ok {
+		// Allow concrete pointer types that satisfy the seam via assertion.
+		if pc, ok2 := client.(perpDexClient); ok2 {
+			c = pc
+		} else {
+			return nil, fmt.Errorf("client does not implement perp dex seam")
+		}
+	}
+	dexes, _ := c.FetchPerpDexs(ctx)
+	if dexes == nil {
+		dexes = []string{}
+	}
+	return fetchPositionsForDexes(ctx, c, addr, dexes)
+}
+
+// fetchPositionsForDexes aggregates for an explicit dex list (empty/nil =>
+// default dex only). Exported-ish helper used by the service to reuse a cached
+// dex list.
+func fetchPositionsForDexes(ctx context.Context, client perpDexClient, addr string, dexes []string) (*PositionSnapshot, error) {
+	if client == nil {
+		return nil, fmt.Errorf("upstream unavailable")
+	}
+	if dexes == nil {
+		dexes = []string{}
+	}
+	jobs := make([]string, 0, 1+len(dexes))
+	jobs = append(jobs, "")
+	jobs = append(jobs, dexes...)
+
+	now := time.Now().UTC()
+	results := make([]*PositionSnapshot, len(jobs))
+	errs := make([]error, len(jobs))
+
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	for i, d := range jobs {
+		wg.Add(1)
+		go func(i int, d string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				errs[i] = ctx.Err()
+				return
+			}
+			defer func() { <-sem }()
+			var st *hyperliquid.ClearinghouseState
+			var err error
+			if d == "" {
+				st, err = client.FetchClearinghouseState(ctx, addr)
+			} else {
+				st, err = client.FetchClearinghouseState(ctx, addr, d)
+			}
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			if st == nil {
+				errs[i] = fmt.Errorf("nil state")
+				return
+			}
+			results[i] = MapClearinghouseToSnapshot(st, now)
+		}(i, d)
+	}
+	wg.Wait()
+
+	success := 0
+	snap := &PositionSnapshot{AsOf: now, Positions: []Position{}}
+	var avSum, ntlSum, marginSum float64
+	var avHas, ntlHas, marginHas bool
+	for i, r := range results {
+		if r == nil {
+			continue
+		}
+		success++
+		snap.Positions = append(snap.Positions, r.Positions...)
+		if r.AccountValue != nil {
+			avSum += *r.AccountValue
+			avHas = true
+		}
+		if r.TotalNtlPos != nil {
+			ntlSum += *r.TotalNtlPos
+			ntlHas = true
+		}
+		if r.TotalMarginUsed != nil {
+			marginSum += *r.TotalMarginUsed
+			marginHas = true
+		}
+		_ = errs[i]
+	}
+	if success == 0 {
+		for _, e := range errs {
+			if e != nil {
+				return nil, e
+			}
+		}
+		return nil, fmt.Errorf("all dexes failed")
+	}
+	if avHas {
+		v := avSum
+		snap.AccountValue = &v
+	}
+	if ntlHas {
+		v := ntlSum
+		snap.TotalNtlPos = &v
+	}
+	if marginHas {
+		v := marginSum
+		snap.TotalMarginUsed = &v
+	}
+	if snap.Positions == nil {
+		snap.Positions = []Position{}
+	}
+	return snap, nil
 }

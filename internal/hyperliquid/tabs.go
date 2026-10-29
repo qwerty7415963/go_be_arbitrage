@@ -16,7 +16,7 @@ import (
 // SpotBalance is one row of spotClearinghouseState.balances.
 type SpotBalance struct {
 	Coin     string `json:"coin"`
-	Token    string `json:"token"`
+	Token    int64  `json:"token"`
 	Total    string `json:"total"`
 	Hold     string `json:"hold"`
 	EntryNtl string `json:"entryNtl"`

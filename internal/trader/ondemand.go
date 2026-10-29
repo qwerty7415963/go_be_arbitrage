@@ -21,7 +21,8 @@ import (
 // interactive client; activity/performance window fetches + funding + equity).
 // *hyperliquid.Client and *hyperliquid.LiveClient both implement it.
 type OnDemandClient interface {
-	FetchClearinghouseState(ctx context.Context, address string) (*hyperliquid.ClearinghouseState, error)
+	FetchClearinghouseState(ctx context.Context, address string, dex ...string) (*hyperliquid.ClearinghouseState, error)
+	FetchPerpDexs(ctx context.Context) ([]string, error)
 	FetchSpotState(ctx context.Context, address string) (*hyperliquid.SpotState, error)
 	FetchUserFills(ctx context.Context, address string) ([]hyperliquid.Fill, error)
 	FetchOpenOrders(ctx context.Context, address string) ([]hyperliquid.OpenOrder, error)

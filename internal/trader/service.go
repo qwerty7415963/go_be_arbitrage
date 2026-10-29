@@ -42,11 +42,13 @@ type Service struct {
 	// surface data_status=error via degradation (never 500).
 	onDemand OnDemandClient
 	cache    *OnDemandCache
+	dexCache *OnDemandCache
 }
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte) *Service {
 	return &Service{repo: repo, groups: groups, secret: cursorSecret,
-		cache: NewOnDemandCache(LiveCacheTTL)}
+		cache:    NewOnDemandCache(LiveCacheTTL),
+		dexCache: NewOnDemandCache(5 * time.Minute)}
 }
 
 // WithOnDemand attaches the venue on-demand client + cache (LIVE §1.1-§1.7).
@@ -529,12 +531,25 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir s
 		if s.onDemand == nil {
 			return nil, errUpstreamUnavailable
 		}
-		state, err := s.onDemand.FetchClearinghouseState(ctx, addr)
+		now := time.Now().UTC()
+		// Cached perp dex list (5m TTL); fallback to default-only on failure.
+		dv, _, _, derr := s.dexCache.GetOrFetch("perp-dexs|"+venue, func() (any, error) {
+			return s.onDemand.FetchPerpDexs(ctx)
+		})
+		var dexes []string
+		if derr == nil {
+			if v, ok := dv.([]string); ok {
+				dexes = v
+			}
+		}
+		snap, err := fetchPositionsForDexes(ctx, s.onDemand, addr, dexes)
 		if err != nil {
 			return nil, err
 		}
-		now := time.Now().UTC()
-		return MapClearinghouseToSnapshot(state, now), nil
+		if snap.AsOf.IsZero() {
+			snap.AsOf = now
+		}
+		return snap, nil
 	})
 	_ = freshHit
 	if fetchErr != nil {

@@ -1199,6 +1199,44 @@ daytime pipelines never silently ingest garbage. CI: `.github/workflows/ci-night
 | NIGHTLY-03 | Portfolio shape | Live portfolio for a known trader | 8 windows with `accountValueHistory` pairs |
 | NIGHTLY-04 | Universe vs cap | Live meta universe count | Non-empty and below subscription cap (early warning) |
 
+
+
+---
+
+### 19.15 Multi-dex positions (contract v1.3, HIP-3)
+
+Additive over v1.2 (positions) and v1.3 (balances). Aggregates across
+the default + named perp dexes (perpDexs). No migration, no swagger schema
+change.
+
+#### Unit
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| MD-U-01 | FetchPerpDexs decode | payload [null,{"name":"xyz"},{"name":"flx"}] | ["xyz","flx"], null skipped |
+| MD-U-02 | FetchPerpDexs request body | httptest server | body is {"type":"perpDexs"} |
+| MD-U-03 | aggregate merge | default 1 pos + xyz 2 pos | 3 rows, coin prefix kept, summary summed |
+| MD-U-04 | aggregate nil summary | dex A values, dex B empty | sums equal dex A, not nil |
+| MD-U-05 | aggregate partial failure | xyz errors, default ok | ready, default rows only |
+| MD-U-06 | aggregate total failure | every dex errors | error, empty non-nil rows |
+| MD-U-07 | aggregate all-nil field | both dexes return empty strings | field nil |
+| MD-U-08 | aggregate concurrency bound | 11 dexes | at most 4 in flight at any time |
+
+#### Integration (//go:build integration)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| MD-I-01 | positions endpoint multi-dex | fake live with default + xyz fixtures | positions endpoint returns both dex rows, summed summary |
+| MD-I-02 | balances endpoint multi-dex | fake live with default + xyz fixtures | perp account_value = sum, spot unchanged |
+| MD-I-03 | dex-list cache | two calls within 5m | perpDexs fetched once |
+
+#### E2E (//go:build e2e)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| MD-E-01 | multi-dex wallet flow | GET /traders/{wallet}/positions | includes HIP-3 coin rows, data_status=ready, as_of non-null |
+
+
 ---
 
 ## Summary

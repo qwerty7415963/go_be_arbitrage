@@ -19,8 +19,12 @@ type watcherFakeLive struct {
 	orders []hyperliquid.OpenOrder
 }
 
-func (f *watcherFakeLive) FetchClearinghouseState(_ context.Context, _ string) (*hyperliquid.ClearinghouseState, error) {
+func (f *watcherFakeLive) FetchClearinghouseState(_ context.Context, _ string, _ ...string) (*hyperliquid.ClearinghouseState, error) {
 	return &hyperliquid.ClearinghouseState{}, nil
+}
+
+func (f *watcherFakeLive) FetchPerpDexs(_ context.Context) ([]string, error) {
+	return nil, nil
 }
 
 func (f *watcherFakeLive) FetchSpotState(_ context.Context, _ string) (*hyperliquid.SpotState, error) {

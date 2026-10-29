@@ -26,8 +26,12 @@ type countingUniverseFake struct {
 	delay          time.Duration
 }
 
-func (f *countingUniverseFake) FetchClearinghouseState(_ context.Context, _ string) (*hyperliquid.ClearinghouseState, error) {
+func (f *countingUniverseFake) FetchClearinghouseState(_ context.Context, _ string, _ ...string) (*hyperliquid.ClearinghouseState, error) {
 	return nil, errors.New("not used")
+}
+
+func (f *countingUniverseFake) FetchPerpDexs(_ context.Context) ([]string, error) {
+	return nil, nil
 }
 
 func (f *countingUniverseFake) FetchSpotState(_ context.Context, _ string) (*hyperliquid.SpotState, error) {

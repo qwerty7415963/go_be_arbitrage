@@ -95,8 +95,9 @@ func (l *LiveClient) windowCtx(ctx context.Context) (context.Context, context.Ca
 }
 
 // FetchClearinghouseState implements the perp account summary (positions §1.1,
-// balances §1.3) behind the concurrency gate + ctx timeout.
-func (l *LiveClient) FetchClearinghouseState(ctx context.Context, address string) (*ClearinghouseState, error) {
+// balances §1.3) behind the concurrency gate + ctx timeout. Optional dex
+// selects a named perp dex (HIP-3); empty/absent = default dex.
+func (l *LiveClient) FetchClearinghouseState(ctx context.Context, address string, dex ...string) (*ClearinghouseState, error) {
 	release, err := l.acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -104,7 +105,20 @@ func (l *LiveClient) FetchClearinghouseState(ctx context.Context, address string
 	defer release()
 	ctx2, cancel := l.singleCtx(ctx)
 	defer cancel()
-	return l.inner.FetchClearinghouseState(ctx2, address)
+	return l.inner.FetchClearinghouseState(ctx2, address, dex...)
+}
+
+// FetchPerpDexs implements the perp dex list (HIP-3) behind the concurrency
+// gate + ctx timeout.
+func (l *LiveClient) FetchPerpDexs(ctx context.Context) ([]string, error) {
+	release, err := l.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	ctx2, cancel := l.singleCtx(ctx)
+	defer cancel()
+	return l.inner.FetchPerpDexs(ctx2)
 }
 
 // FetchSpotState implements spot balances (§1.3).

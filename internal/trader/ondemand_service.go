@@ -3,8 +3,10 @@ package trader
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
@@ -66,32 +68,143 @@ func (s *Service) Balances(ctx context.Context, venueCode, rawAddr string) (*Bal
 		var perp *PerpBalancesDTO
 		var spot *SpotBalancesDTO
 		var perpErr, spotErr error
-		// Perp via clearinghouseState (incl. withdrawable + crossMarginSummary).
+		// Perp via clearinghouseState (incl. withdrawable + crossMarginSummary),
+		// aggregated across the default + named perp dexes (HIP-3).
 		func() {
-			state, err := s.onDemand.FetchClearinghouseState(ctx, addr)
-			if err != nil {
-				perpErr = err
+			if s.onDemand == nil {
+				perpErr = errUpstreamUnavailable
+				return
+			}
+			dv, _, _, derr := s.dexCache.GetOrFetch("perp-dexs|"+venue, func() (any, error) {
+				return s.onDemand.FetchPerpDexs(ctx)
+			})
+			var dexes []string
+			if derr == nil {
+				if v, ok := dv.([]string); ok {
+					dexes = v
+				}
+			}
+			jobs := make([]string, 0, 1+len(dexes))
+			jobs = append(jobs, "")
+			jobs = append(jobs, dexes...)
+
+			states := make([]*hyperliquid.ClearinghouseState, len(jobs))
+			errs := make([]error, len(jobs))
+			sem := make(chan struct{}, 4)
+			var wg sync.WaitGroup
+			for i, d := range jobs {
+				wg.Add(1)
+				go func(i int, d string) {
+					defer wg.Done()
+					select {
+					case sem <- struct{}{}:
+					case <-ctx.Done():
+						errs[i] = ctx.Err()
+						return
+					}
+					defer func() { <-sem }()
+					if d == "" {
+						st, err := s.onDemand.FetchClearinghouseState(ctx, addr)
+						states[i] = st
+						errs[i] = err
+					} else {
+						st, err := s.onDemand.FetchClearinghouseState(ctx, addr, d)
+						states[i] = st
+						errs[i] = err
+					}
+				}(i, d)
+			}
+			wg.Wait()
+
+			success := 0
+			var avSum, ntlSum, marginSum, wdSum, crossAVSum, crossNtlSum, crossMarginSum, assetPosSum float64
+			var avHas, ntlHas, marginHas, wdHas, crossAVHas, crossNtlHas, crossMarginHas, assetPosHas bool
+			for i, st := range states {
+				if st == nil || errs[i] != nil {
+					continue
+				}
+				success++
+				if v := optFloat(st.MarginSummary.AccountValue); v != nil {
+					avSum += *v
+					avHas = true
+				}
+				if v := optFloat(st.MarginSummary.TotalNtlPos); v != nil {
+					ntlSum += *v
+					ntlHas = true
+				}
+				if v := optFloat(st.MarginSummary.TotalMarginUsed); v != nil {
+					marginSum += *v
+					marginHas = true
+				}
+				if v := optFloat(st.Withdrawable); v != nil {
+					wdSum += *v
+					wdHas = true
+				}
+				if v := optFloat(st.CrossMarginSummary.AccountValue); v != nil {
+					crossAVSum += *v
+					crossAVHas = true
+				}
+				if v := optFloat(st.CrossMarginSummary.TotalNtlPos); v != nil {
+					crossNtlSum += *v
+					crossNtlHas = true
+				}
+				if v := optFloat(st.CrossMarginSummary.TotalMarginUsed); v != nil {
+					crossMarginSum += *v
+					crossMarginHas = true
+				}
+				var sum float64
+				for _, ap := range st.AssetPositions {
+					if v, err := ap.Position.PositionValue.Float(); err == nil {
+						if v < 0 {
+							v = -v
+						}
+						sum += v
+					}
+				}
+				assetPosSum += sum
+				assetPosHas = true
+			}
+			if success == 0 {
+				if errs[0] != nil {
+					perpErr = errs[0]
+				} else {
+					perpErr = fmt.Errorf("all dexes failed")
+				}
 				return
 			}
 			p := &PerpBalancesDTO{AsOf: &now}
-			p.AccountValue = optFloat(state.MarginSummary.AccountValue)
-			p.TotalNtlPos = optFloat(state.MarginSummary.TotalNtlPos)
-			p.TotalMarginUsed = optFloat(state.MarginSummary.TotalMarginUsed)
-			p.Withdrawable = optFloat(state.Withdrawable)
-			p.CrossAccountValue = optFloat(state.CrossMarginSummary.AccountValue)
-			p.CrossTotalNtlPos = optFloat(state.CrossMarginSummary.TotalNtlPos)
-			p.CrossTotalMarginUsed = optFloat(state.CrossMarginSummary.TotalMarginUsed)
-			var sum float64
-			for _, ap := range state.AssetPositions {
-				if v, err := ap.Position.PositionValue.Float(); err == nil {
-					if v < 0 {
-						v = -v
-					}
-					sum += v
-				}
+			if avHas {
+				v := avSum
+				p.AccountValue = &v
 			}
-			sumCopy := sum
-			p.AssetPositionsValue = &sumCopy
+			if ntlHas {
+				v := ntlSum
+				p.TotalNtlPos = &v
+			}
+			if marginHas {
+				v := marginSum
+				p.TotalMarginUsed = &v
+			}
+			if wdHas {
+				v := wdSum
+				p.Withdrawable = &v
+			}
+			if crossAVHas {
+				v := crossAVSum
+				p.CrossAccountValue = &v
+			}
+			if crossNtlHas {
+				v := crossNtlSum
+				p.CrossTotalNtlPos = &v
+			}
+			if crossMarginHas {
+				v := crossMarginSum
+				p.CrossTotalMarginUsed = &v
+			}
+			if assetPosHas {
+				v := assetPosSum
+				p.AssetPositionsValue = &v
+			}
 			perp = p
 		}()
 		func() {
@@ -103,7 +216,7 @@ func (s *Service) Balances(ctx context.Context, venueCode, rawAddr string) (*Bal
 			rows := make([]SpotBalanceDTO, 0, len(st.Balances))
 			for _, b := range st.Balances {
 				rows = append(rows, SpotBalanceDTO{
-					Coin: strings.ToUpper(strings.TrimSpace(b.Coin)), Token: b.Token,
+					Coin: strings.ToUpper(strings.TrimSpace(b.Coin)), Token: strconv.FormatInt(b.Token, 10),
 					Total: parseFloatPtr(b.Total), Hold: parseFloatPtr(b.Hold),
 					EntryNtl: parseFloatPtr(b.EntryNtl),
 				})
