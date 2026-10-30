@@ -10,9 +10,9 @@ import (
 )
 
 type rateBucket struct {
-	count    int
-	resetAt  time.Time
-	mu       sync.Mutex
+	count   int
+	resetAt time.Time
+	mu      sync.Mutex
 }
 
 type RateLimiter struct {

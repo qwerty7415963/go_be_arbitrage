@@ -54,7 +54,7 @@ type ReconciliationRun struct {
 	Status         RunStatus       `json:"status" db:"status"`
 	StartedAt      time.Time       `json:"started_at" db:"started_at"`
 	CompletedAt    *time.Time      `json:"completed_at,omitempty" db:"completed_at"`
-	Summary        json.RawMessage `json:"summary" db:"summary"`
+	Summary        json.RawMessage `json:"summary" db:"summary" swaggertype:"object"`
 }
 
 type ReconciliationItem struct {
@@ -63,9 +63,9 @@ type ReconciliationItem struct {
 	EntityType    EntityType      `json:"entity_type" db:"entity_type"`
 	EntityID      *uuid.UUID      `json:"entity_id,omitempty" db:"entity_id"`
 	Result        ItemResult      `json:"result" db:"result"`
-	InternalState json.RawMessage `json:"internal_state" db:"internal_state"`
-	ExternalState json.RawMessage `json:"external_state" db:"external_state"`
-	Diff          json.RawMessage `json:"diff,omitempty" db:"diff"`
+	InternalState json.RawMessage `json:"internal_state" db:"internal_state" swaggertype:"object"`
+	ExternalState json.RawMessage `json:"external_state" db:"external_state" swaggertype:"object"`
+	Diff          json.RawMessage `json:"diff,omitempty" db:"diff" swaggertype:"object"`
 	CreatedAt     time.Time       `json:"created_at" db:"created_at"`
 }
 

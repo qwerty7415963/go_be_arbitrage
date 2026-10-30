@@ -21,6 +21,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/risk"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/telegram"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
@@ -46,6 +47,7 @@ func (s *Server) SetupRoutes(
 	reconciliationHandler *reconciliation.Handler,
 	traderHandler *trader.Handler,
 	traderGroupHandler *tradergroup.Handler,
+	telegramHandler *telegram.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -173,7 +175,9 @@ func (s *Server) SetupRoutes(
 		// are public; trader-groups require JWT.
 		traderHandler.RegisterRoutes(v1)
 		traderGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
-
+		if telegramHandler != nil {
+			telegramHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		}
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")
 		{

@@ -20,12 +20,14 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/instrument"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/logger"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/market"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/notify"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/opportunity"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/orderbook"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/reconciliation"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/risk"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/storage"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/telegram"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
@@ -56,6 +58,12 @@ type App struct {
 	watcherManager     *trader.WatcherManager
 	wsStream           *hyperliquid.TradeStream
 	wsHarvest          *trader.WSHarvestService
+	telegramService    *telegram.Service
+	telegramBot        *telegram.Bot
+	notifyRepo         *notify.Repository
+	notifySupervisor   *notify.Supervisor
+	notifyDispatcher   *notify.Dispatcher
+	notifyWorker       *notify.Worker
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -157,6 +165,20 @@ func New(cfg *config.Config) (*App, error) {
 	traderHandler := trader.NewHandler(traderService)
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
 
+	// Telegram notifications (contract v1.4 phase B)
+	telegramRepo := telegram.NewRepository(db.Pool())
+	telegramService := telegram.NewService(telegramRepo, &cfg.Telegram)
+	telegramHandler := telegram.NewHandler(telegramService)
+	var telegramBot *telegram.Bot
+	if cfg.Telegram.Enabled {
+		telegramBot = telegram.NewBot(&cfg.Telegram, telegramRepo, telegramService)
+	}
+
+	// Notify (contract v1.4 phase C)
+	notifyRepo := notify.NewRepository(db.Pool())
+	var notifySupervisor *notify.Supervisor
+	var notifyDispatcher *notify.Dispatcher
+	var notifyWorker *notify.Worker
 	// LIVE-CONTRACT v1.2 §2 (WS-D): realtime path is one refcounted
 	// WalletWatcher per watched address (first browser subscriber creates the
 	// 4-feed upstream watcher; last unsubscribe tears it down) over the shared
@@ -192,7 +214,10 @@ func New(cfg *config.Config) (*App, error) {
 		// Shared upstream WS multiplexing is interface-ready (UpstreamDialer);
 		// production runs REST-bootstrap + envelope + reconnect states on the
 		// existing transport; the global harvest feed stays for the scanner.
-		watcherManager = trader.NewWatcherManager(activityHub, hlLive, nil, 4)
+		userStreamSink := &trader.HyperliquidUserStreamSink{}
+		userStream := hyperliquid.NewUserStream("wss://api.hyperliquid.xyz/ws", userStreamSink)
+		watcherManager = trader.NewWatcherManager(activityHub, hlLive, userStream, 4)
+		userStreamSink.Mgr = watcherManager
 		activityWS.WithWatcher(watcherManager)
 		discoverySvc = trader.NewDiscoveryService(traderRepo,
 			trader.HLDiscoveryAdapter{C: hlClient}, venueID, traderDiscoveryLimit)
@@ -210,6 +235,20 @@ func New(cfg *config.Config) (*App, error) {
 		wsStream.SetOnFills(func(fills []hyperliquid.WSTradeFill) { traderActivitySvc.Submit(fills) })
 	}
 
+	// Notify (contract v1.4 phase C)
+	notifySupervisor = notify.NewSupervisor(watcherManager, telegramService, notifyRepo)
+	notifyDispatcher = notify.NewDispatcher(notifyRepo, cfg.Telegram.AppPublicURL)
+	var notifySender *telegram.Sender
+	if cfg.Telegram.Enabled {
+		notifySender = telegram.NewSender(cfg.Telegram.BotToken)
+	}
+	notifyWorker = notify.NewWorker(notifyRepo, notifySender)
+	if watcherManager != nil && notifyDispatcher != nil {
+		watcherManager.AddObserver(func(ev trader.WalletEvent) {
+			notifyDispatcher.Enqueue(ev)
+		})
+	}
+
 	// Collector (lazy start - will start on first request context)
 	fundingCollector := collector.NewCollector(
 		db.Pool(),
@@ -220,7 +259,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, telegramHandler)
 
 	return &App{
 		config:             cfg,
@@ -246,6 +285,12 @@ func New(cfg *config.Config) (*App, error) {
 		watcherManager:     watcherManager,
 		wsStream:           wsStream,
 		wsHarvest:          wsHarvest,
+		telegramService:    telegramService,
+		telegramBot:        telegramBot,
+		notifyRepo:         notifyRepo,
+		notifySupervisor:   notifySupervisor,
+		notifyDispatcher:   notifyDispatcher,
+		notifyWorker:       notifyWorker,
 	}, nil
 }
 
@@ -382,6 +427,20 @@ func (a *App) Run() error {
 		go runWSTradeDiscovery(ctx, a.logger, a.hlClient, a.wsStream, a.wsHarvest)
 	}
 
+	if a.telegramBot != nil {
+		go a.telegramBot.Start(ctx)
+	}
+	if a.config.Telegram.Enabled {
+		if a.notifySupervisor != nil {
+			go a.notifySupervisor.Start(ctx)
+		}
+		if a.notifyDispatcher != nil {
+			go a.notifyDispatcher.Start(ctx)
+		}
+		if a.notifyWorker != nil {
+			go a.notifyWorker.Start(ctx)
+		}
+	}
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 

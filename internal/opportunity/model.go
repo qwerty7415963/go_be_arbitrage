@@ -129,7 +129,7 @@ type Opportunity struct {
 type ScanResult struct {
 	Opportunities []*Opportunity `json:"opportunities"`
 	ScannedAt     time.Time      `json:"scanned_at"`
-	Duration      time.Duration  `json:"duration"`
+	Duration      time.Duration  `json:"duration" swaggertype:"integer"`
 	Instruments   int            `json:"instruments"`
 	Venues        int            `json:"venues"`
 }

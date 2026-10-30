@@ -138,6 +138,10 @@ var expectedSecured = []string{
 	"GET /api/v1/reconciliation/runs",
 	"GET /api/v1/reconciliation/runs/{id}",
 	"GET /api/v1/reconciliation/runs/{id}/items",
+	// telegram (JWT)
+	"POST /api/v1/telegram/link",
+	"GET /api/v1/telegram/status",
+	"DELETE /api/v1/telegram/link",
 }
 
 // DOCS-S-02: exactly the JWT-protected endpoints are documented with

@@ -16,6 +16,7 @@ type Config struct {
 	Log      LogConfig      `yaml:"log"`
 	WS       WSConfig       `yaml:"ws"`
 	CORS     CORSConfig     `yaml:"cors"`
+	Telegram TelegramConfig `yaml:"telegram"`
 }
 
 type ServerConfig struct {
@@ -61,6 +62,14 @@ type CORSConfig struct {
 	AllowOrigins []string `yaml:"allow_origins"`
 }
 
+type TelegramConfig struct {
+	Enabled           bool   `yaml:"enabled"`
+	BotToken          string `yaml:"bot_token"`
+	BotUsername       string `yaml:"bot_username"`
+	AppPublicURL      string `yaml:"app_public_url"`
+	MaxWalletsPerUser int    `yaml:"max_wallets_per_user"`
+}
+
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
@@ -100,6 +109,13 @@ func Load() (*Config, error) {
 		CORS: CORSConfig{
 			AllowOrigins: getEnvStringSlice("ARBITRAGE_CORS_ORIGINS", []string{"*"}),
 		},
+		Telegram: TelegramConfig{
+			Enabled:           getEnvBool("TELEGRAM_ENABLED", false),
+			BotToken:          getEnv("TELEGRAM_BOT_TOKEN", ""),
+			BotUsername:       getEnv("TELEGRAM_BOT_USERNAME", ""),
+			AppPublicURL:      getEnv("APP_PUBLIC_URL", "http://localhost:3000"),
+			MaxWalletsPerUser: getEnvInt("TELEGRAM_MAX_WALLETS_PER_USER", 50),
+		},
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -121,6 +137,20 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.JWTSecret == "" {
 		return fmt.Errorf("JWT secret is required")
+	}
+	if c.Telegram.Enabled {
+		if c.Telegram.BotToken == "" {
+			return fmt.Errorf("TELEGRAM_BOT_TOKEN is required when TELEGRAM_ENABLED=true")
+		}
+		if c.Telegram.BotUsername == "" {
+			return fmt.Errorf("TELEGRAM_BOT_USERNAME is required when TELEGRAM_ENABLED=true")
+		}
+	}
+	if c.Telegram.MaxWalletsPerUser <= 0 {
+		c.Telegram.MaxWalletsPerUser = 50
+	}
+	if c.Telegram.AppPublicURL == "" {
+		c.Telegram.AppPublicURL = "http://localhost:3000"
 	}
 	return nil
 }
@@ -153,6 +183,18 @@ func (c *Config) PostgresURL() string {
 
 func (c *Config) ServerAddr() string {
 	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.Port)
+}
+
+func getEnvBool(key string, defaultVal bool) bool {
+	if val := os.Getenv(key); val != "" {
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "1", "true", "yes", "on":
+			return true
+		case "0", "false", "no", "off":
+			return false
+		}
+	}
+	return defaultVal
 }
 
 func getEnv(key, defaultVal string) string {

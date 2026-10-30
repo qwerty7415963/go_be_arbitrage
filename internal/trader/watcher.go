@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 )
 
@@ -52,6 +54,7 @@ func toOrderCreatedPayload(o OrderDTO) OrderCreatedPayload {
 type WalletEvent struct {
 	Type   string          `json:"type"`
 	Wallet string          `json:"wallet"`
+	UserID uuid.UUID       `json:"user_id,omitempty"`
 	Data   any             `json:"data,omitempty"`
 	At     time.Time       `json:"at"`
 	State  ConnectionState `json:"state,omitempty"`
@@ -72,6 +75,7 @@ type UpstreamStats struct {
 	Watchers           int
 	UpstreamSubscribes int64
 	Resyncs            int64
+	ObserverDropped    int64
 }
 
 // UpstreamDialer subscribes the 4 per-wallet feeds. Production dials
@@ -96,10 +100,12 @@ func (nilUpstream) Unsubscribe(string) error                { return nil }
 type WalletWatcher struct {
 	addr string
 	mu   sync.Mutex
-	// refcount mirrors hub.SubscriberCount(addr); watcher exists iff > 0.
-	refcount int
-	state    ConnectionState
-	snapshot WalletSnapshot
+	// browserRefs mirrors hub subscriber count; retained is non-browser refcount.
+	browserRefs  int
+	retained     int
+	bootstrapped bool
+	state        ConnectionState
+	snapshot     WalletSnapshot
 	// upstreamSubscribeCalls counts Subscribe calls for this watcher
 	// (conformance: exactly 1 per watcher lifetime regardless of subs).
 	upstreamSubscribeCalls int
@@ -114,12 +120,18 @@ type WatcherManager struct {
 	live     OnDemandClient
 	upstream UpstreamDialer
 	watchers map[string]*WalletWatcher
-	// gate bounds concurrent RESYNCs (REST bootstrap) — contract concurrency
+	// gate bounds concurrent RESYNCs (REST bootstrap) – contract concurrency
 	// gate, default 4 (same as the interactive client).
 	gate chan struct{}
-	// stats for conformance (10+ subs ⇒ 1 upstream watcher).
+	// stats for conformance (10+ subs → 1 upstream watcher).
 	upstreamSubscribes int64
 	resyncs            int64
+
+	// observer fan-out (buffered, non-blocking).
+	observerMu   sync.Mutex
+	observers    []func(WalletEvent)
+	observerCh   chan WalletEvent
+	observerDrop int64
 }
 
 // NewWatcherManager builds the per-address watcher set. hub must be non-nil
@@ -135,11 +147,103 @@ func NewWatcherManager(hub *ActivityHub, live OnDemandClient, upstream UpstreamD
 	if gateSize <= 0 {
 		gateSize = 4
 	}
-	return &WatcherManager{
+	m := &WatcherManager{
 		hub: hub, live: live, upstream: upstream,
-		watchers: map[string]*WalletWatcher{},
-		gate:     make(chan struct{}, gateSize),
+		watchers:   map[string]*WalletWatcher{},
+		gate:       make(chan struct{}, gateSize),
+		observerCh: make(chan WalletEvent, 1024),
 	}
+	go m.runObserver()
+	return m
+}
+
+// AddObserver registers an observer invoked from emit after fan-out to
+// browser clients. The call never blocks emit; events are enqueued into a
+// buffered channel (capacity 1024) and dropped on overflow (counted).
+func (m *WatcherManager) AddObserver(fn func(WalletEvent)) {
+	if fn == nil || m == nil {
+		return
+	}
+	m.observerMu.Lock()
+	m.observers = append(m.observers, fn)
+	m.observerMu.Unlock()
+}
+
+func (m *WatcherManager) runObserver() {
+	for ev := range m.observerCh {
+		m.observerMu.Lock()
+		obs := append([]func(WalletEvent){}, m.observers...)
+		m.observerMu.Unlock()
+		for _, fn := range obs {
+			fn(ev)
+		}
+	}
+}
+
+// Retain keeps a watcher alive for a non-browser subscriber (e.g. notifier).
+func (m *WatcherManager) Retain(addr string) error {
+	if m == nil {
+		return nil
+	}
+	addr = strings.ToLower(strings.TrimSpace(addr))
+	m.mu.Lock()
+	w, ok := m.watchers[addr]
+	if !ok {
+		w = &WalletWatcher{addr: addr, state: ConnDisconnected, stopCh: make(chan struct{})}
+		w.snapshot.Orders = map[int64]OrderDTO{}
+		m.watchers[addr] = w
+	}
+	w.mu.Lock()
+	w.retained++
+	needBootstrap := !w.bootstrapped
+	if needBootstrap {
+		w.bootstrapped = true
+	}
+	w.mu.Unlock()
+	m.mu.Unlock()
+	if needBootstrap {
+		m.bootstrap(addr, w)
+	}
+	return nil
+}
+
+// Release decrements the non-browser refcount; tears down when both
+// browser and retained counts are zero.
+func (m *WatcherManager) Release(addr string) {
+	if m == nil {
+		return
+	}
+	addr = strings.ToLower(strings.TrimSpace(addr))
+	m.mu.Lock()
+	w, ok := m.watchers[addr]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	w.mu.Lock()
+	if w.retained > 0 {
+		w.retained--
+	}
+	teardown := w.browserRefs == 0 && w.retained == 0
+	w.mu.Unlock()
+	if teardown {
+		delete(m.watchers, addr)
+		close(w.stopCh)
+	}
+	m.mu.Unlock()
+	if teardown && m.upstream != nil {
+		_ = m.upstream.Unsubscribe(addr)
+	}
+}
+
+// ObserverDropped reports the number of observer events dropped on overflow.
+func (m *WatcherManager) ObserverDropped() int64 {
+	if m == nil {
+		return 0
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.observerDrop
 }
 
 // Hub exposes the browser transport (wiring/tests).
@@ -159,7 +263,7 @@ func (m *WatcherManager) WatcherCount() int {
 func (m *WatcherManager) Stats() UpstreamStats {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return UpstreamStats{Watchers: len(m.watchers), UpstreamSubscribes: m.upstreamSubscribes, Resyncs: m.resyncs}
+	return UpstreamStats{Watchers: len(m.watchers), UpstreamSubscribes: m.upstreamSubscribes, Resyncs: m.resyncs, ObserverDropped: m.observerDrop}
 }
 
 // WatchSet delegates to the hub (currently-watched addresses).
@@ -182,10 +286,14 @@ func (m *WatcherManager) Subscribe(wallet string) *ActivityClient {
 		m.watchers[wallet] = w
 	}
 	w.mu.Lock()
-	w.refcount++
-	first := w.refcount == 1
+	w.browserRefs++
+	needBootstrap := w.browserRefs == 1 && w.retained == 0 && !w.bootstrapped
+	// bootstrap on first creation of watcher
+	if !w.bootstrapped {
+		needBootstrap = true
+		w.bootstrapped = true
+	}
 	w.mu.Unlock()
-	needBootstrap := first
 	m.mu.Unlock()
 	if needBootstrap {
 		m.bootstrap(wallet, w)
@@ -208,10 +316,10 @@ func (m *WatcherManager) Unsubscribe(c *ActivityClient) {
 		return
 	}
 	w.mu.Lock()
-	if w.refcount > 0 {
-		w.refcount--
+	if w.browserRefs > 0 {
+		w.browserRefs--
 	}
-	teardown := w.refcount == 0
+	teardown := w.browserRefs == 0 && w.retained == 0
 	w.mu.Unlock()
 	if teardown {
 		delete(m.watchers, wallet)
@@ -374,11 +482,22 @@ func (m *WatcherManager) emit(wallet, evtType string, data any, state Connection
 		return
 	}
 	m.hub.mu.RLock()
-	defer m.hub.mu.RUnlock()
 	for c := range m.hub.subs[wallet] {
 		select {
 		case c.send <- msg:
 		default:
+		}
+	}
+	m.hub.mu.RUnlock()
+
+	// Observer enqueue (non-blocking) after fan-out, without holding locks.
+	if m.observerCh != nil {
+		select {
+		case m.observerCh <- ev:
+		default:
+			m.mu.Lock()
+			m.observerDrop++
+			m.mu.Unlock()
 		}
 	}
 }

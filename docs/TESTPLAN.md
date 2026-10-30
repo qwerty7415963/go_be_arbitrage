@@ -1239,6 +1239,31 @@ change.
 
 ---
 
+### 19.16 Telegram notifications (contract v1.4)
+
+#### Unit
+
+| Case | Function | Input | Expected |
+|------|----------|-------|----------|
+| TG-U-07 | mapper: order created open non-reduce | WalletEvent order created | `limit_placed` |
+| TG-U-08 | mapper: order created reduce-only | WalletEvent order created | `close_limit_placed` |
+| TG-U-09 | mapper: canceled order | WalletEvent order updated | `order_canceled` |
+| TG-U-10 | mapper: Open fill | WalletEvent fill created | `position_opened` |
+| TG-U-11 | mapper: Close fill pnl>0 | WalletEvent fill created | `position_closed` (take-profit) |
+| TG-U-12 | mapper: Close fill pnl<0 | WalletEvent fill created | `position_closed` (stop-loss) |
+| TG-U-13 | TP/SL classification | trigger orders | LONG+above TP, LONG+below SL, SHORT inverted |
+| TG-U-14 | coalescing | 3 fills in 3s | 1 intent, summed size, weighted price |
+| TG-U-15 | dedup | same dedup key twice | one outbox row |
+| TG-U-20 | supervisor diff | enable/disable group | Retain/Release |
+
+#### Integration (//go:build integration)
+
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| TG-I-03 | dedup across restarts | unique index | duplicate blocked |
+
+---
+
 ## Summary
 
 | Module | Unit | Handler | Integration | E2E | Total |
