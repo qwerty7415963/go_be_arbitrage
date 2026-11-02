@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -169,18 +170,17 @@ func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, ad
 		return nil, errUpstreamUnavailable
 	}
 	from := now.Add(-periodLookback(period))
-	// Equity is always live (portfolio + AggregateEquityDaily reuse).
-	rawPort, portErr := s.onDemand.FetchPortfolio(ctx, addr)
-	var equity []EquityPointDTO
-	var curve []float64
-	if portErr == nil {
-		equity, curve = aggregateLiveEquity(rawPort, from, now)
-	} else {
-		equity = []EquityPointDTO{}
-	}
 
 	if period == PeriodALL {
-		// ALL: LB passthrough (fresh) + live equity. No fills fetch.
+		// ALL: portfolio (equity) + LB passthrough. No fills fetch.
+		rawPort, portErr := s.onDemand.FetchPortfolio(ctx, addr)
+		var equity []EquityPointDTO
+		var curve []float64
+		if portErr == nil {
+			equity, curve = aggregateLiveEquity(rawPort, from, now)
+		} else {
+			equity = []EquityPointDTO{}
+		}
 		window := LBWindowForPeriod[PeriodALL]
 		var roi, pnl, vol *float64
 		if ref, err := s.repo.GetLeaderboardRef(ctx, venueID, addr, window); err == nil && ref != nil &&
@@ -205,8 +205,6 @@ func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, ad
 		} else if portErr != nil {
 			return nil, portErr
 		}
-		// LB missing + portfolio ok ⇒ equity-only snapshot (metrics null,
-		// still ready: ALL has no fills universe to be partial about).
 		if m == nil && portErr == nil {
 			return &LivePerformanceSnapshot{Metrics: nil, Equity: equity, AsOf: now.UTC(), Partial: false}, nil
 		}
@@ -216,18 +214,44 @@ func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, ad
 		return &LivePerformanceSnapshot{Metrics: m, Equity: equity, AsOf: now.UTC(), Partial: false}, nil
 	}
 
-	// 1D/7D/30D: shared 30d universe → slice → reconstruct → metrics + live equity drawdown.
+	// 1D/7D/30D: parallelize portfolio fetch and fills-universe fetch.
+	var rawPort map[string][]hyperliquid.PortfolioPoint
+	var portErr error
+	var universe *FillsUniverse
+	var fillsErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		raw, err := s.onDemand.FetchPortfolio(ctx, addr)
+		rawPort = raw
+		portErr = err
+	}()
+	go func() {
+		defer wg.Done()
+		u, err := getFillsUniverse(ctx, s, venue, addr, now)
+		universe = u
+		fillsErr = err
+	}()
+	wg.Wait()
+
+	var equity []EquityPointDTO
+	var curve []float64
+	if portErr == nil {
+		equity, curve = aggregateLiveEquity(rawPort, from, now)
+	} else {
+		equity = []EquityPointDTO{}
+	}
+	if fillsErr != nil {
+		return nil, fillsErr
+	}
+
 	lookback, ok := periodFillsLookback(period)
 	if !ok {
 		lookback = 30 * 24 * time.Hour
 	}
-	universe, err := getFillsUniverse(ctx, s, venue, addr, now)
-	if err != nil {
-		return nil, err
-	}
 	sliced := sliceUniverse(universe.Fills, universe.FetchedAt, lookback)
 	trades := ReconstructTrades(sliced)
 	metrics := computeLiveMetrics(trades, curve, universe.FetchedAt, universe.Truncated, DataReady)
-	// If equity fetch failed but fills succeeded, still ready (drawdown null).
 	return &LivePerformanceSnapshot{Metrics: metrics, Equity: equity, AsOf: universe.FetchedAt.UTC(), Partial: universe.Truncated}, nil
 }

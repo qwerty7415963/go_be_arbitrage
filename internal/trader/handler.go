@@ -45,21 +45,25 @@ func (h *Handler) WithWS(ws *ActivityWSHandler) *Handler {
 	return h
 }
 
-func (h *Handler) RegisterRoutes(router *gin.RouterGroup, _ ...gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(router *gin.RouterGroup, readMiddleware ...gin.HandlerFunc) {
 	t := router.Group("/traders")
 	t.POST("/search", h.Search)
 	// Static routes before param routes (/ws must win over /:wallet).
 	if h.ws != nil {
 		t.GET("/ws", h.ws.ServeWS)
 	}
-	t.GET("/:wallet/positions", h.Positions)
-	t.GET("/:wallet/activity", h.Activity)
-	t.GET("/:wallet/balances", h.Balances)
-	t.GET("/:wallet/fills", h.Fills)
-	t.GET("/:wallet/orders", h.Orders)
-	t.GET("/:wallet/transfers", h.Transfers)
-	t.GET("/:wallet/performance", h.Performance)
-	t.GET("/:wallet", h.Detail)
+	read := t.Group("")
+	if len(readMiddleware) > 0 {
+		read.Use(readMiddleware...)
+	}
+	read.GET("/:wallet/positions", h.Positions)
+	read.GET("/:wallet/activity", h.Activity)
+	read.GET("/:wallet/balances", h.Balances)
+	read.GET("/:wallet/fills", h.Fills)
+	read.GET("/:wallet/orders", h.Orders)
+	read.GET("/:wallet/transfers", h.Transfers)
+	read.GET("/:wallet/performance", h.Performance)
+	read.GET("/:wallet", h.Detail)
 }
 
 // optionalUserID returns uuid.Nil for anonymous callers (public reads).

@@ -173,7 +173,7 @@ func (s *Server) SetupRoutes(
 
 		// Trader Scanner v1.1: generic routes, venue-scoped. Search/detail
 		// are public; trader-groups require JWT.
-		traderHandler.RegisterRoutes(v1)
+		traderHandler.RegisterRoutes(v1, Timeout(55*time.Second))
 		traderGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
 		if telegramHandler != nil {
 			telegramHandler.RegisterRoutes(v1, middleware.JWT(authService))

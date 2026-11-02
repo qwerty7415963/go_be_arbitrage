@@ -1291,3 +1291,9 @@ change.
 | Cross-module | - | - | - | - | **5** |
 | Security | - | - | - | - | **6** |
 | **TOTAL** | **~336** | **~106** | **~78** | **~31** | **~559** |
+
+## Timeout optimization (BE)
+- HTTP server WriteTimeout raised to 90s (worst-case live read: portfolio 12s + fills window 25s); ReadTimeout 15s, IdleTimeout 60s.
+- Gin middleware `Timeout(55s)` (internal/httpserver/timeout.go) wraps trader read routes only; skips paths ending in /ws or equal to /market/subscribe. Returns 504 JSON {success:false,error:{code:GATEWAY_TIMEOUT,message:request timed out}}.
+- fetchLivePerformance (1D/7D/30D) parallelizes FetchPortfolio and getFillsUniverse via sync.WaitGroup; portfolio error -> equity empty still ready; fills error -> return error; ALL unchanged.
+

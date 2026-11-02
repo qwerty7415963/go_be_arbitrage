@@ -31,10 +31,11 @@ func New(cfg *config.Config, log *logger.Logger) *Server {
 	}
 
 	s.server = &http.Server{
-		Addr:         cfg.ServerAddr(),
-		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:        cfg.ServerAddr(),
+		Handler:     engine,
+		ReadTimeout: 15 * time.Second,
+		// Worst-case live read: portfolio fetch (12s) + fills window (25s).
+		WriteTimeout: 90 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
