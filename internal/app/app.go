@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/qwerty7415963/go_be_arbitrage/internal/appsettings"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/collector"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
@@ -159,7 +161,16 @@ func New(cfg *config.Config) (*App, error) {
 	// refreshes the registry from the leaderboard; the sync engine maintains
 	// the period metric cache. Started in Run.
 	traderRepo := trader.NewRepository(db.Pool())
-	traderGroupRepo := tradergroup.NewRepository(db.Pool())
+
+	// App settings (contract v1.5): admin-configurable Telegram max wallets.
+	appSettingsRepo := appsettings.NewRepository(db.Pool())
+	if err := appSettingsRepo.SeedIfNotExists(ctx, appsettings.SettingKeyTelegramMaxWallets, strconv.Itoa(cfg.Telegram.MaxWalletsPerUser)); err != nil {
+		log.Warn("failed to seed app_settings", "error", err)
+	}
+	appSettingsService := appsettings.NewService(appSettingsRepo, log)
+	appSettingsHandler := appsettings.NewHandler(appSettingsService)
+
+	traderGroupRepo := tradergroup.NewRepository(db.Pool(), appSettingsService)
 	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
 	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret)
 	traderHandler := trader.NewHandler(traderService)
@@ -259,7 +270,7 @@ func New(cfg *config.Config) (*App, error) {
 	)
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, telegramHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, telegramHandler, appSettingsHandler)
 
 	return &App{
 		config:             cfg,

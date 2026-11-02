@@ -127,6 +127,9 @@ const (
 	ErrCodeGroupDuplicate ErrorCode = "GROUP-002"
 	ErrCodeGroupForbidden ErrorCode = "GROUP-003"
 
+	// TELEGRAM -- Telegram wallet cap (v1.5)
+	ErrCodeTelegramWalletCap ErrorCode = "TELEGRAM-001"
+
 	// COMMON — Cross-cutting (901-999)
 	ErrCodeInternal         ErrorCode = "COMMON-901"
 	ErrCodeValidation       ErrorCode = "COMMON-902"
@@ -295,6 +298,8 @@ var errorStatusMap = map[ErrorCode]int{
 	ErrCodeGroupNotFound:  http.StatusNotFound,
 	ErrCodeGroupDuplicate: http.StatusConflict,
 	ErrCodeGroupForbidden: http.StatusForbidden,
+
+	ErrCodeTelegramWalletCap: http.StatusConflict,
 
 	ErrCodeInternal:         http.StatusInternalServerError,
 	ErrCodeValidation:       http.StatusBadRequest,

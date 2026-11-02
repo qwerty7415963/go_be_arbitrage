@@ -1239,6 +1239,39 @@ change.
 
 ---
 
+### 19.17 Admin settings (contract v1.5)
+
+#### Unit
+
+| ID | Target | Input | Expected |
+|----|--------|-------|----------|
+| AS-U-01 | `SetMaxWalletsPerUser` | value 0 | error (out of range) |
+| AS-U-02 | `SetMaxWalletsPerUser` | value 1001 | error (out of range) |
+| AS-U-03 | `SetMaxWalletsPerUser` | value 100 | persisted, cache invalidated |
+| AS-U-04 | `MaxWalletsPerUser` cache | two calls within 5m | DB read once |
+| AS-U-05 | `MaxWalletsPerUser` fallback | DB error | returns 50, logs warning |
+
+#### Handler
+
+| ID | Case | Expected |
+|----|------|----------|
+| AS-H-01 | GET settings unauth | 401 |
+| AS-H-02 | GET settings non-admin | 403 |
+| AS-H-03 | GET settings admin | 200 `{max_wallets_per_user}` |
+| AS-H-04 | PATCH settings non-admin | 403 |
+| AS-H-05 | PATCH settings admin, value 100 | 200, persisted |
+| AS-H-06 | PATCH settings admin, value 0 | 400 |
+
+#### Integration
+
+| ID | Case | Expected |
+|----|------|----------|
+| AS-I-01 | admin sets 3, user has 2 wallets, add 2 new | 409 cap exceeded |
+| AS-I-02 | admin sets 10, user has 2, add 2 new | 200, 4 wallets |
+| AS-I-03 | cache invalidation after set | DB value updated, cache refreshed |
+
+---
+
 ### 19.16 Telegram notifications (contract v1.4)
 
 #### Unit

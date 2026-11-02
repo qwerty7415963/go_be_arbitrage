@@ -8,6 +8,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	"github.com/qwerty7415963/go_be_arbitrage/internal/appsettings"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/execution"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/fundingarbitrage"
@@ -48,6 +49,7 @@ func (s *Server) SetupRoutes(
 	traderHandler *trader.Handler,
 	traderGroupHandler *tradergroup.Handler,
 	telegramHandler *telegram.Handler,
+	appSettingsHandler *appsettings.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -177,6 +179,15 @@ func (s *Server) SetupRoutes(
 		traderGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
 		if telegramHandler != nil {
 			telegramHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		}
+		if appSettingsHandler != nil {
+			adminTelegram := v1.Group("/admin/telegram/settings")
+			adminTelegram.Use(middleware.JWT(authService))
+			adminTelegram.Use(middleware.RequireRole("admin"))
+			{
+				adminTelegram.GET("", appSettingsHandler.GetSettings)
+				adminTelegram.PATCH("", appSettingsHandler.UpdateSettings)
+			}
 		}
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")

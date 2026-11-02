@@ -2,6 +2,7 @@ package tradergroup
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -12,13 +13,39 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 )
 
+// WalletCapProvider supplies the configured max wallets per user.
+type WalletCapProvider interface {
+	MaxWalletsPerUser(ctx context.Context) (int, error)
+}
+
 // Repository persists trader_groups + trader_group_members. Every read/write
 // is owner-scoped: unknown group is 404, foreign group is 403 (BE-028).
 type Repository struct {
-	pool *pgxpool.Pool
+	pool        *pgxpool.Pool
+	capProvider WalletCapProvider
 }
 
-func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
+func NewRepository(pool *pgxpool.Pool, capProviders ...WalletCapProvider) *Repository {
+	r := &Repository{pool: pool}
+	if len(capProviders) > 0 {
+		r.capProvider = capProviders[0]
+	}
+	return r
+}
+
+func (r *Repository) WithAppSettings(p WalletCapProvider) *Repository {
+	r.capProvider = p
+	return r
+}
+
+func (r *Repository) maxWallets(ctx context.Context) int {
+	if r.capProvider != nil {
+		if v, err := r.capProvider.MaxWalletsPerUser(ctx); err == nil && v > 0 {
+			return v
+		}
+	}
+	return 50
+}
 
 func notFound() error {
 	return domain.NewError(domain.ErrCodeNotFound, "group not found")
@@ -138,6 +165,48 @@ func (r *Repository) AddMembers(ctx context.Context, groupID, userID uuid.UUID, 
 	if err := r.requireOwner(ctx, groupID, userID); err != nil {
 		return 0, err
 	}
+
+	// Cap check (contract v1.5): distinct watched wallets per user.
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT wallet_address FROM trader_group_members
+		WHERE group_id IN (SELECT id FROM trader_groups WHERE user_id = $1)`, userID)
+	if err != nil {
+		return 0, err
+	}
+	existing := map[string]bool{}
+	for rows.Next() {
+		var addr string
+		if err := rows.Scan(&addr); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		existing[addr] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	current := len(existing)
+
+	newCount := 0
+	newSet := map[string]bool{}
+	for _, it := range items {
+		addr := strings.ToLower(strings.TrimSpace(it.WalletAddress))
+		if existing[addr] {
+			continue
+		}
+		if newSet[addr] {
+			continue
+		}
+		newSet[addr] = true
+		newCount++
+	}
+
+	maxWallets := r.maxWallets(ctx)
+	if current+newCount > maxWallets {
+		return 0, domain.NewError(domain.ErrCodeTelegramWalletCap, fmt.Sprintf("wallet cap exceeded: %d/%d", current, maxWallets))
+	}
+
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
