@@ -194,7 +194,7 @@ func (r *Web3Repository) CreateUserWithWallet(ctx context.Context, user *User, w
 
 func (r *Web3Repository) GetUserByAddress(ctx context.Context, address string, chainID int64) (*User, error) {
 	query := `
-		SELECT u.id, u.tenant_id, u.email, u.password_hash, u.role, u.status, u.auth_method,
+		SELECT u.id, u.tenant_id, COALESCE(u.email,''), COALESCE(u.password_hash,''), u.role, u.status, u.auth_method,
 		       u.created_at, u.updated_at, u.last_login_at
 		FROM users u
 		INNER JOIN wallet_addresses w ON w.user_id = u.id

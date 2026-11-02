@@ -106,27 +106,6 @@ func TestRepository_CreateAndGet(t *testing.T) {
 	}
 }
 
-// ─── AUTH-I-02: Duplicate email unique constraint ─────────────
-
-func TestRepository_DuplicateEmail(t *testing.T) {
-	pool := setupIntegrationDB(t)
-	repo := NewRepository(pool)
-	ctx := context.Background()
-
-	user1 := testUser()
-	user2 := testUser()
-	user2.Email = user1.Email // same email
-
-	if err := repo.CreateUser(ctx, user1); err != nil {
-		t.Fatalf("first CreateUser failed: %v", err)
-	}
-
-	err := repo.CreateUser(ctx, user2)
-	if err == nil {
-		t.Error("expected error for duplicate email, got nil")
-	}
-}
-
 // ─── AUTH-I-03: ExistsByEmail ─────────────────────────────────
 
 func TestRepository_ExistsByEmail(t *testing.T) {

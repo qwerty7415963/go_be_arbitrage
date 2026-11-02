@@ -48,8 +48,8 @@ func (h *Web3Handler) GetNonce(c *gin.Context) {
 	}
 
 	api.RespondSuccess(c, gin.H{
-		"nonce":   nonce.Nonce,
-		"message": formatSIWEMessage(nonce.Address, nonce.ChainID, nonce.Nonce, h.service.config.SIWEDomain),
+		"nonce":      nonce.Nonce,
+		"message":    formatSIWEMessage(nonce.Address, nonce.ChainID, nonce.Nonce, h.service.config.SIWEDomain),
 		"expires_at": nonce.ExpiresAt.Unix(),
 	})
 }

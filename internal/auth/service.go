@@ -38,6 +38,9 @@ func NewService(cfg *config.AuthConfig, repo *Repository) *Service {
 }
 
 func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
+	if len(req.Password) < 8 {
+		return nil, domain.NewError(domain.ErrCodeValidation, "password must be at least 8 characters")
+	}
 	exists, err := s.repo.ExistsByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, domain.WrapError(domain.ErrCodeInternal, "failed to check email", err)
@@ -120,6 +123,9 @@ func (s *Service) Logout(ctx context.Context, userID uuid.UUID) error {
 }
 
 func (s *Service) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
+	if len(newPassword) < 8 {
+		return domain.NewError(domain.ErrCodeValidation, "password must be at least 8 characters")
+	}
 	user, err := s.repo.GetUserByID(ctx, userID)
 	if err != nil {
 		return domain.NewError(domain.ErrCodeNotFound, "user not found")

@@ -48,13 +48,13 @@ func testWeb3ServiceDB(t *testing.T) (*Web3Service, *pgxpool.Pool) {
 		pool.Close()
 		t.Fatalf("failed to ping test DB: %v", err)
 	}
-	pool.Exec(ctx, "DELETE FROM wallet_nonces WHERE address LIKE '0xw3test%'")
-	pool.Exec(ctx, "DELETE FROM wallet_addresses WHERE address LIKE '0xw3test%'")
+	pool.Exec(ctx, "DELETE FROM wallet_nonces WHERE address LIKE '0x1111%'")
+	pool.Exec(ctx, "DELETE FROM wallet_addresses WHERE address LIKE '0x1111%'")
 	pool.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE auth_method = 'wallet')")
 	pool.Exec(ctx, "DELETE FROM users WHERE auth_method = 'wallet'")
 	t.Cleanup(func() {
-		pool.Exec(context.Background(), "DELETE FROM wallet_nonces WHERE address LIKE '0xw3test%'")
-		pool.Exec(context.Background(), "DELETE FROM wallet_addresses WHERE address LIKE '0xw3test%'")
+		pool.Exec(context.Background(), "DELETE FROM wallet_nonces WHERE address LIKE '0x1111%'")
+		pool.Exec(context.Background(), "DELETE FROM wallet_addresses WHERE address LIKE '0x1111%'")
 		pool.Exec(context.Background(), "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE auth_method = 'wallet')")
 		pool.Exec(context.Background(), "DELETE FROM users WHERE auth_method = 'wallet'")
 		pool.Close()
@@ -219,7 +219,7 @@ func TestIsChainSupported_Unsupported(t *testing.T) {
 
 func TestGenerateNonce_Success(t *testing.T) {
 	svc, _ := testWeb3ServiceDB(t)
-	nonce, err := svc.GenerateNonce(context.Background(), "0xw3test00112233445566778899aabbccddeeff00", 1)
+	nonce, err := svc.GenerateNonce(context.Background(), "0x1111111111111111111111111111111111111111", 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestGenerateNonce_Success(t *testing.T) {
 
 func TestGenerateNonce_UnsupportedChain(t *testing.T) {
 	svc, _ := testWeb3ServiceDB(t)
-	_, err := svc.GenerateNonce(context.Background(), "0xw3test00112233445566778899aabbccddeeff00", 42)
+	_, err := svc.GenerateNonce(context.Background(), "0x1111111111111111111111111111111111111111", 42)
 	if err == nil {
 		t.Fatal("expected error for unsupported chain")
 	}
@@ -292,7 +292,7 @@ func TestVerifySignature_DomainMismatch(t *testing.T) {
 
 func TestVerifySignature_UnsupportedChain(t *testing.T) {
 	svc, _ := testWeb3ServiceDB(t)
-	msg := "localhost wants you to sign in with your Ethereum account:\n0x1234567890123456789012345678901234567890\n\nSign in to Arbitrage Platform\n\nURI: https://localhost\nVersion: 1\nChain ID: 42\nNonce: abc123\nIssued At: 2026-01-01T00:00:00Z"
+	msg := "localhost wants you to sign in with your Ethereum account:\n0x1234567890123456789012345678901234567890\n\nSign in to Arbitrage Platform\n\nURI: https://localhost\nVersion: 1\nChain ID: 42\nNonce: abc12345\nIssued At: 2026-01-01T00:00:00Z"
 	_, err := svc.VerifySignature(context.Background(), msg, "0xsignature")
 	if err == nil {
 		t.Fatal("expected error for unsupported chain")
@@ -308,7 +308,7 @@ func TestVerifySignature_UnsupportedChain(t *testing.T) {
 
 func TestVerifySignature_NonceNotFound(t *testing.T) {
 	svc, _ := testWeb3ServiceDB(t)
-	msg := "localhost wants you to sign in with your Ethereum account:\n0x1234567890123456789012345678901234567890\n\nSign in to Arbitrage Platform\n\nURI: https://localhost\nVersion: 1\nChain ID: 1\nNonce: nonexistent-nonce\nIssued At: 2026-01-01T00:00:00Z"
+	msg := "localhost wants you to sign in with your Ethereum account:\n0x1234567890123456789012345678901234567890\n\nSign in to Arbitrage Platform\n\nURI: https://localhost\nVersion: 1\nChain ID: 1\nNonce: nonexistentnonce\nIssued At: 2026-01-01T00:00:00Z"
 	_, err := svc.VerifySignature(context.Background(), msg, "0xsignature")
 	if err == nil {
 		t.Fatal("expected error for nonce not found")
@@ -326,7 +326,7 @@ func TestVerifySignature_NonceNotFound(t *testing.T) {
 
 func TestLinkWallet_InvalidSIWEFormat(t *testing.T) {
 	svc, _ := testWeb3ServiceDB(t)
-	err := svc.LinkWallet(context.Background(), uuid.New(), "0xw3test00112233445566778899aabbccddeeff00", 1, "bad-message", "0xsig")
+	err := svc.LinkWallet(context.Background(), uuid.New(), "0x1111111111111111111111111111111111111111", 1, "bad-message", "0xsig")
 	if err == nil {
 		t.Fatal("expected error for invalid SIWE format")
 	}
@@ -450,7 +450,7 @@ func TestListWallets_Multiple(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		_, err = pool.Exec(ctx,
 			"INSERT INTO wallet_addresses (id, user_id, address, chain_id, is_primary) VALUES ($1, $2, $3, $4, $5)",
-			uuid.New(), userID, fmt.Sprintf("0xw3test%040d", i), int64(i+1), i == 0,
+			uuid.New(), userID, fmt.Sprintf("0x1111%036d", i), int64(i+1), i == 0,
 		)
 		if err != nil {
 			t.Fatalf("create wallet %d: %v", i, err)

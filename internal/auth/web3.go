@@ -5,15 +5,17 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
-	siwe "github.com/signinwithethereum/siwe-go"
+	"github.com/jackc/pgx/v5"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	siwe "github.com/signinwithethereum/siwe-go"
 )
 
 var SupportedChainNames = map[int64]string{
@@ -119,6 +121,9 @@ func (s *Web3Service) VerifySignature(ctx context.Context, message string, signa
 
 	user, err := s.repo.GetUserByAddress(ctx, addr, chainID)
 	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.WrapError(domain.ErrCodeInternal, "failed to look up wallet user", err)
+		}
 		user = &User{
 			ID:         uuid.New(),
 			AuthMethod: "wallet",

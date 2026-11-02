@@ -41,15 +41,15 @@ func setupWeb3TestDB(t *testing.T) (*pgxpool.Pool, *Web3Handler) {
 		pool.Close()
 		t.Fatalf("failed to ping test DB: %v", err)
 	}
-	pool.Exec(ctx, "DELETE FROM wallet_nonces WHERE address LIKE '0xw3handler%'")
-	pool.Exec(ctx, "DELETE FROM wallet_addresses WHERE address LIKE '0xw3handler%'")
+	pool.Exec(ctx, "DELETE FROM wallet_nonces WHERE address LIKE '0x2222%'")
+	pool.Exec(ctx, "DELETE FROM wallet_addresses WHERE address LIKE '0x2222%'")
 	pool.Exec(ctx, "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'w3handler-test%')")
 	pool.Exec(ctx, "DELETE FROM users WHERE email LIKE 'w3handler-test%'")
 	pool.Exec(ctx, "DELETE FROM users WHERE auth_method = 'wallet'")
 
 	t.Cleanup(func() {
-		pool.Exec(context.Background(), "DELETE FROM wallet_nonces WHERE address LIKE '0xw3handler%'")
-		pool.Exec(context.Background(), "DELETE FROM wallet_addresses WHERE address LIKE '0xw3handler%'")
+		pool.Exec(context.Background(), "DELETE FROM wallet_nonces WHERE address LIKE '0x2222%'")
+		pool.Exec(context.Background(), "DELETE FROM wallet_addresses WHERE address LIKE '0x2222%'")
 		pool.Exec(context.Background(), "DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'w3handler-test%')")
 		pool.Exec(context.Background(), "DELETE FROM users WHERE email LIKE 'w3handler-test%'")
 		pool.Exec(context.Background(), "DELETE FROM users WHERE auth_method = 'wallet'")
@@ -108,7 +108,7 @@ func TestWeb3Handler_GetNonce_Success(t *testing.T) {
 	router := setupWeb3Router(handler)
 
 	body := map[string]interface{}{
-		"address":  "0xw3handler00112233445566778899aabbccddeeff00",
+		"address":  "0x2222222222222222222222222222222222222222",
 		"chain_id": 1,
 	}
 	jsonBody, _ := json.Marshal(body)
@@ -156,7 +156,7 @@ func TestWeb3Handler_GetNonce_UnsupportedChain(t *testing.T) {
 	router := setupWeb3Router(handler)
 
 	body := map[string]interface{}{
-		"address":  "0xw3handler00112233445566778899aabbccddeeff00",
+		"address":  "0x2222222222222222222222222222222222222222",
 		"chain_id": 42,
 	}
 	jsonBody, _ := json.Marshal(body)
