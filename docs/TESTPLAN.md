@@ -1272,6 +1272,24 @@ change.
 
 ---
 
+### 19.18 Funding arbitrage live-only (contract v1.6)
+
+#### Unit
+
+| ID | Target | Input | Expected |
+|----|--------|-------|----------|
+| FA-U-01 | `buildArbitrageToken` | fundingA missing | nil |
+| FA-U-02 | `buildArbitrageToken` | fundingB missing | nil |
+| FA-U-03 | `GetFundingArbitrage` | mixed available/unavailable tokens | excludes unavailable tokens from pairs |
+
+#### Handler
+
+| ID | Case | Expected |
+|----|------|----------|
+| FA-H-01 | flatten/pagination total | filtered (live-only) token count | total reflects filtered count |
+
+---
+
 ### 19.16 Telegram notifications (contract v1.4)
 
 #### Unit

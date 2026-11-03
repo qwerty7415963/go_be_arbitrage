@@ -12,12 +12,19 @@ const (
 	staleThreshold = 15 * time.Minute
 )
 
+type RepositoryInterface interface {
+	GetPerpVenues(ctx context.Context) ([]VenuePerp, error)
+	GetVenuesByIDs(ctx context.Context, ids []uuid.UUID) ([]VenuePerp, error)
+	GetVenueInstrumentMappings(ctx context.Context, venueIDs []uuid.UUID) ([]VenueInstrument, error)
+	GetLatestFunding(ctx context.Context, venueID, instrumentID uuid.UUID) (*FundingRecord, error)
+}
+
 type Service struct {
-	repo  *Repository
+	repo  RepositoryInterface
 	cache *Cache
 }
 
-func NewService(repo *Repository, cache *Cache) *Service {
+func NewService(repo RepositoryInterface, cache *Cache) *Service {
 	return &Service{
 		repo:  repo,
 		cache: cache,
@@ -139,7 +146,7 @@ func (s *Service) buildArbitrageToken(
 
 	// Check if both have funding
 	if errA != nil || errB != nil {
-		return token
+		return nil
 	}
 
 	// Check staleness
@@ -198,9 +205,9 @@ func (s *Service) buildArbitrageToken(
 	}
 
 	// Calculate Rate 1h, Rate 8h, and APR from net hourly rate
-	rate1h := netHourly * 100                     // % per hour
-	rate8h := netHourly * 8 * 100                 // % per 8 hours
-	apr := netHourly * 24 * 365 * 100             // annualized %
+	rate1h := netHourly * 100         // % per hour
+	rate8h := netHourly * 8 * 100     // % per 8 hours
+	apr := netHourly * 24 * 365 * 100 // annualized %
 	token.Rate1hPercent = &rate1h
 	token.Rate8hPercent = &rate8h
 	token.APRPercent = &apr

@@ -182,11 +182,11 @@ func TestPagination_HasMore(t *testing.T) {
 
 func TestPagination_PageAndTotalPages(t *testing.T) {
 	tests := []struct {
-		total       int
-		offset      int
-		limit       int
-		wantPage    int
-		wantTotal   int
+		total     int
+		offset    int
+		limit     int
+		wantPage  int
+		wantTotal int
 	}{
 		{25, 0, 10, 1, 3},
 		{25, 10, 10, 2, 3},
@@ -266,24 +266,24 @@ func makeTokenWithSymbol(symbol string) ArbitrageToken {
 
 func makeTokenWithRate8h(symbol string, rate8h float64) ArbitrageToken {
 	return ArbitrageToken{
-		InstrumentID: uuid.New(),
-		Symbol:       symbol,
+		InstrumentID:  uuid.New(),
+		Symbol:        symbol,
 		Rate8hPercent: &rate8h,
 	}
 }
 
 func makeTokenWithRate1h(symbol string, rate1h float64) ArbitrageToken {
 	return ArbitrageToken{
-		InstrumentID: uuid.New(),
-		Symbol:       symbol,
+		InstrumentID:  uuid.New(),
+		Symbol:        symbol,
 		Rate1hPercent: &rate1h,
 	}
 }
 
 func makeTokenWithSpread(symbol string, spread float64) ArbitrageToken {
 	return ArbitrageToken{
-		InstrumentID: uuid.New(),
-		Symbol:       symbol,
+		InstrumentID:       uuid.New(),
+		Symbol:             symbol,
 		PriceSpreadPercent: &spread,
 	}
 }
@@ -640,4 +640,40 @@ func computePage(offset, limit int) int {
 		return 1
 	}
 	return offset/limit + 1
+}
+
+func TestHandler_FlattenTotalReflectsFilteredCount(t *testing.T) {
+	// Simulate live-only filtered pairs (unavailable tokens already dropped by service).
+	pairs := []Pair{
+		{Tokens: []ArbitrageToken{
+			makeTokenWithSymbol("BTC"),
+			makeTokenWithSymbol("ETH"),
+		}},
+		{Tokens: []ArbitrageToken{
+			makeTokenWithSymbol("SOL"),
+		}},
+	}
+
+	flattened := flattenTokens(pairs, "rate_8h_desc")
+	totalUnique := len(flattened)
+	if totalUnique != 3 {
+		t.Fatalf("expected filtered total 3, got %d", totalUnique)
+	}
+
+	paginated, hasMore := applyGlobalPagination(flattened, 0, 2)
+	if len(paginated) != 2 {
+		t.Fatalf("expected 2 paginated, got %d", len(paginated))
+	}
+	if !hasMore {
+		t.Error("expected hasMore=true")
+	}
+
+	result := redistributeTokens(pairs, paginated)
+	totalTokens := 0
+	for _, p := range result {
+		totalTokens += len(p.Tokens)
+	}
+	if totalTokens != 2 {
+		t.Fatalf("expected 2 tokens across pairs after pagination, got %d", totalTokens)
+	}
 }
