@@ -96,9 +96,6 @@ func (s *Service) applyCfg(c *config.TelegramConfig) {
 	if c.AppPublicURL != "" {
 		s.appPublicURL = c.AppPublicURL
 	}
-	if c.MaxWalletsPerUser > 0 {
-		// no-op here; cap enforced elsewhere
-	}
 }
 
 func (s *Service) CreateLink(ctx context.Context, userID uuid.UUID, localeArg interface{}) (*LinkResponse, error) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -164,7 +163,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// App settings (contract v1.5): admin-configurable Telegram max wallets.
 	appSettingsRepo := appsettings.NewRepository(db.Pool())
-	if err := appSettingsRepo.SeedIfNotExists(ctx, appsettings.SettingKeyTelegramMaxWallets, strconv.Itoa(cfg.Telegram.MaxWalletsPerUser)); err != nil {
+	if err := appSettingsRepo.SeedIfNotExists(ctx, appsettings.SettingKeyTelegramMaxWallets, "50"); err != nil {
 		log.Warn("failed to seed app_settings", "error", err)
 	}
 	appSettingsService := appsettings.NewService(appSettingsRepo, log)
@@ -181,8 +180,10 @@ func New(cfg *config.Config) (*App, error) {
 	telegramService := telegram.NewService(telegramRepo, &cfg.Telegram)
 	telegramHandler := telegram.NewHandler(telegramService)
 	var telegramBot *telegram.Bot
-	if cfg.Telegram.Enabled {
+	if cfg.Telegram.BotToken != "" && cfg.Telegram.BotUsername != "" {
 		telegramBot = telegram.NewBot(&cfg.Telegram, telegramRepo, telegramService)
+	} else {
+		log.Warn("telegram disabled: missing token or username")
 	}
 
 	// Notify (contract v1.4 phase C)
@@ -250,7 +251,7 @@ func New(cfg *config.Config) (*App, error) {
 	notifySupervisor = notify.NewSupervisor(watcherManager, telegramService, notifyRepo)
 	notifyDispatcher = notify.NewDispatcher(notifyRepo, cfg.Telegram.AppPublicURL)
 	var notifySender *telegram.Sender
-	if cfg.Telegram.Enabled {
+	if telegramBot != nil {
 		notifySender = telegram.NewSender(cfg.Telegram.BotToken)
 	}
 	notifyWorker = notify.NewWorker(notifyRepo, notifySender)
@@ -441,7 +442,7 @@ func (a *App) Run() error {
 	if a.telegramBot != nil {
 		go a.telegramBot.Start(ctx)
 	}
-	if a.config.Telegram.Enabled {
+	if a.config.Telegram.BotToken != "" && a.config.Telegram.BotUsername != "" {
 		if a.notifySupervisor != nil {
 			go a.notifySupervisor.Start(ctx)
 		}

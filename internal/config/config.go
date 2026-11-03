@@ -63,11 +63,9 @@ type CORSConfig struct {
 }
 
 type TelegramConfig struct {
-	Enabled           bool   `yaml:"enabled"`
-	BotToken          string `yaml:"bot_token"`
-	BotUsername       string `yaml:"bot_username"`
-	AppPublicURL      string `yaml:"app_public_url"`
-	MaxWalletsPerUser int    `yaml:"max_wallets_per_user"`
+	BotToken     string `yaml:"bot_token"`
+	BotUsername  string `yaml:"bot_username"`
+	AppPublicURL string `yaml:"app_public_url"`
 }
 
 func Load() (*Config, error) {
@@ -110,11 +108,9 @@ func Load() (*Config, error) {
 			AllowOrigins: getEnvStringSlice("ARBITRAGE_CORS_ORIGINS", []string{"*"}),
 		},
 		Telegram: TelegramConfig{
-			Enabled:           getEnvBool("TELEGRAM_ENABLED", false),
-			BotToken:          getEnv("TELEGRAM_BOT_TOKEN", ""),
-			BotUsername:       getEnv("TELEGRAM_BOT_USERNAME", ""),
-			AppPublicURL:      getEnv("APP_PUBLIC_URL", "http://localhost:3000"),
-			MaxWalletsPerUser: getEnvInt("TELEGRAM_MAX_WALLETS_PER_USER", 50),
+			BotToken:     getEnv("TELEGRAM_BOT_TOKEN", ""),
+			BotUsername:  getEnv("TELEGRAM_BOT_USERNAME", ""),
+			AppPublicURL: getEnv("APP_PUBLIC_URL", "http://localhost:3000"),
 		},
 	}
 
@@ -137,17 +133,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.JWTSecret == "" {
 		return fmt.Errorf("JWT secret is required")
-	}
-	if c.Telegram.Enabled {
-		if c.Telegram.BotToken == "" {
-			return fmt.Errorf("TELEGRAM_BOT_TOKEN is required when TELEGRAM_ENABLED=true")
-		}
-		if c.Telegram.BotUsername == "" {
-			return fmt.Errorf("TELEGRAM_BOT_USERNAME is required when TELEGRAM_ENABLED=true")
-		}
-	}
-	if c.Telegram.MaxWalletsPerUser <= 0 {
-		c.Telegram.MaxWalletsPerUser = 50
 	}
 	if c.Telegram.AppPublicURL == "" {
 		c.Telegram.AppPublicURL = "http://localhost:3000"
