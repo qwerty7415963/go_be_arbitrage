@@ -59,7 +59,7 @@ type cacheItem struct {
 }
 
 // LiveCacheTTL is the contract §3 default (10-15s window, middle).
-const LiveCacheTTL = 12 * time.Second
+const LiveCacheTTL = 30 * time.Second
 
 func NewOnDemandCache(ttl time.Duration) *OnDemandCache {
 	if ttl <= 0 {

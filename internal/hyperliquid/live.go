@@ -28,8 +28,8 @@ const (
 	LiveConcurrency     = 4
 	LiveSingleTimeout   = 12 * time.Second
 	LiveWindowTimeout   = 25 * time.Second
-	LiveCacheTTL        = 12 * time.Second
-	LiveCacheTTLSeconds = 12
+	LiveCacheTTL        = 30 * time.Second
+	LiveCacheTTLSeconds = 30
 )
 
 // NewLiveClient builds the interactive client. Zero values select the
