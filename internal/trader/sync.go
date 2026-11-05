@@ -462,6 +462,7 @@ func fanOut(ctx context.Context, items []string, workers int, fn func(string) er
 		go func() {
 			defer wg.Done()
 			for addr := range ch {
+				time.Sleep(50 * time.Millisecond)
 				if err := fn(addr); err != nil {
 					mu.Lock()
 					failed++

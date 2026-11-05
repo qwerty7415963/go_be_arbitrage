@@ -125,7 +125,7 @@ func (a HLPortfolioAdapter) FetchPortfolio(ctx context.Context, address string) 
 	}
 	out := map[string][]EquityPoint{}
 	for _, window := range []string{"day", "week", "month", "allTime"} {
-		for _, p := range raw[window] {
+		for _, p := range raw[window].AccountValue {
 			v, err := strconv.ParseFloat(strings.TrimSpace(p.Value), 64)
 			if err != nil || p.Time <= 0 {
 				continue

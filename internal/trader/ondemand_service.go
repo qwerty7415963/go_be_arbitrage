@@ -801,18 +801,22 @@ func boolField(delta map[string]json.RawMessage, keys ...string) (*bool, bool) {
 	return nil, false
 }
 
-// Performance returns LIVE overview metrics (LIVE-CONTRACT v1.2 §1.7, was DB).
-// Metrics computed live from the same fills universe as §1.2 (1D/7D/30D from
-// fills; ALL from portfolio/LB): roi (pnl/volume fallback), pnl (realized
-// sum), win_rate, volume, trade_count, profit_factor, long/short wins+counts,
-// max_drawdown (from live equity when available else null). Kỳ ALL: portfolio
-// allTime + leaderboard refs passthrough (existing resolve semantics,
-// live-read). Equity: live portfolio endpoint (reuse FetchPortfolio +
-// AggregateEquityDaily). period ∈ {1D,7D,30D,ALL} default 30D. No reads of
-// trader_period_metrics / trader_equity_daily (conformance §7); LB refs are
-// read live. TTL 12s + single-flight per (wallet,venue,period); HL error ⇒
-// stale with error else metrics null + equity [] (never null).
-func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period string) (*PerformanceDTO, error) {
+// Performance returns LIVE overview metrics (LIVE-CONTRACT v1.2 §1.7, was DB),
+// extended by contract v1.7 with a PNL/VALUE portfolio series. Metrics computed
+// live from the same fills universe as §1.2 (1D/7D/30D from fills; ALL from
+// portfolio/LB): roi (pnl/volume fallback), pnl (realized sum), win_rate,
+// volume, trade_count, profit_factor, long/short wins+counts, max_drawdown
+// (from live equity when available else null). Kỳ ALL: portfolio allTime +
+// leaderboard refs passthrough (existing resolve semantics, live-read).
+// Equity: live portfolio endpoint (reuse FetchPortfolio +
+// AggregateEquityDaily). Series: same portfolio result, window mapping by mode
+// (perps: perpDay/perpWeek/perpMonth/perpAllTime; combined: day/week/month/
+// allTime), four range keys (24H/7D/30D/ALL) always present, never null.
+// period ∈ {1D,7D,30D,ALL} default 30D; mode ∈ {perps,combined} default perps.
+// No reads of trader_period_metrics / trader_equity_daily (conformance §7); LB
+// refs are read live. TTL 12s + single-flight per (wallet,venue,period,mode);
+// HL error ⇒ stale with error else metrics stub + equity/series empty.
+func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
 		return nil, err
@@ -826,6 +830,10 @@ func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period st
 	default:
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
 	}
+	mode, ok := normalizePerformanceMode(mode)
+	if !ok {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid mode: want perps|combined")
+	}
 	venue := strings.ToLower(strings.TrimSpace(venueCode))
 	if venue == "" {
 		venue = DefaultVenue
@@ -837,15 +845,21 @@ func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period st
 	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
 		return nil, err
 	}
-	key := "performance-live|" + venue + "|" + addr + "|" + period
+	key := performanceCacheKey(venue, addr, period, mode)
+	if seriesOnly {
+		key = "performance-live|" + venue + "|" + addr + "|series|" + mode
+	}
 	now := time.Now().UTC()
 	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
-		return fetchLivePerformance(ctx, s, venueID, addr, venue, period, now)
+		return fetchLivePerformance(ctx, s, venueID, addr, venue, period, mode, seriesOnly, now)
 	})
 	if fetchErr != nil {
 		if stale, _, found := s.cache.get(key); found {
 			if snap, ok := stale.(*LivePerformanceSnapshot); ok && snap != nil {
 				cpy := *snap
+				if seriesOnly {
+					return &PerformanceDTO{Period: period, Mode: mode, Metrics: nil, Equity: []EquityPointDTO{}, Series: ensureSeries(cpy.Series)}, nil
+				}
 				if cpy.Metrics != nil {
 					mcpy := *cpy.Metrics
 					mcpy.DataStatus = DataError
@@ -856,28 +870,58 @@ func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period st
 				if cpy.Equity == nil {
 					cpy.Equity = []EquityPointDTO{}
 				}
-				return &PerformanceDTO{Period: period, Metrics: cpy.Metrics, Equity: cpy.Equity}, nil
+				return &PerformanceDTO{Period: period, Mode: mode, Metrics: cpy.Metrics, Equity: cpy.Equity, Series: ensureSeries(cpy.Series)}, nil
 			}
+		}
+		if seriesOnly {
+			return &PerformanceDTO{
+				Period:  period,
+				Mode:    mode,
+				Metrics: nil,
+				Equity:  []EquityPointDTO{},
+				Series:  ensureSeries(nil),
+			}, nil
 		}
 		return &PerformanceDTO{
 			Period:  period,
+			Mode:    mode,
 			Metrics: &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true},
 			Equity:  []EquityPointDTO{},
+			Series:  ensureSeries(nil),
 		}, nil
 	}
 	snap, ok := val.(*LivePerformanceSnapshot)
 	if !ok || snap == nil {
+		if seriesOnly {
+			return &PerformanceDTO{
+				Period:  period,
+				Mode:    mode,
+				Metrics: nil,
+				Equity:  []EquityPointDTO{},
+				Series:  ensureSeries(nil),
+			}, nil
+		}
 		return &PerformanceDTO{
 			Period:  period,
+			Mode:    mode,
 			Metrics: &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true},
 			Equity:  []EquityPointDTO{},
+			Series:  ensureSeries(nil),
 		}, nil
+	}
+	if seriesOnly {
+		return &PerformanceDTO{Period: period, Mode: mode, Metrics: nil, Equity: []EquityPointDTO{}, Series: ensureSeries(snap.Series)}, nil
 	}
 	equity := snap.Equity
 	if equity == nil {
 		equity = []EquityPointDTO{}
 	}
-	return &PerformanceDTO{Period: period, Metrics: snap.Metrics, Equity: equity}, nil
+	return &PerformanceDTO{Period: period, Mode: mode, Metrics: snap.Metrics, Equity: equity, Series: ensureSeries(snap.Series)}, nil
+}
+
+// performanceCacheKey isolates modes in the live performance cache.
+func performanceCacheKey(venue, addr, period, mode string) string {
+	return "performance-live|" + venue + "|" + addr + "|" + period + "|" + mode
 }
 
 func periodLookback(period string) time.Duration {

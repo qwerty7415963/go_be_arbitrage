@@ -18,7 +18,7 @@ type parallelPerfFake struct {
 	portfolioCalls atomic.Int64
 	fillsCalls     atomic.Int64
 
-	portfolio map[string][]hyperliquid.PortfolioPoint
+	portfolio map[string]hyperliquid.PortfolioSeries
 	raw       []hyperliquid.Fill
 	truncated bool
 }
@@ -64,7 +64,7 @@ func (f *parallelPerfFake) FetchFillsWindow(_ context.Context, _ string, _, _ in
 func (f *parallelPerfFake) FetchUserFunding(_ context.Context, _ string, _, _ int64) ([]hyperliquid.FundingUpdate, error) {
 	return []hyperliquid.FundingUpdate{}, nil
 }
-func (f *parallelPerfFake) FetchPortfolio(_ context.Context, _ string) (map[string][]hyperliquid.PortfolioPoint, error) {
+func (f *parallelPerfFake) FetchPortfolio(_ context.Context, _ string) (map[string]hyperliquid.PortfolioSeries, error) {
 	f.portfolioCalls.Add(1)
 	select {
 	case f.portfolioStarted <- struct{}{}:
@@ -79,7 +79,7 @@ func (f *parallelPerfFake) FetchPortfolio(_ context.Context, _ string) (map[stri
 	case <-time.After(2 * time.Second):
 	}
 	if f.portfolio == nil {
-		return map[string][]hyperliquid.PortfolioPoint{}, nil
+		return map[string]hyperliquid.PortfolioSeries{}, nil
 	}
 	return f.portfolio, nil
 }
@@ -90,7 +90,7 @@ func TestLivePerformance_ParallelFetch_StartsBothBeforeEitherCompletes(t *testin
 		portfolioStarted: make(chan struct{}, 1),
 		fillsStarted:     make(chan struct{}, 1),
 		release:          make(chan struct{}),
-		portfolio:        map[string][]hyperliquid.PortfolioPoint{},
+		portfolio:        map[string]hyperliquid.PortfolioSeries{},
 		raw: []hyperliquid.Fill{
 			rawFillForUniverse("BTC", "B", "1", "50000", "0", "1", now.Add(-time.Hour), 1),
 			rawFillForUniverse("BTC", "A", "1", "51000", "100", "1", now.Add(-30*time.Minute), 2),
@@ -102,7 +102,7 @@ func TestLivePerformance_ParallelFetch_StartsBothBeforeEitherCompletes(t *testin
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := fetchLivePerformance(context.Background(), s, uuid.New(), addr, venue, Period7D, now)
+		_, err := fetchLivePerformance(context.Background(), s, uuid.New(), addr, venue, Period7D, PerformanceModePerps, false, now)
 		done <- err
 	}()
 
@@ -130,5 +130,75 @@ func TestLivePerformance_ParallelFetch_StartsBothBeforeEitherCompletes(t *testin
 	}
 	if got := fake.fillsCalls.Load(); got != 1 {
 		t.Fatalf("fills calls = %d, want 1", got)
+	}
+}
+
+type seriesOnlyFake struct {
+	portfolioCalls atomic.Int64
+	fillsCalls     atomic.Int64
+	portfolio      map[string]hyperliquid.PortfolioSeries
+}
+
+func (f *seriesOnlyFake) FetchClearinghouseState(_ context.Context, _ string, _ ...string) (*hyperliquid.ClearinghouseState, error) {
+	return nil, nil
+}
+func (f *seriesOnlyFake) FetchPerpDexs(_ context.Context) ([]string, error) { return nil, nil }
+func (f *seriesOnlyFake) FetchSpotState(_ context.Context, _ string) (*hyperliquid.SpotState, error) {
+	return nil, nil
+}
+func (f *seriesOnlyFake) FetchUserFills(_ context.Context, _ string) ([]hyperliquid.Fill, error) {
+	return nil, nil
+}
+func (f *seriesOnlyFake) FetchOpenOrders(_ context.Context, _ string, _ ...string) ([]hyperliquid.OpenOrder, error) {
+	return nil, nil
+}
+func (f *seriesOnlyFake) FetchHistoricalOrders(_ context.Context, _ string) ([]hyperliquid.HistoricalOrder, error) {
+	return nil, nil
+}
+func (f *seriesOnlyFake) FetchLedgerUpdates(_ context.Context, _ string, _ int64) ([]hyperliquid.LedgerUpdate, error) {
+	return nil, nil
+}
+func (f *seriesOnlyFake) FetchFillsWindow(_ context.Context, _ string, _, _ int64) ([]hyperliquid.Fill, bool, error) {
+	f.fillsCalls.Add(1)
+	return nil, false, nil
+}
+func (f *seriesOnlyFake) FetchUserFunding(_ context.Context, _ string, _, _ int64) ([]hyperliquid.FundingUpdate, error) {
+	return nil, nil
+}
+func (f *seriesOnlyFake) FetchPortfolio(_ context.Context, _ string) (map[string]hyperliquid.PortfolioSeries, error) {
+	f.portfolioCalls.Add(1)
+	if f.portfolio == nil {
+		return map[string]hyperliquid.PortfolioSeries{}, nil
+	}
+	return f.portfolio, nil
+}
+
+func TestLivePerformance_SeriesOnly_SkipsFills(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	fake := &seriesOnlyFake{
+		portfolio: map[string]hyperliquid.PortfolioSeries{
+			"perpDay": {AccountValue: []hyperliquid.PortfolioPoint{{Time: now.UnixMilli(), Value: "42"}}},
+		},
+	}
+	s := universeService(fake, LiveCacheTTL)
+	addr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	snap, err := fetchLivePerformance(context.Background(), s, uuid.New(), addr, "hyperliquid", Period30D, PerformanceModePerps, true, now)
+	if err != nil {
+		t.Fatalf("fetchLivePerformance: %v", err)
+	}
+	if snap.Metrics != nil {
+		t.Fatalf("metrics must be nil, got %+v", snap.Metrics)
+	}
+	if len(snap.Equity) != 0 {
+		t.Fatalf("equity must be empty, got %d", len(snap.Equity))
+	}
+	if snap.Series == nil || len(snap.Series) != len(performanceRangeKeys) {
+		t.Fatalf("series missing: %+v", snap.Series)
+	}
+	if got := fake.fillsCalls.Load(); got != 0 {
+		t.Fatalf("fills calls = %d, want 0", got)
+	}
+	if got := fake.portfolioCalls.Load(); got != 1 {
+		t.Fatalf("portfolio calls = %d, want 1", got)
 	}
 }

@@ -1387,3 +1387,51 @@ change.
 | ID | Case | Expected |
 |----|------|----------|
 | PD-E-01 | admin updates perp dex list | subsequent trader reads use new list |
+
+---
+
+### 19.20 Performance PnL/VALUE series (contract v1.7)
+
+#### Unit - parser (internal/hyperliquid)
+
+| ID | Target | Input | Expected |
+|----|--------|-------|----------|
+| PS-U-01 | `FetchPortfolio` | base + perp windows with both histories | both parsed per window; perp names kept |
+| PS-U-02 | `FetchPortfolio` | malformed pair / window | pair/window skipped, clean windows kept |
+| PS-U-03 | `FetchPortfolio` | null/empty histories | non-nil empty slices |
+
+#### Unit - trader service
+
+| ID | Target | Input | Expected |
+|----|--------|-------|----------|
+| PS-U-04 | `mapPortfolioSeries` | mode=perps | 4 range keys; perpDay/perpWeek/perpMonth/perpAllTime sources |
+| PS-U-05 | `mapPortfolioSeries` | mode=combined | 4 range keys; day/week/month/allTime sources |
+| PS-U-06 | `mapPortfolioSeries` | unsorted + invalid points | sorted ASC; invalid values and time<=0 skipped |
+| PS-U-07 | `Performance` | mode=bogus | `INVALID_FILTER` |
+| PS-U-08 | `performanceCacheKey` | perps vs combined | distinct keys; empty mode normalizes to perps |
+| PS-U-09 | `fetchLivePerformance` | series_only=true | no fills fetch; series populated; metrics=nil; equity=[] |
+
+#### Handler
+
+| ID | Case | Expected |
+|----|------|----------|
+| PS-H-01 | performance default mode | 200, `mode=perps`, 4 series keys, non-null arrays |
+| PS-H-02 | performance `mode=combined` | 200, combined forwarded |
+| PS-H-03 | performance `mode=bogus` | 400 `INVALID_FILTER` |
+| PS-H-04 | performance unknown wallet | 404 `COMMON-903` |
+| PS-H-05 | performance `series_only=true` | 200, `metrics=null`, `equity=[]`, series present |
+| PS-H-06 | performance `series_only=false` (default) | 200, metrics present |
+
+#### Integration (`//go:build integration`)
+
+| ID | Case | Expected |
+|----|------|----------|
+| PS-I-01 | perps then combined within TTL | 2 portfolio fetches (mode-keyed cache); series map distinct windows |
+| PS-I-02 | repeat same mode within TTL | 1 fetch; series still has all 4 range keys |
+
+#### E2E
+
+| ID | Case | Expected |
+|----|------|----------|
+| PS-E-01 | existing `TestE2E_Trader_WalletTabsFlow` | performance still 200 with default `mode=perps` and series map |
+

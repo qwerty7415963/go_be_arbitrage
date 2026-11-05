@@ -109,9 +109,14 @@ func TestNightly_PortfolioShape(t *testing.T) {
 		t.Fatalf("portfolio: %v", err)
 	}
 	for _, w := range []string{"day", "week", "month", "allTime"} {
-		pts, ok := got[w]
-		if !ok || len(pts) == 0 {
+		series, ok := got[w]
+		if !ok || len(series.AccountValue) == 0 {
 			t.Errorf("window %s missing/empty", w)
+		}
+	}
+	for _, w := range []string{"perpDay", "perpWeek", "perpMonth", "perpAllTime"} {
+		if series, ok := got[w]; !ok || len(series.AccountValue) == 0 || len(series.PnL) == 0 {
+			t.Errorf("perp window %s missing/empty", w)
 		}
 	}
 }

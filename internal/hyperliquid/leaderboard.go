@@ -50,16 +50,35 @@ func parseNum(s string) *float64 {
 	return &f
 }
 
-// PortfolioPoint is one account-value sample (ms epoch + decimal string upstream).
+// PortfolioPoint is one portfolio sample (ms epoch + decimal string upstream).
 type PortfolioPoint struct {
 	Time  int64
 	Value string
 }
 
-// FetchPortfolio returns account-value histories per window (day/week/month/
-// allTime plus perp* variants; callers pick the base four). Single call,
-// no pagination.
-func (c *Client) FetchPortfolio(ctx context.Context, address string) (map[string][]PortfolioPoint, error) {
+// PortfolioSeries is one window's account-value and PnL histories.
+type PortfolioSeries struct {
+	AccountValue []PortfolioPoint
+	PnL          []PortfolioPoint
+}
+
+func parsePortfolioHistory(raw [][2]json.RawMessage) []PortfolioPoint {
+	points := make([]PortfolioPoint, 0, len(raw))
+	for _, p := range raw {
+		var ms int64
+		var val string
+		if json.Unmarshal(p[0], &ms) != nil || json.Unmarshal(p[1], &val) != nil {
+			continue
+		}
+		points = append(points, PortfolioPoint{Time: ms, Value: val})
+	}
+	return points
+}
+
+// FetchPortfolio returns account-value and PnL histories per window
+// (day/week/month/allTime plus perp* variants; callers pick the windows they
+// need). Single call, no pagination.
+func (c *Client) FetchPortfolio(ctx context.Context, address string) (map[string]PortfolioSeries, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	body, _ := json.Marshal(map[string]string{"type": "portfolio", "user": address})
@@ -82,25 +101,22 @@ func (c *Client) FetchPortfolio(ctx context.Context, address string) (map[string
 	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
 		return nil, fmt.Errorf("hyperliquid portfolio decode: %w", err)
 	}
-	out := map[string][]PortfolioPoint{}
+	out := map[string]PortfolioSeries{}
 	for _, entry := range doc {
 		var name string
 		if err := json.Unmarshal(entry[0], &name); err != nil {
 			continue
 		}
-		var payload struct {
-			History [][2]json.RawMessage `json:"accountValueHistory"`
+		var payload *struct {
+			AccountValueHistory [][2]json.RawMessage `json:"accountValueHistory"`
+			PnLHistory          [][2]json.RawMessage `json:"pnlHistory"`
 		}
-		if err := json.Unmarshal(entry[1], &payload); err != nil {
+		if err := json.Unmarshal(entry[1], &payload); err != nil || payload == nil {
 			continue
 		}
-		for _, p := range payload.History {
-			var ms int64
-			var val string
-			if json.Unmarshal(p[0], &ms) != nil || json.Unmarshal(p[1], &val) != nil {
-				continue
-			}
-			out[name] = append(out[name], PortfolioPoint{Time: ms, Value: val})
+		out[name] = PortfolioSeries{
+			AccountValue: parsePortfolioHistory(payload.AccountValueHistory),
+			PnL:          parsePortfolioHistory(payload.PnLHistory),
 		}
 	}
 	return out, nil

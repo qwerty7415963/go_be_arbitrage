@@ -22,7 +22,7 @@ type countingUniverseFake struct {
 	truncated      bool
 	fillsErr       error
 	funding        []hyperliquid.FundingUpdate
-	portfolio      map[string][]hyperliquid.PortfolioPoint
+	portfolio      map[string]hyperliquid.PortfolioSeries
 	delay          time.Duration
 }
 
@@ -73,10 +73,10 @@ func (f *countingUniverseFake) FetchUserFunding(_ context.Context, _ string, _, 
 	return f.funding, nil
 }
 
-func (f *countingUniverseFake) FetchPortfolio(_ context.Context, _ string) (map[string][]hyperliquid.PortfolioPoint, error) {
+func (f *countingUniverseFake) FetchPortfolio(_ context.Context, _ string) (map[string]hyperliquid.PortfolioSeries, error) {
 	f.portfolioCalls.Add(1)
 	if f.portfolio == nil {
-		return map[string][]hyperliquid.PortfolioPoint{}, nil
+		return map[string]hyperliquid.PortfolioSeries{}, nil
 	}
 	return f.portfolio, nil
 }
@@ -222,7 +222,7 @@ func TestUniverse_TruncatedPropagates(t *testing.T) {
 	if !act.AsOf.Equal(u.FetchedAt.UTC()) {
 		t.Errorf("activity as_of must be universe fetch time: %v vs %v", act.AsOf, u.FetchedAt)
 	}
-	perf, err := fetchLivePerformance(context.Background(), s, uuid.New(), addr, venue, Period7D, now)
+	perf, err := fetchLivePerformance(context.Background(), s, uuid.New(), addr, venue, Period7D, PerformanceModePerps, false, now)
 	if err != nil {
 		t.Fatalf("performance: %v", err)
 	}

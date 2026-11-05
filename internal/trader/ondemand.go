@@ -31,7 +31,7 @@ type OnDemandClient interface {
 	// Live window seams (§1.2 activity 30d, §1.7 performance windows):
 	FetchFillsWindow(ctx context.Context, address string, startMs, endMs int64) ([]hyperliquid.Fill, bool, error)
 	FetchUserFunding(ctx context.Context, address string, startMs, endMs int64) ([]hyperliquid.FundingUpdate, error)
-	FetchPortfolio(ctx context.Context, address string) (map[string][]hyperliquid.PortfolioPoint, error)
+	FetchPortfolio(ctx context.Context, address string) (map[string]hyperliquid.PortfolioSeries, error)
 }
 
 var _ OnDemandClient = (*hyperliquid.Client)(nil)
@@ -59,7 +59,7 @@ type cacheItem struct {
 }
 
 // LiveCacheTTL is the contract §3 default (10-15s window, middle).
-const LiveCacheTTL = 30 * time.Second
+const LiveCacheTTL = 60 * time.Second
 
 func NewOnDemandCache(ttl time.Duration) *OnDemandCache {
 	if ttl <= 0 {
@@ -238,11 +238,25 @@ type TransferDTO struct {
 	Counterparty   *string   `json:"counterparty"`
 }
 
-// PerformanceDTO is GET /traders/{wallet}/performance (§1.7).
+// PerformanceDTO is GET /traders/{wallet}/performance (§1.7 + v1.7 series).
 type PerformanceDTO struct {
-	Period  string                 `json:"period"`
-	Metrics *PerformanceMetricsDTO `json:"metrics"`
-	Equity  []EquityPointDTO       `json:"equity"`
+	Period  string                    `json:"period"`
+	Mode    string                    `json:"mode"`
+	Metrics *PerformanceMetricsDTO    `json:"metrics"`
+	Equity  []EquityPointDTO          `json:"equity"`
+	Series  map[string]RangeSeriesDTO `json:"series"`
+}
+
+// SeriesPointDTO is one timestamped portfolio sample.
+type SeriesPointDTO struct {
+	Time  time.Time `json:"time"`
+	Value float64   `json:"value"`
+}
+
+// RangeSeriesDTO is one chart range (account value + PnL histories).
+type RangeSeriesDTO struct {
+	AccountValue []SeriesPointDTO `json:"account_value"`
+	PnL          []SeriesPointDTO `json:"pnl"`
 }
 
 type PerformanceMetricsDTO struct {

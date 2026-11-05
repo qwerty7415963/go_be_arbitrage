@@ -22,7 +22,7 @@ type mockService struct {
 	fillsFn       func(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error)
 	ordersFn      func(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error)
 	transfersFn   func(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error)
-	performanceFn func(ctx context.Context, venue, addr, period string) (*PerformanceDTO, error)
+	performanceFn func(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
 }
 
 func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
@@ -75,11 +75,11 @@ func (m *mockService) Transfers(ctx context.Context, venue, addr string, days, l
 	return m.transfersFn(ctx, venue, addr, days, limit, cursor)
 }
 
-func (m *mockService) Performance(ctx context.Context, venue, addr, period string) (*PerformanceDTO, error) {
+func (m *mockService) Performance(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
 	if m.performanceFn == nil {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
-	return m.performanceFn(ctx, venue, addr, period)
+	return m.performanceFn(ctx, venue, addr, period, mode, seriesOnly)
 }
 
 func testRouter(h *Handler, userID string) *gin.Engine {
@@ -275,5 +275,155 @@ func TestHandler_Detail_Errors(t *testing.T) {
 	w2 := doReq(t, testRouter(h2, ""), "GET", "/api/v1/traders/not-an-address", "")
 	if w2.Code != http.StatusBadRequest || errCode(t, w2) != "COMMON-902" {
 		t.Errorf("bad address: got %d %s", w2.Code, w2.Body.String())
+	}
+}
+
+// PS-H-01/02: performance forwards mode (default perps) and returns the
+// mode + four non-null series ranges.
+func TestHandler_Performance_SeriesShape(t *testing.T) {
+	var gotMode string
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, _ bool) (*PerformanceDTO, error) {
+		gotMode = mode
+		return &PerformanceDTO{
+			Period:  period,
+			Mode:    mode,
+			Metrics: &PerformanceMetricsDTO{DataStatus: DataReady},
+			Equity:  []EquityPointDTO{},
+			Series:  ensureSeries(nil),
+		}, nil
+	}})
+	addr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	if gotMode != PerformanceModePerps {
+		t.Errorf("default mode forwarded = %q", gotMode)
+	}
+	var resp struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Data["mode"] != PerformanceModePerps {
+		t.Errorf("mode: %v", resp.Data["mode"])
+	}
+	series, ok := resp.Data["series"].(map[string]any)
+	if !ok {
+		t.Fatalf("series missing: %v", resp.Data)
+	}
+	for _, rng := range performanceRangeKeys {
+		row, ok := series[rng].(map[string]any)
+		if !ok {
+			t.Fatalf("range %s missing: %v", rng, series)
+		}
+		for _, key := range []string{"account_value", "pnl"} {
+			if arr, ok := row[key].([]any); !ok || arr == nil {
+				t.Errorf("%s.%s must be a non-null array: %v", rng, key, row[key])
+			}
+		}
+	}
+
+	w2 := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance?mode=combined", "")
+	if w2.Code != http.StatusOK || gotMode != PerformanceModeCombined {
+		t.Errorf("combined: got %d mode=%q", w2.Code, gotMode)
+	}
+}
+
+// PS-H-03: invalid mode surfaces as 400 INVALID_FILTER.
+func TestHandler_Performance_InvalidMode(t *testing.T) {
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, _, mode string, _ bool) (*PerformanceDTO, error) {
+		if mode != PerformanceModePerps && mode != PerformanceModeCombined {
+			return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid mode: want perps|combined")
+		}
+		return &PerformanceDTO{Mode: mode}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/performance?mode=bogus", "")
+	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+}
+
+// PS-H-04: unknown wallet maps to 404.
+func TestHandler_Performance_UnknownWallet(t *testing.T) {
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, _, _ string, _ bool) (*PerformanceDTO, error) {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "unknown wallet")
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/performance", "")
+	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+}
+
+// PS-H-05: series_only=true returns 200 with metrics=null, equity=[], series present.
+func TestHandler_Performance_SeriesOnlyTrue(t *testing.T) {
+	var gotSeriesOnly bool
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
+		gotSeriesOnly = seriesOnly
+		return &PerformanceDTO{
+			Period:  period,
+			Mode:    mode,
+			Metrics: nil,
+			Equity:  []EquityPointDTO{},
+			Series:  ensureSeries(nil),
+		}, nil
+	}})
+	addr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance?series_only=true", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	if !gotSeriesOnly {
+		t.Fatalf("series_only not forwarded")
+	}
+	var resp struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Data["metrics"] != nil {
+		t.Errorf("metrics must be null: %v", resp.Data["metrics"])
+	}
+	eq, ok := resp.Data["equity"].([]any)
+	if !ok || len(eq) != 0 {
+		t.Errorf("equity must be empty array: %v", resp.Data["equity"])
+	}
+	series, ok := resp.Data["series"].(map[string]any)
+	if !ok || len(series) == 0 {
+		t.Fatalf("series missing: %v", resp.Data)
+	}
+}
+
+// PS-H-06: series_only=false (default) keeps metrics present.
+func TestHandler_Performance_SeriesOnlyFalseDefault(t *testing.T) {
+	var gotSeriesOnly bool
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
+		gotSeriesOnly = seriesOnly
+		return &PerformanceDTO{
+			Period:  period,
+			Mode:    mode,
+			Metrics: &PerformanceMetricsDTO{DataStatus: DataReady},
+			Equity:  []EquityPointDTO{},
+			Series:  ensureSeries(nil),
+		}, nil
+	}})
+	addr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	if gotSeriesOnly {
+		t.Fatalf("default series_only must be false")
+	}
+	var resp struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Data["metrics"] == nil {
+		t.Errorf("metrics must be present")
 	}
 }

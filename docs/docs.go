@@ -8050,7 +8050,7 @@ const docTemplate = `{
         },
         "/api/v1/traders/{wallet}/performance": {
             "get": {
-                "description": "LIVE overview metrics + equity curve for one wallet (LIVE-CONTRACT v1.2 §1.7). Metrics computed live from the same fills universe as activity (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read). Equity is live portfolio (FetchPortfolio + AggregateEquityDaily). Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.",
+                "description": "LIVE overview metrics + equity curve + PNL/VALUE portfolio series for one wallet (LIVE-CONTRACT v1.2 §1.7, contract v1.7). Metrics computed live from the same fills universe as activity (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read). Equity is live portfolio (FetchPortfolio + AggregateEquityDaily). Series carries all four ranges (24H/7D/30D/ALL) with account_value and pnl histories from the same portfolio fetch: mode=perps maps perp windows, mode=combined maps base windows. Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.",
                 "produces": [
                     "application/json"
                 ],
@@ -8084,6 +8084,24 @@ const docTemplate = `{
                         "default": "30D",
                         "description": "Metric window",
                         "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "perps",
+                            "combined"
+                        ],
+                        "type": "string",
+                        "default": "perps",
+                        "description": "Series mode",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Return series only (no metrics/equity)",
+                        "name": "series_only",
                         "in": "query"
                     }
                 ],
@@ -11791,8 +11809,17 @@ const docTemplate = `{
                 "metrics": {
                     "$ref": "#/definitions/trader.PerformanceMetricsDTO"
                 },
+                "mode": {
+                    "type": "string"
+                },
                 "period": {
                     "type": "string"
+                },
+                "series": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/trader.RangeSeriesDTO"
+                    }
                 }
             }
         },
@@ -12039,6 +12066,23 @@ const docTemplate = `{
                 }
             }
         },
+        "trader.RangeSeriesDTO": {
+            "type": "object",
+            "properties": {
+                "account_value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.SeriesPointDTO"
+                    }
+                },
+                "pnl": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.SeriesPointDTO"
+                    }
+                }
+            }
+        },
         "trader.RegistryEntry": {
             "type": "object",
             "properties": {
@@ -12150,6 +12194,17 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "win_rate_min": {
+                    "type": "number"
+                }
+            }
+        },
+        "trader.SeriesPointDTO": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "value": {
                     "type": "number"
                 }
             }

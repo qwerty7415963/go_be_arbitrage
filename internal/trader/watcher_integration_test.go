@@ -55,8 +55,8 @@ func (f *watcherFakeLive) FetchUserFunding(_ context.Context, _ string, _, _ int
 	return []hyperliquid.FundingUpdate{}, nil
 }
 
-func (f *watcherFakeLive) FetchPortfolio(_ context.Context, _ string) (map[string][]hyperliquid.PortfolioPoint, error) {
-	return map[string][]hyperliquid.PortfolioPoint{}, nil
+func (f *watcherFakeLive) FetchPortfolio(_ context.Context, _ string) (map[string]hyperliquid.PortfolioSeries, error) {
+	return map[string]hyperliquid.PortfolioSeries{}, nil
 }
 
 type countingUpstream struct {

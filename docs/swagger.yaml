@@ -1632,8 +1632,14 @@ definitions:
         type: array
       metrics:
         $ref: '#/definitions/trader.PerformanceMetricsDTO'
+      mode:
+        type: string
       period:
         type: string
+      series:
+        additionalProperties:
+          $ref: '#/definitions/trader.RangeSeriesDTO'
+        type: object
     type: object
   trader.PerformanceMetricsDTO:
     properties:
@@ -1795,6 +1801,17 @@ definitions:
       total_ntl_pos:
         type: number
     type: object
+  trader.RangeSeriesDTO:
+    properties:
+      account_value:
+        items:
+          $ref: '#/definitions/trader.SeriesPointDTO'
+        type: array
+      pnl:
+        items:
+          $ref: '#/definitions/trader.SeriesPointDTO'
+        type: array
+    type: object
   trader.RegistryEntry:
     properties:
       discovery_source:
@@ -1869,6 +1886,13 @@ definitions:
       win_rate_max:
         type: number
       win_rate_min:
+        type: number
+    type: object
+  trader.SeriesPointDTO:
+    properties:
+      time:
+        type: string
+      value:
         type: number
     type: object
   trader.SpotBalanceDTO:
@@ -6746,11 +6770,14 @@ paths:
       - traders
   /api/v1/traders/{wallet}/performance:
     get:
-      description: LIVE overview metrics + equity curve for one wallet (LIVE-CONTRACT
-        v1.2 §1.7). Metrics computed live from the same fills universe as activity
-        (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough,
-        live-read). Equity is live portfolio (FetchPortfolio + AggregateEquityDaily).
-        Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.
+      description: 'LIVE overview metrics + equity curve + PNL/VALUE portfolio series
+        for one wallet (LIVE-CONTRACT v1.2 §1.7, contract v1.7). Metrics computed
+        live from the same fills universe as activity (1D/7D/30D from fills; ALL from
+        portfolio allTime + leaderboard refs passthrough, live-read). Equity is live
+        portfolio (FetchPortfolio + AggregateEquityDaily). Series carries all four
+        ranges (24H/7D/30D/ALL) with account_value and pnl histories from the same
+        portfolio fetch: mode=perps maps perp windows, mode=combined maps base windows.
+        Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.'
       parameters:
       - description: Wallet address (0x...)
         in: path
@@ -6772,6 +6799,19 @@ paths:
         in: query
         name: period
         type: string
+      - default: perps
+        description: Series mode
+        enum:
+        - perps
+        - combined
+        in: query
+        name: mode
+        type: string
+      - default: false
+        description: Return series only (no metrics/equity)
+        in: query
+        name: series_only
+        type: boolean
       produces:
       - application/json
       responses:

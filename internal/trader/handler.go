@@ -23,7 +23,7 @@ type ServiceInterface interface {
 	Fills(ctx context.Context, venueCode, addr string, limit int, cursor string) (*FillsPage, error)
 	Orders(ctx context.Context, venueCode, addr, status string, limit int) (*OrdersDTO, error)
 	Transfers(ctx context.Context, venueCode, addr string, days, limit int, cursor string) (*TransfersPage, error)
-	Performance(ctx context.Context, venueCode, addr, period string) (*PerformanceDTO, error)
+	Performance(ctx context.Context, venueCode, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
 }
 
 var _ ServiceInterface = (*Service)(nil)
@@ -334,12 +334,14 @@ func (h *Handler) Transfers(c *gin.Context) {
 
 // Performance godoc
 // @Summary      Trader performance (public, live)
-// @Description  LIVE overview metrics + equity curve for one wallet (LIVE-CONTRACT v1.2 §1.7). Metrics computed live from the same fills universe as activity (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read). Equity is live portfolio (FetchPortfolio + AggregateEquityDaily). Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.
+// @Description  LIVE overview metrics + equity curve + PNL/VALUE portfolio series for one wallet (LIVE-CONTRACT v1.2 §1.7, contract v1.7). Metrics computed live from the same fills universe as activity (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read). Equity is live portfolio (FetchPortfolio + AggregateEquityDaily). Series carries all four ranges (24H/7D/30D/ALL) with account_value and pnl histories from the same portfolio fetch: mode=perps maps perp windows, mode=combined maps base windows. Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.
 // @Tags         traders
 // @Produce      json
 // @Param        wallet  path   string  true   "Wallet address (0x...)"
 // @Param        venue   query  string  false  "Venue code" default(hyperliquid)
 // @Param        period  query  string  false  "Metric window" enums(1D,7D,30D,ALL) default(30D)
+// @Param        mode         query  string  false  "Series mode" enums(perps,combined) default(perps)
+// @Param        series_only  query  bool    false  "Return series only (no metrics/equity)" default(false)
 // @Success      200  {object}  api.Response{data=PerformanceDTO}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER / validation"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
@@ -347,7 +349,17 @@ func (h *Handler) Transfers(c *gin.Context) {
 func (h *Handler) Performance(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	period := c.DefaultQuery("period", Period30D)
-	d, err := h.svc.Performance(c.Request.Context(), venue, c.Param("wallet"), period)
+	mode := c.DefaultQuery("mode", PerformanceModePerps)
+	seriesOnly := false
+	if raw := c.Query("series_only"); raw != "" {
+		if v, err := strconv.ParseBool(raw); err == nil {
+			seriesOnly = v
+		} else {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "series_only must be true or false"))
+			return
+		}
+	}
+	d, err := h.svc.Performance(c.Request.Context(), venue, c.Param("wallet"), period, mode, seriesOnly)
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return

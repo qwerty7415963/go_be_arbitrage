@@ -10,12 +10,12 @@ import (
 // rate-limit signals (up to a cap) and decays back on success streaks
 // (spec: retries respect backoff; no hot-looping a struggling upstream).
 type AdaptivePacer struct {
-	mu      sync.Mutex
-	base    time.Duration
-	current time.Duration
-	max     time.Duration
-	streak  int
-	last    time.Time
+	mu         sync.Mutex
+	base       time.Duration
+	current    time.Duration
+	maxBackoff time.Duration
+	streak     int
+	last       time.Time
 }
 
 func NewAdaptivePacer(base, max time.Duration) *AdaptivePacer {
@@ -25,7 +25,7 @@ func NewAdaptivePacer(base, max time.Duration) *AdaptivePacer {
 	if base < 0 {
 		base = 0
 	}
-	return &AdaptivePacer{base: base, current: base, max: max}
+	return &AdaptivePacer{base: base, current: base, maxBackoff: max}
 }
 
 // Wait sleeps until the current interval elapsed since the last call.
@@ -65,8 +65,8 @@ func (p *AdaptivePacer) Backoff() {
 	if p.base == 0 && p.current < time.Second {
 		p.current = time.Second
 	}
-	if p.current > p.max {
-		p.current = p.max
+	if p.current > p.maxBackoff {
+		p.current = p.maxBackoff
 	}
 	if p.current < p.base {
 		p.current = p.base

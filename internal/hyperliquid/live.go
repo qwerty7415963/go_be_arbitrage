@@ -2,6 +2,8 @@ package hyperliquid
 
 import (
 	"context"
+	"log"
+	"strings"
 	"time"
 )
 
@@ -27,9 +29,10 @@ const (
 	LivePacerFloor      = 200 * time.Millisecond
 	LiveConcurrency     = 4
 	LiveSingleTimeout   = 12 * time.Second
-	LiveWindowTimeout   = 25 * time.Second
-	LiveCacheTTL        = 30 * time.Second
-	LiveCacheTTLSeconds = 30
+	LiveWindowTimeout   = 10 * time.Second
+	LiveCacheTTL        = 60 * time.Second
+	LiveCacheTTLSeconds = 60
+	LiveRetryBackoff    = 1 * time.Second
 )
 
 // NewLiveClient builds the interactive client. Zero values select the
@@ -44,7 +47,7 @@ func NewLiveClient(baseURL string, httpTimeout, floor time.Duration, concurrency
 	if httpTimeout <= 0 {
 		httpTimeout = LiveSingleTimeout
 	}
-	inner := NewClient(baseURL, httpTimeout, floor)
+	inner := NewClient(baseURL, httpTimeout, floor, 2*time.Second)
 	return &LiveClient{
 		inner:         inner,
 		sem:           make(chan struct{}, concurrency),
@@ -90,6 +93,25 @@ func (l *LiveClient) singleCtx(ctx context.Context) (context.Context, context.Ca
 	return context.WithTimeout(ctx, l.timeout)
 }
 
+// doWithRetry runs fn once; on an error containing "status 429" it waits
+// LiveRetryBackoff and retries once. Retry attempts are logged.
+func (l *LiveClient) doWithRetry(ctx context.Context, fn func() error) error {
+	err := fn()
+	if err == nil {
+		return nil
+	}
+	if !strings.Contains(err.Error(), "status 429") {
+		return err
+	}
+	log.Printf("hyperliquid live: 429 received, retrying after %v", LiveRetryBackoff)
+	select {
+	case <-time.After(LiveRetryBackoff):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return fn()
+}
+
 func (l *LiveClient) windowCtx(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, l.windowTimeout)
 }
@@ -103,9 +125,15 @@ func (l *LiveClient) FetchClearinghouseState(ctx context.Context, address string
 		return nil, err
 	}
 	defer release()
-	ctx2, cancel := l.singleCtx(ctx)
-	defer cancel()
-	return l.inner.FetchClearinghouseState(ctx2, address, dex...)
+	var res *ClearinghouseState
+	err = l.doWithRetry(ctx, func() error {
+		ctx2, cancel := l.singleCtx(ctx)
+		defer cancel()
+		var e error
+		res, e = l.inner.FetchClearinghouseState(ctx2, address, dex...)
+		return e
+	})
+	return res, err
 }
 
 // FetchPerpDexs implements the perp dex list (HIP-3) behind the concurrency
@@ -116,9 +144,15 @@ func (l *LiveClient) FetchPerpDexs(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	defer release()
-	ctx2, cancel := l.singleCtx(ctx)
-	defer cancel()
-	return l.inner.FetchPerpDexs(ctx2)
+	var res []string
+	err = l.doWithRetry(ctx, func() error {
+		ctx2, cancel := l.singleCtx(ctx)
+		defer cancel()
+		var e error
+		res, e = l.inner.FetchPerpDexs(ctx2)
+		return e
+	})
+	return res, err
 }
 
 // FetchSpotState implements spot balances (§1.3).
@@ -128,9 +162,15 @@ func (l *LiveClient) FetchSpotState(ctx context.Context, address string) (*SpotS
 		return nil, err
 	}
 	defer release()
-	ctx2, cancel := l.singleCtx(ctx)
-	defer cancel()
-	return l.inner.FetchSpotState(ctx2, address)
+	var res *SpotState
+	err = l.doWithRetry(ctx, func() error {
+		ctx2, cancel := l.singleCtx(ctx)
+		defer cancel()
+		var e error
+		res, e = l.inner.FetchSpotState(ctx2, address)
+		return e
+	})
+	return res, err
 }
 
 // FetchUserFills implements recent fills (§1.4, 2000 most recent).
@@ -152,9 +192,15 @@ func (l *LiveClient) FetchOpenOrders(ctx context.Context, address string, dex ..
 		return nil, err
 	}
 	defer release()
-	ctx2, cancel := l.singleCtx(ctx)
-	defer cancel()
-	return l.inner.FetchOpenOrders(ctx2, address, dex...)
+	var res []OpenOrder
+	err = l.doWithRetry(ctx, func() error {
+		ctx2, cancel := l.singleCtx(ctx)
+		defer cancel()
+		var e error
+		res, e = l.inner.FetchOpenOrders(ctx2, address, dex...)
+		return e
+	})
+	return res, err
 }
 
 // FetchHistoricalOrders implements historical orders (§1.5).
@@ -191,9 +237,16 @@ func (l *LiveClient) FetchFillsWindow(ctx context.Context, address string, start
 		return nil, false, err
 	}
 	defer release()
-	ctx2, cancel := l.windowCtx(ctx)
-	defer cancel()
-	return l.inner.FetchAll(ctx2, address, startMs, endMs)
+	var fills []Fill
+	var truncated bool
+	err = l.doWithRetry(ctx, func() error {
+		ctx2, cancel := l.windowCtx(ctx)
+		defer cancel()
+		var e error
+		fills, truncated, e = l.inner.FetchAll(ctx2, address, startMs, endMs)
+		return e
+	})
+	return fills, truncated, err
 }
 
 // FetchUserFunding implements funding attribution (§1.2): userFunding history
@@ -210,15 +263,21 @@ func (l *LiveClient) FetchUserFunding(ctx context.Context, address string, start
 }
 
 // FetchPortfolio implements live equity (§1.7).
-func (l *LiveClient) FetchPortfolio(ctx context.Context, address string) (map[string][]PortfolioPoint, error) {
+func (l *LiveClient) FetchPortfolio(ctx context.Context, address string) (map[string]PortfolioSeries, error) {
 	release, err := l.acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
-	ctx2, cancel := l.singleCtx(ctx)
-	defer cancel()
-	return l.inner.FetchPortfolio(ctx2, address)
+	var res map[string]PortfolioSeries
+	err = l.doWithRetry(ctx, func() error {
+		ctx2, cancel := l.singleCtx(ctx)
+		defer cancel()
+		var e error
+		res, e = l.inner.FetchPortfolio(ctx2, address)
+		return e
+	})
+	return res, err
 }
 
 // FetchFillsWindow exposes the window fetch on the base client so both

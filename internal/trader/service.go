@@ -274,7 +274,7 @@ func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string)
 	key := "detail-live|" + venue + "|" + addr + "|" + period
 	now := time.Now().UTC()
 	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
-		return fetchLivePerformance(ctx, s, venueID, addr, venue, period, now)
+		return fetchLivePerformance(ctx, s, venueID, addr, venue, period, PerformanceModePerps, false, now)
 	})
 	if fetchErr != nil {
 		if stale, _, found := s.cache.get(key); found {

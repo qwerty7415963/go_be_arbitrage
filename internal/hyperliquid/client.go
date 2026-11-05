@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -24,6 +25,12 @@ const (
 	// the venue cannot serve the window granularity — the result is flagged
 	// truncated (ING-I-03). 1h keeps backfill call counts sane.
 	minSliceMs = int64(3_600_000)
+
+	// maxFillsFetchCalls bounds FetchAll pagination to avoid explosion for
+	// ultra-high-frequency wallets.
+	maxFillsFetchCalls = 60
+	// fillsFetchDeadline is the wall-clock budget for a single FetchAll.
+	fillsFetchDeadline = 10 * time.Second
 )
 
 // VenueCode is the venues.code row seeded by migration 000015.
@@ -58,16 +65,20 @@ type Client struct {
 	pacer        *AdaptivePacer
 }
 
-func NewClient(baseURL string, timeout, minInterval time.Duration) *Client {
+func NewClient(baseURL string, timeout, minInterval time.Duration, maxBackoff ...time.Duration) *Client {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
+	}
+	mb := 30 * time.Second
+	if len(maxBackoff) > 0 && maxBackoff[0] > 0 {
+		mb = maxBackoff[0]
 	}
 	return &Client{
 		baseURL:      baseURL,
 		statsBaseURL: StatsBaseURL,
 		http:         &http.Client{Timeout: timeout},
 		minInterval:  minInterval,
-		pacer:        NewAdaptivePacer(minInterval, 30*time.Second),
+		pacer:        NewAdaptivePacer(minInterval, mb),
 	}
 }
 
@@ -152,15 +163,40 @@ func (c *Client) noteStatus(code int) {
 func (c *Client) FetchAll(ctx context.Context, address string, startMs, endMs int64) ([]Fill, bool, error) {
 	var out []Fill
 	truncated := false
+	calls := 0
+	budgetExceeded := false
+	deadline := time.Now().Add(fillsFetchDeadline)
 
 	var walk func(s, e int64) error
 	walk = func(s, e int64) error {
-		if err := ctx.Err(); err != nil {
-			return err
+		if budgetExceeded {
+			return nil
 		}
+		if err := ctx.Err(); err != nil {
+			truncated = true
+			return nil
+		}
+		if time.Now().After(deadline) {
+			budgetExceeded = true
+			truncated = true
+			log.Printf("hyperliquid FetchAll: time budget exceeded for %s", address)
+			return nil
+		}
+		if calls >= maxFillsFetchCalls {
+			budgetExceeded = true
+			truncated = true
+			log.Printf("hyperliquid FetchAll: call budget exceeded (%d) for %s", calls, address)
+			return nil
+		}
+		calls++
 		fills, err := c.FetchWindow(ctx, address, s, e)
 		if err != nil {
-			return err
+			if len(out) == 0 {
+				return err
+			}
+			log.Printf("hyperliquid FetchAll: FetchWindow error for %s [%d,%d]: %v", address, s, e, err)
+			truncated = true
+			return nil
 		}
 		if len(fills) < maxFillsPerResponse {
 			out = append(out, fills...)
@@ -172,14 +208,26 @@ func (c *Client) FetchAll(ctx context.Context, address string, startMs, endMs in
 			return nil
 		}
 		mid := s + (e-s)/2
-		if err := walk(s, mid); err != nil {
+		if err := walk(mid, e); err != nil {
 			return err
 		}
-		return walk(mid, e)
+		return walk(s, mid)
 	}
 
 	if err := walk(startMs, endMs); err != nil {
-		return nil, false, err
+		// Deduplicate whatever was collected before the error.
+		seen := make(map[string]bool, len(out))
+		deduped := make([]Fill, 0, len(out))
+		for _, f := range out {
+			key := f.Coin + ":" + itoa(f.Tid)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			deduped = append(deduped, f)
+		}
+		sortFillsAsc(deduped)
+		return deduped, truncated, err
 	}
 
 	// Deduplicate (inclusive slice boundaries can overlap on one ms) and

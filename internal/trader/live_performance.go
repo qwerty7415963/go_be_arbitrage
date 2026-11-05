@@ -19,12 +19,103 @@ var errParseFloat = errors.New("invalid float")
 // (mirrors sync LBRefFresh 24h; live-read per §1.7).
 const LiveLBRefFresh = 24 * time.Hour
 
+// Performance series modes for the PNL/VALUE chart (contract v1.7).
+const (
+	PerformanceModePerps    = "perps"
+	PerformanceModeCombined = "combined"
+)
+
+var performanceRangeKeys = []string{"24H", "7D", "30D", "ALL"}
+
+// normalizePerformanceMode maps empty to perps; false means invalid.
+func normalizePerformanceMode(mode string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", PerformanceModePerps:
+		return PerformanceModePerps, true
+	case PerformanceModeCombined:
+		return PerformanceModeCombined, true
+	}
+	return "", false
+}
+
+func performanceWindowForRange(mode, rng string) string {
+	combined := mode == PerformanceModeCombined
+	switch rng {
+	case "24H":
+		if combined {
+			return "day"
+		}
+		return "perpDay"
+	case "7D":
+		if combined {
+			return "week"
+		}
+		return "perpWeek"
+	case "30D":
+		if combined {
+			return "month"
+		}
+		return "perpMonth"
+	default:
+		if combined {
+			return "allTime"
+		}
+		return "perpAllTime"
+	}
+}
+
+func mapSeriesPoints(points []hyperliquid.PortfolioPoint) []SeriesPointDTO {
+	out := make([]SeriesPointDTO, 0, len(points))
+	for _, p := range points {
+		if p.Time <= 0 {
+			continue
+		}
+		v, err := parseFloatStrict(p.Value)
+		if err != nil {
+			continue
+		}
+		out = append(out, SeriesPointDTO{Time: time.UnixMilli(p.Time).UTC(), Value: v})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
+	return out
+}
+
+// mapPortfolioSeries selects the mode's four windows and maps both histories
+// to ascending, value-validated series with non-nil arrays.
+func mapPortfolioSeries(raw map[string]hyperliquid.PortfolioSeries, mode string) map[string]RangeSeriesDTO {
+	out := make(map[string]RangeSeriesDTO, len(performanceRangeKeys))
+	for _, rng := range performanceRangeKeys {
+		s := raw[performanceWindowForRange(mode, rng)]
+		out[rng] = RangeSeriesDTO{
+			AccountValue: mapSeriesPoints(s.AccountValue),
+			PnL:          mapSeriesPoints(s.PnL),
+		}
+	}
+	return out
+}
+
+func ensureSeries(series map[string]RangeSeriesDTO) map[string]RangeSeriesDTO {
+	out := make(map[string]RangeSeriesDTO, len(performanceRangeKeys))
+	for _, rng := range performanceRangeKeys {
+		rs := series[rng]
+		if rs.AccountValue == nil {
+			rs.AccountValue = []SeriesPointDTO{}
+		}
+		if rs.PnL == nil {
+			rs.PnL = []SeriesPointDTO{}
+		}
+		out[rng] = rs
+	}
+	return out
+}
+
 // LivePerformanceSnapshot is the cached live performance for one
-// (wallet,venue,period): metrics + equity + fetch metadata. Cached 12s +
-// single-flight.
+// (wallet,venue,period,mode): metrics + equity + series + fetch metadata.
+// Cached 12s + single-flight.
 type LivePerformanceSnapshot struct {
 	Metrics *PerformanceMetricsDTO
 	Equity  []EquityPointDTO
+	Series  map[string]RangeSeriesDTO
 	AsOf    time.Time
 	Partial bool
 }
@@ -101,10 +192,10 @@ func computeLiveMetrics(trades []CompletedTrade, equityCurve []float64, asOf tim
 // aggregateLiveEquity folds portfolio histories into dated daily points for
 // [from, now] oldest-first (reuse AggregateEquityDaily). Returns DTOs +
 // end-equity curve for drawdown.
-func aggregateLiveEquity(raw map[string][]hyperliquid.PortfolioPoint, from, now time.Time) ([]EquityPointDTO, []float64) {
+func aggregateLiveEquity(raw map[string]hyperliquid.PortfolioSeries, from, now time.Time) ([]EquityPointDTO, []float64) {
 	var points []EquityPoint
 	for _, w := range []string{"day", "week", "month", "allTime"} {
-		for _, p := range raw[w] {
+		for _, p := range raw[w].AccountValue {
 			v, err := parsePortfolioValue(p.Value)
 			if err != nil || p.Time <= 0 {
 				continue
@@ -165,19 +256,29 @@ func parseFloatStrict(s string) (float64, error) {
 // universes slice + emit partial:true without any refill fetch.
 // No reads of trader_period_metrics / trader_equity_daily (conformance §7);
 // LB refs are read live (existing resolve semantics).
-func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, addr, venue, period string, now time.Time) (*LivePerformanceSnapshot, error) {
+func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, addr, venue, period, mode string, seriesOnly bool, now time.Time) (*LivePerformanceSnapshot, error) {
 	if s.onDemand == nil {
 		return nil, errUpstreamUnavailable
 	}
+	if seriesOnly {
+		rawPort, portErr := s.onDemand.FetchPortfolio(ctx, addr)
+		if portErr != nil {
+			return nil, portErr
+		}
+		series := mapPortfolioSeries(rawPort, mode)
+		return &LivePerformanceSnapshot{Metrics: nil, Equity: []EquityPointDTO{}, Series: series, AsOf: now.UTC(), Partial: false}, nil
+	}
 	from := now.Add(-periodLookback(period))
+	series := mapPortfolioSeries(nil, mode)
 
 	if period == PeriodALL {
-		// ALL: portfolio (equity) + LB passthrough. No fills fetch.
+		// ALL: portfolio (equity + series) + LB passthrough. No fills fetch.
 		rawPort, portErr := s.onDemand.FetchPortfolio(ctx, addr)
 		var equity []EquityPointDTO
 		var curve []float64
 		if portErr == nil {
 			equity, curve = aggregateLiveEquity(rawPort, from, now)
+			series = mapPortfolioSeries(rawPort, mode)
 		} else {
 			equity = []EquityPointDTO{}
 		}
@@ -206,16 +307,16 @@ func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, ad
 			return nil, portErr
 		}
 		if m == nil && portErr == nil {
-			return &LivePerformanceSnapshot{Metrics: nil, Equity: equity, AsOf: now.UTC(), Partial: false}, nil
+			return &LivePerformanceSnapshot{Metrics: nil, Equity: equity, Series: series, AsOf: now.UTC(), Partial: false}, nil
 		}
 		if m == nil {
 			return nil, errUpstreamUnavailable
 		}
-		return &LivePerformanceSnapshot{Metrics: m, Equity: equity, AsOf: now.UTC(), Partial: false}, nil
+		return &LivePerformanceSnapshot{Metrics: m, Equity: equity, Series: series, AsOf: now.UTC(), Partial: false}, nil
 	}
 
 	// 1D/7D/30D: parallelize portfolio fetch and fills-universe fetch.
-	var rawPort map[string][]hyperliquid.PortfolioPoint
+	var rawPort map[string]hyperliquid.PortfolioSeries
 	var portErr error
 	var universe *FillsUniverse
 	var fillsErr error
@@ -239,11 +340,22 @@ func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, ad
 	var curve []float64
 	if portErr == nil {
 		equity, curve = aggregateLiveEquity(rawPort, from, now)
+		series = mapPortfolioSeries(rawPort, mode)
 	} else {
 		equity = []EquityPointDTO{}
 	}
 	if fillsErr != nil {
-		return nil, fillsErr
+		if portErr != nil {
+			return nil, portErr
+		}
+		asOf := now.UTC()
+		metrics := &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true}
+		return &LivePerformanceSnapshot{Metrics: metrics, Equity: equity, Series: series, AsOf: asOf, Partial: true}, nil
+	}
+	if portErr != nil {
+		asOf := now.UTC()
+		metrics := &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true}
+		return &LivePerformanceSnapshot{Metrics: metrics, Equity: []EquityPointDTO{}, Series: nil, AsOf: asOf, Partial: true}, nil
 	}
 
 	lookback, ok := periodFillsLookback(period)
@@ -253,5 +365,5 @@ func fetchLivePerformance(ctx context.Context, s *Service, venueID uuid.UUID, ad
 	sliced := sliceUniverse(universe.Fills, universe.FetchedAt, lookback)
 	trades := ReconstructTrades(sliced)
 	metrics := computeLiveMetrics(trades, curve, universe.FetchedAt, universe.Truncated, DataReady)
-	return &LivePerformanceSnapshot{Metrics: metrics, Equity: equity, AsOf: universe.FetchedAt.UTC(), Partial: universe.Truncated}, nil
+	return &LivePerformanceSnapshot{Metrics: metrics, Equity: equity, Series: series, AsOf: universe.FetchedAt.UTC(), Partial: universe.Truncated}, nil
 }

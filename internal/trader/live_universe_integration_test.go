@@ -60,7 +60,7 @@ func TestRepo_LiveUniverse_SharedFetch(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-start
-		perf, perfErr = svc.Performance(ctx, testVenueCode, addr, Period30D)
+		perf, perfErr = svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false)
 	}()
 	close(start)
 	wg.Wait()
@@ -110,5 +110,79 @@ func TestRepo_LiveUniverse_SharedFetch(t *testing.T) {
 	if *perf.Metrics.PnL != *detail.Metrics.PnL {
 		t.Fatalf("detail must reuse performance universe: perf=%v detail=%v",
 			*perf.Metrics.PnL, *detail.Metrics.PnL)
+	}
+}
+
+// PS-I-01/02: performance cache is keyed by mode; switching modes refetches
+// once, same-mode repeats within TTL stay free, and all four ranges are set.
+func TestRepo_PerformanceSeries_ModeCacheSeparation(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+	venueID := testVenue(t, pool)
+	addr := testAddr()
+	cleanupAddrs(t, pool, venueID, addr)
+	if _, _, err := repo.UpsertRegistry(ctx, venueID, addr, SourceLeaderboard, nil, nil); err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	fake := &countingUniverseFake{
+		raw: []hyperliquid.Fill{
+			rawFillForUniverse("BTC", "B", "1", "50000", "0", "1", now.Add(-time.Hour), 21),
+			rawFillForUniverse("BTC", "A", "1", "51000", "500", "1", now.Add(-30*time.Minute), 22),
+		},
+		portfolio: map[string]hyperliquid.PortfolioSeries{
+			"day": {
+				AccountValue: []hyperliquid.PortfolioPoint{{Time: now.Add(-time.Hour).UnixMilli(), Value: "111"}},
+				PnL:          []hyperliquid.PortfolioPoint{{Time: now.Add(-time.Hour).UnixMilli(), Value: "1.5"}},
+			},
+			"perpDay": {
+				AccountValue: []hyperliquid.PortfolioPoint{{Time: now.Add(-time.Hour).UnixMilli(), Value: "222"}},
+				PnL:          []hyperliquid.PortfolioPoint{{Time: now.Add(-time.Hour).UnixMilli(), Value: "2.5"}},
+			},
+		},
+	}
+	svc := NewService(repo, nil, []byte("series-integration-secret-32b!"))
+	svc.WithOnDemand(fake, NewOnDemandCache(LiveCacheTTL))
+
+	perps, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false)
+	if err != nil {
+		t.Fatalf("perps: %v", err)
+	}
+	if perps.Mode != PerformanceModePerps || len(perps.Series) != len(performanceRangeKeys) {
+		t.Fatalf("perps shape: %+v", perps)
+	}
+	if got := perps.Series["24H"].AccountValue; len(got) != 1 || got[0].Value != 222 {
+		t.Fatalf("perps 24H must use perpDay: %+v", got)
+	}
+	if got := fake.portfolioCalls.Load(); got != 1 {
+		t.Fatalf("perps portfolio calls = %d, want 1", got)
+	}
+
+	combined, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModeCombined, false)
+	if err != nil {
+		t.Fatalf("combined: %v", err)
+	}
+	if combined.Mode != PerformanceModeCombined {
+		t.Fatalf("combined mode: %+v", combined.Mode)
+	}
+	if got := combined.Series["24H"].AccountValue; len(got) != 1 || got[0].Value != 111 {
+		t.Fatalf("combined 24H must use day: %+v", got)
+	}
+	if got := fake.portfolioCalls.Load(); got != 2 {
+		t.Fatalf("mode switch must refetch once: calls=%d", got)
+	}
+
+	again, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false)
+	if err != nil {
+		t.Fatalf("perps again: %v", err)
+	}
+	if got := again.Series["24H"].AccountValue; len(got) != 1 || got[0].Value != 222 {
+		t.Fatalf("perps cache hit series: %+v", got)
+	}
+	if got := fake.portfolioCalls.Load(); got != 2 {
+		t.Fatalf("same-mode TTL hit must not refetch: calls=%d", got)
 	}
 }
