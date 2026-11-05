@@ -166,12 +166,15 @@ func New(cfg *config.Config) (*App, error) {
 	if err := appSettingsRepo.SeedIfNotExists(ctx, appsettings.SettingKeyTelegramMaxWallets, "50"); err != nil {
 		log.Warn("failed to seed app_settings", "error", err)
 	}
+	if err := appSettingsRepo.SeedIfNotExists(ctx, appsettings.SettingKeyPerpDexes, "xyz"); err != nil {
+		log.Warn("failed to seed app_settings", "error", err)
+	}
 	appSettingsService := appsettings.NewService(appSettingsRepo, log)
 	appSettingsHandler := appsettings.NewHandler(appSettingsService)
 
 	traderGroupRepo := tradergroup.NewRepository(db.Pool(), appSettingsService)
 	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
-	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret)
+	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret).WithAppSettings(appSettingsService)
 	traderHandler := trader.NewHandler(traderService)
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
 
@@ -220,6 +223,7 @@ func New(cfg *config.Config) (*App, error) {
 		// it; graceful degradation on HL error.
 		hlLive = hyperliquid.NewLiveClient("", 12*time.Second, 200*time.Millisecond, 4)
 		traderService.WithOnDemand(hlLive, trader.NewOnDemandCache(trader.LiveCacheTTL))
+		appSettingsService.WithPerpDexFetcher(hlLive)
 		// WS-D: one refcounted WalletWatcher per watched address (first
 		// browser subscriber creates the 4-feed upstream watcher + REST
 		// bootstrap RESYNC→RECONCILE→LIVE; last unsubscribe tears it down).

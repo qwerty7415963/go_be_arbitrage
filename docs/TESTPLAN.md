@@ -1348,3 +1348,42 @@ change.
 - Gin middleware `Timeout(55s)` (internal/httpserver/timeout.go) wraps trader read routes only; skips paths ending in /ws or equal to /market/subscribe. Returns 504 JSON {success:false,error:{code:GATEWAY_TIMEOUT,message:request timed out}}.
 - fetchLivePerformance (1D/7D/30D) parallelizes FetchPortfolio and getFillsUniverse via sync.WaitGroup; portfolio error -> equity empty still ready; fills error -> return error; ALL unchanged.
 
+
+---
+
+### 19.19 Admin perp dexes (contract v1.6)
+
+#### Unit
+
+| ID | Target | Input | Expected |
+|----|--------|-------|----------|
+| PD-U-01 | `GetPerpDexes` cache | two calls within 5m | DB read once |
+| PD-U-02 | `GetPerpDexes` fallback | DB error | returns ["xyz"] |
+| PD-U-03 | `SetPerpDexes` | duplicate dex | error |
+| PD-U-04 | `SetPerpDexes` | unknown dex | error (validated against FetchPerpDexs) |
+| PD-U-05 | `SetPerpDexes` | valid list | persisted, cache invalidated |
+| PD-U-06 | `PerpDexSettings.Validate` | empty list | valid (default only) |
+
+#### Handler
+
+| ID | Case | Expected |
+|----|------|----------|
+| PD-H-01 | GET unauth | 401 |
+| PD-H-02 | GET non-admin | 403 |
+| PD-H-03 | GET admin | 200 {dexes} |
+| PD-H-04 | PATCH non-admin | 403 |
+| PD-H-05 | PATCH admin, valid | 200, persisted |
+| PD-H-06 | PATCH admin, unknown | 400 |
+
+#### Integration
+
+| ID | Case | Expected |
+|----|------|----------|
+| PD-I-01 | configured dexes fan-out | positions/orders aggregate across configured dexes |
+| PD-I-02 | cache invalidation after set | DB value updated, cache refreshed |
+
+#### E2E
+
+| ID | Case | Expected |
+|----|------|----------|
+| PD-E-01 | admin updates perp dex list | subsequent trader reads use new list |

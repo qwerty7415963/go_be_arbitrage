@@ -22,6 +22,182 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/admin/perp-dexes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get admin-configurable perp dex list. Requires JWT + admin role.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-perp-dexes"
+                ],
+                "summary": "Get perp dex list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/appsettings.PerpDexSettings"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update admin-configurable perp dex list. Requires JWT + admin role.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-perp-dexes"
+                ],
+                "summary": "Update perp dex list",
+                "parameters": [
+                    {
+                        "description": "Perp dexes to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/appsettings.updatePerpDexesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/appsettings.PerpDexSettings"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/telegram/settings": {
             "get": {
                 "security": [
@@ -9309,11 +9485,33 @@ const docTemplate = `{
                 }
             }
         },
+        "appsettings.PerpDexSettings": {
+            "type": "object",
+            "properties": {
+                "dexes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "appsettings.TelegramSettings": {
             "type": "object",
             "properties": {
                 "max_wallets_per_user": {
                     "type": "integer"
+                }
+            }
+        },
+        "appsettings.updatePerpDexesRequest": {
+            "type": "object",
+            "properties": {
+                "dexes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

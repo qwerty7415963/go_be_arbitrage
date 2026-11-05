@@ -25,7 +25,7 @@ type OnDemandClient interface {
 	FetchPerpDexs(ctx context.Context) ([]string, error)
 	FetchSpotState(ctx context.Context, address string) (*hyperliquid.SpotState, error)
 	FetchUserFills(ctx context.Context, address string) ([]hyperliquid.Fill, error)
-	FetchOpenOrders(ctx context.Context, address string) ([]hyperliquid.OpenOrder, error)
+	FetchOpenOrders(ctx context.Context, address string, dex ...string) ([]hyperliquid.OpenOrder, error)
 	FetchHistoricalOrders(ctx context.Context, address string) ([]hyperliquid.HistoricalOrder, error)
 	FetchLedgerUpdates(ctx context.Context, address string, startTimeMs int64) ([]hyperliquid.LedgerUpdate, error)
 	// Live window seams (§1.2 activity 30d, §1.7 performance windows):

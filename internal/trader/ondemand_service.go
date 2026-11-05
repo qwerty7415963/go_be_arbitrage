@@ -75,13 +75,14 @@ func (s *Service) Balances(ctx context.Context, venueCode, rawAddr string) (*Bal
 				perpErr = errUpstreamUnavailable
 				return
 			}
-			dv, _, _, derr := s.dexCache.GetOrFetch("perp-dexs|"+venue, func() (any, error) {
-				return s.onDemand.FetchPerpDexs(ctx)
-			})
 			var dexes []string
-			if derr == nil {
-				if v, ok := dv.([]string); ok {
-					dexes = v
+			if s.appSettings != nil {
+				if d, err := s.appSettings.GetPerpDexes(ctx); err == nil {
+					dexes = d
+				}
+			} else if s.onDemand != nil {
+				if d, err := s.onDemand.FetchPerpDexs(ctx); err == nil {
+					dexes = d
 				}
 			}
 			jobs := make([]string, 0, 1+len(dexes))
@@ -447,11 +448,21 @@ func (s *Service) Orders(ctx context.Context, venueCode, rawAddr, status string,
 			return nil, errUpstreamUnavailable
 		}
 		if status == "open" {
-			raw, err := s.onDemand.FetchOpenOrders(ctx, addr)
+			var dexes []string
+			if s.appSettings != nil {
+				if d, err := s.appSettings.GetPerpDexes(ctx); err == nil {
+					dexes = d
+				}
+			} else if s.onDemand != nil {
+				if d, err := s.onDemand.FetchPerpDexs(ctx); err == nil {
+					dexes = d
+				}
+			}
+			rows, err := fetchOpenOrdersAllDexes(ctx, s.onDemand, addr, dexes)
 			if err != nil {
 				return nil, err
 			}
-			return mapOpenOrders(raw, false), nil
+			return rows, nil
 		}
 		raw, err := s.onDemand.FetchHistoricalOrders(ctx, addr)
 		if err != nil {

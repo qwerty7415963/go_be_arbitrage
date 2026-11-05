@@ -33,7 +33,7 @@ func (f *parallelPerfFake) FetchSpotState(_ context.Context, _ string) (*hyperli
 func (f *parallelPerfFake) FetchUserFills(_ context.Context, _ string) ([]hyperliquid.Fill, error) {
 	return nil, nil
 }
-func (f *parallelPerfFake) FetchOpenOrders(_ context.Context, _ string) ([]hyperliquid.OpenOrder, error) {
+func (f *parallelPerfFake) FetchOpenOrders(_ context.Context, _ string, _ ...string) ([]hyperliquid.OpenOrder, error) {
 	return nil, nil
 }
 func (f *parallelPerfFake) FetchHistoricalOrders(_ context.Context, _ string) ([]hyperliquid.HistoricalOrder, error) {

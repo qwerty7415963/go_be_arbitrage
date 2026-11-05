@@ -42,7 +42,7 @@ func (f *countingUniverseFake) FetchUserFills(_ context.Context, _ string) ([]hy
 	return nil, errors.New("not used")
 }
 
-func (f *countingUniverseFake) FetchOpenOrders(_ context.Context, _ string) ([]hyperliquid.OpenOrder, error) {
+func (f *countingUniverseFake) FetchOpenOrders(_ context.Context, _ string, _ ...string) ([]hyperliquid.OpenOrder, error) {
 	return nil, errors.New("not used")
 }
 

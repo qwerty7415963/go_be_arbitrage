@@ -21,6 +21,10 @@ type updateSettingsRequest struct {
 	MaxWalletsPerUser int `json:"max_wallets_per_user" binding:"required"`
 }
 
+type updatePerpDexesRequest struct {
+	Dexes []string `json:"dexes"`
+}
+
 // GetSettings godoc
 // @Summary      Get Telegram settings
 // @Description  Get admin-configurable Telegram settings. Requires JWT + admin role.
@@ -83,5 +87,69 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, api.Response{
 		Success: true,
 		Data:    settings,
+	})
+}
+
+// GetPerpDexes godoc
+// @Summary      Get perp dex list
+// @Description  Get admin-configurable perp dex list. Requires JWT + admin role.
+// @Tags         admin-perp-dexes
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=PerpDexSettings}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
+// @Router       /api/v1/admin/perp-dexes [get]
+func (h *Handler) GetPerpDexes(c *gin.Context) {
+	dexes, err := h.service.GetPerpDexes(c.Request.Context())
+	if err != nil {
+		api.RespondError(c, domain.GetAppError(err))
+		return
+	}
+	c.JSON(http.StatusOK, api.Response{
+		Success: true,
+		Data:    PerpDexSettings{Dexes: dexes},
+	})
+}
+
+// UpdatePerpDexes godoc
+// @Summary      Update perp dex list
+// @Description  Update admin-configurable perp dex list. Requires JWT + admin role.
+// @Tags         admin-perp-dexes
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      updatePerpDexesRequest  true  "Perp dexes to update"
+// @Success      200      {object}  api.Response{data=PerpDexSettings}
+// @Failure      400      {object}  api.Response{error=api.ErrorBody}
+// @Failure      401      {object}  api.Response{error=api.ErrorBody}
+// @Failure      403      {object}  api.Response{error=api.ErrorBody}
+// @Router       /api/v1/admin/perp-dexes [patch]
+func (h *Handler) UpdatePerpDexes(c *gin.Context) {
+	var req updatePerpDexesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid request body"))
+		return
+	}
+
+	raw, ok := c.Get("user_id")
+	if !ok {
+		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "authentication required"))
+		return
+	}
+	userID, err := uuid.Parse(raw.(string))
+	if err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeAuthTokenInvalid, "invalid token identity"))
+		return
+	}
+
+	if err := h.service.SetPerpDexes(c.Request.Context(), req.Dexes, userID); err != nil {
+		api.RespondError(c, domain.GetAppError(err))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.Response{
+		Success: true,
+		Data:    PerpDexSettings{Dexes: req.Dexes},
 	})
 }

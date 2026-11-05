@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // Wallet-tabs on-demand sources (contract WALLET-TABS v1 §0, probe live
@@ -118,10 +119,17 @@ func (c *Client) FetchLedgerUpdates(ctx context.Context, address string, startTi
 }
 
 // FetchOpenOrders returns live open orders for address.
-// Public: POST {type:"openOrders", user} to /info.
-func (c *Client) FetchOpenOrders(ctx context.Context, address string) ([]OpenOrder, error) {
+// Public: POST {type:"openOrders", user} to /info. When dex is non-empty the
+// request carries "dex":"<name>" (HIP-3 multi-dex).
+func (c *Client) FetchOpenOrders(ctx context.Context, address string, dex ...string) ([]OpenOrder, error) {
 	var out []OpenOrder
-	if err := c.postInfo(ctx, map[string]string{"type": "openOrders", "user": address}, &out, "openOrders", 8<<20); err != nil {
+	body := map[string]any{"type": "openOrders", "user": address}
+	if len(dex) > 0 {
+		if d := strings.TrimSpace(dex[0]); d != "" {
+			body["dex"] = d
+		}
+	}
+	if err := c.postInfo(ctx, body, &out, "openOrders", 8<<20); err != nil {
 		return nil, err
 	}
 	if out == nil {

@@ -15,6 +15,11 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
 
+// appSettingsProvider is the seam for admin-configurable perp dex list.
+type appSettingsProvider interface {
+	GetPerpDexes(ctx context.Context) ([]string, error)
+}
+
 // errUpstreamUnavailable signals a nil on-demand client (unit contexts
 // without a venue client): callers degrade to stale cache or empty payloads
 // with data_status=error (never 500).
@@ -40,15 +45,18 @@ type Service struct {
 	// pacer, concurrency gate, ctx timeout) + TTL cache + single-flight. Nil
 	// disables HL reads (unit contexts without a venue client); handlers then
 	// surface data_status=error via degradation (never 500).
-	onDemand OnDemandClient
-	cache    *OnDemandCache
-	dexCache *OnDemandCache
+	onDemand    OnDemandClient
+	cache       *OnDemandCache
+	appSettings appSettingsProvider
 }
 
-func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte) *Service {
-	return &Service{repo: repo, groups: groups, secret: cursorSecret,
-		cache:    NewOnDemandCache(LiveCacheTTL),
-		dexCache: NewOnDemandCache(5 * time.Minute)}
+func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte, appSettings ...appSettingsProvider) *Service {
+	s := &Service{repo: repo, groups: groups, secret: cursorSecret,
+		cache: NewOnDemandCache(LiveCacheTTL)}
+	if len(appSettings) > 0 {
+		s.appSettings = appSettings[0]
+	}
+	return s
 }
 
 // WithOnDemand attaches the venue on-demand client + cache (LIVE §1.1-§1.7).
@@ -58,6 +66,12 @@ func (s *Service) WithOnDemand(c OnDemandClient, cache *OnDemandCache) *Service 
 	if cache != nil {
 		s.cache = cache
 	}
+	return s
+}
+
+// WithAppSettings attaches the admin settings service used for the perp dex list.
+func (s *Service) WithAppSettings(a appSettingsProvider) *Service {
+	s.appSettings = a
 	return s
 }
 
@@ -532,14 +546,14 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir s
 			return nil, errUpstreamUnavailable
 		}
 		now := time.Now().UTC()
-		// Cached perp dex list (5m TTL); fallback to default-only on failure.
-		dv, _, _, derr := s.dexCache.GetOrFetch("perp-dexs|"+venue, func() (any, error) {
-			return s.onDemand.FetchPerpDexs(ctx)
-		})
 		var dexes []string
-		if derr == nil {
-			if v, ok := dv.([]string); ok {
-				dexes = v
+		if s.appSettings != nil {
+			if d, err := s.appSettings.GetPerpDexes(ctx); err == nil {
+				dexes = d
+			}
+		} else if s.onDemand != nil {
+			if d, err := s.onDemand.FetchPerpDexs(ctx); err == nil {
+				dexes = d
 			}
 		}
 		snap, err := fetchPositionsForDexes(ctx, s.onDemand, addr, dexes)

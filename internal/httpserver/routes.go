@@ -188,6 +188,13 @@ func (s *Server) SetupRoutes(
 				adminTelegram.GET("", appSettingsHandler.GetSettings)
 				adminTelegram.PATCH("", appSettingsHandler.UpdateSettings)
 			}
+			adminPerpDexes := v1.Group("/admin/perp-dexes")
+			adminPerpDexes.Use(middleware.JWT(authService))
+			adminPerpDexes.Use(middleware.RequireRole("admin"))
+			{
+				adminPerpDexes.GET("", appSettingsHandler.GetPerpDexes)
+				adminPerpDexes.PATCH("", appSettingsHandler.UpdatePerpDexes)
+			}
 		}
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")

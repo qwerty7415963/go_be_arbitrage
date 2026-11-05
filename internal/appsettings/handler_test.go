@@ -97,3 +97,97 @@ func TestHandler_UpdateSettings_Invalid(t *testing.T) {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func setupPerpHandlerRouter(h *Handler, withUser bool) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	if withUser {
+		router.Use(func(c *gin.Context) { c.Set("user_id", "00000000-0000-0000-0000-000000000001"); c.Next() })
+	}
+	v1 := router.Group("/api/v1")
+	{
+		admin := v1.Group("/admin/perp-dexes")
+		admin.GET("", h.GetPerpDexes)
+		admin.PATCH("", h.UpdatePerpDexes)
+	}
+	return router
+}
+
+func TestHandler_GetPerpDexes(t *testing.T) {
+	repo := &mockRepo{val: "xyz,abc"}
+	svc := NewService(repo)
+	h := NewHandler(svc)
+	router := setupPerpHandlerRouter(h, false)
+
+	req, _ := http.NewRequest("GET", "/api/v1/admin/perp-dexes", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	data := resp["data"].(map[string]interface{})
+	dexes := data["dexes"].([]interface{})
+	if len(dexes) != 2 {
+		t.Fatalf("unexpected dexes: %v", dexes)
+	}
+}
+
+func TestHandler_UpdatePerpDexes_Valid(t *testing.T) {
+	repo := &mockRepo{val: "xyz"}
+	fetcher := &mockPerpFetcher{dexes: []string{"xyz", "abc"}}
+	svc := NewService(repo).WithPerpDexFetcher(fetcher)
+	h := NewHandler(svc)
+
+	body := map[string][]string{"dexes": {"abc"}}
+	b, _ := json.Marshal(body)
+	router := setupPerpHandlerRouter(h, true)
+	req, _ := http.NewRequest("PATCH", "/api/v1/admin/perp-dexes", bytes.NewBuffer(b))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandler_UpdatePerpDexes_Invalid(t *testing.T) {
+	repo := &mockRepo{val: "xyz"}
+	fetcher := &mockPerpFetcher{dexes: []string{"xyz"}}
+	svc := NewService(repo).WithPerpDexFetcher(fetcher)
+	h := NewHandler(svc)
+
+	body := map[string][]string{"dexes": {"nope"}}
+	b, _ := json.Marshal(body)
+	router := setupPerpHandlerRouter(h, true)
+	req, _ := http.NewRequest("PATCH", "/api/v1/admin/perp-dexes", bytes.NewBuffer(b))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandler_UpdatePerpDexes_NoUser(t *testing.T) {
+	repo := &mockRepo{val: "xyz"}
+	svc := NewService(repo)
+	h := NewHandler(svc)
+
+	body := map[string][]string{"dexes": {}}
+	b, _ := json.Marshal(body)
+	router := setupPerpHandlerRouter(h, false)
+	req, _ := http.NewRequest("PATCH", "/api/v1/admin/perp-dexes", bytes.NewBuffer(b))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}

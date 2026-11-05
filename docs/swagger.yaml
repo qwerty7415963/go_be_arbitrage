@@ -53,10 +53,24 @@ definitions:
       success:
         type: boolean
     type: object
+  appsettings.PerpDexSettings:
+    properties:
+      dexes:
+        items:
+          type: string
+        type: array
+    type: object
   appsettings.TelegramSettings:
     properties:
       max_wallets_per_user:
         type: integer
+    type: object
+  appsettings.updatePerpDexesRequest:
+    properties:
+      dexes:
+        items:
+          type: string
+        type: array
     type: object
   appsettings.updateSettingsRequest:
     properties:
@@ -2302,6 +2316,99 @@ info:
   title: Arbitrage Platform API
   version: "1.0"
 paths:
+  /api/v1/admin/perp-dexes:
+    get:
+      description: Get admin-configurable perp dex list. Requires JWT + admin role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/appsettings.PerpDexSettings'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get perp dex list
+      tags:
+      - admin-perp-dexes
+    patch:
+      consumes:
+      - application/json
+      description: Update admin-configurable perp dex list. Requires JWT + admin role.
+      parameters:
+      - description: Perp dexes to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/appsettings.updatePerpDexesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/appsettings.PerpDexSettings'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update perp dex list
+      tags:
+      - admin-perp-dexes
   /api/v1/admin/telegram/settings:
     get:
       description: Get admin-configurable Telegram settings. Requires JWT + admin

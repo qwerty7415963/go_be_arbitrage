@@ -253,3 +253,104 @@ func fetchPositionsForDexes(ctx context.Context, client perpDexClient, addr stri
 	}
 	return snap, nil
 }
+
+// openOrdersDexClient is the seam used by the open-orders multi-dex aggregation.
+type openOrdersDexClient interface {
+	FetchOpenOrders(ctx context.Context, address string, dex ...string) ([]hyperliquid.OpenOrder, error)
+}
+
+// fetchOpenOrdersAllDexes aggregates open orders across the default dex and the
+// configured perp dexes. Per-dex failures are non-fatal; an error is returned
+// only when every dex fails. Results are merged, deduplicated by oid, and sorted
+// by timestamp descending.
+func fetchOpenOrdersAllDexes(ctx context.Context, client any, addr string, dexes []string) ([]OrderDTO, error) {
+	c, ok := client.(openOrdersDexClient)
+	if !ok {
+		return nil, fmt.Errorf("client does not implement open orders dex seam")
+	}
+	if dexes == nil {
+		dexes = []string{}
+	}
+	jobs := make([]string, 0, 1+len(dexes))
+	jobs = append(jobs, "")
+	jobs = append(jobs, dexes...)
+
+	results := make([][]OrderDTO, len(jobs))
+	errs := make([]error, len(jobs))
+
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	for i, d := range jobs {
+		wg.Add(1)
+		go func(i int, d string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				errs[i] = ctx.Err()
+				return
+			}
+			defer func() { <-sem }()
+			var raw []hyperliquid.OpenOrder
+			var err error
+			if d == "" {
+				raw, err = c.FetchOpenOrders(ctx, addr)
+			} else {
+				raw, err = c.FetchOpenOrders(ctx, addr, d)
+			}
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			results[i] = mapOpenOrders(raw, false)
+		}(i, d)
+	}
+	wg.Wait()
+
+	success := 0
+	seen := make(map[int64]struct{})
+	merged := make([]OrderDTO, 0)
+	for i, rows := range results {
+		if errs[i] != nil && rows == nil {
+			// allow empty successful
+		}
+		if rows == nil && errs[i] != nil {
+			continue
+		}
+		// count as success if no error
+		if errs[i] == nil {
+			success++
+		}
+		for _, o := range rows {
+			if o.Oid != 0 {
+				if _, ok := seen[o.Oid]; ok {
+					continue
+				}
+				seen[o.Oid] = struct{}{}
+			}
+			merged = append(merged, o)
+		}
+	}
+	if success == 0 {
+		for _, e := range errs {
+			if e != nil {
+				return nil, e
+			}
+		}
+		return nil, fmt.Errorf("all dexes failed")
+	}
+	// sort timestamp DESC
+	for i := 1; i < len(merged); i++ {
+		for j := i; j > 0; j-- {
+			if merged[j].Timestamp.After(merged[j-1].Timestamp) {
+				merged[j], merged[j-1] = merged[j-1], merged[j]
+			} else {
+				break
+			}
+		}
+	}
+	if merged == nil {
+		merged = []OrderDTO{}
+	}
+	return merged, nil
+}

@@ -146,7 +146,7 @@ func (l *LiveClient) FetchUserFills(ctx context.Context, address string) ([]Fill
 }
 
 // FetchOpenOrders implements open orders (§1.5).
-func (l *LiveClient) FetchOpenOrders(ctx context.Context, address string) ([]OpenOrder, error) {
+func (l *LiveClient) FetchOpenOrders(ctx context.Context, address string, dex ...string) ([]OpenOrder, error) {
 	release, err := l.acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -154,7 +154,7 @@ func (l *LiveClient) FetchOpenOrders(ctx context.Context, address string) ([]Ope
 	defer release()
 	ctx2, cancel := l.singleCtx(ctx)
 	defer cancel()
-	return l.inner.FetchOpenOrders(ctx2, address)
+	return l.inner.FetchOpenOrders(ctx2, address, dex...)
 }
 
 // FetchHistoricalOrders implements historical orders (§1.5).

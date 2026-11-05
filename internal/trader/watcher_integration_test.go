@@ -35,7 +35,7 @@ func (f *watcherFakeLive) FetchUserFills(_ context.Context, _ string) ([]hyperli
 	return f.fills, nil
 }
 
-func (f *watcherFakeLive) FetchOpenOrders(_ context.Context, _ string) ([]hyperliquid.OpenOrder, error) {
+func (f *watcherFakeLive) FetchOpenOrders(_ context.Context, _ string, _ ...string) ([]hyperliquid.OpenOrder, error) {
 	return f.orders, nil
 }
 
