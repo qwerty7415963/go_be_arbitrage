@@ -139,6 +139,13 @@ func (a *HyperliquidAdapter) FetchAllFunding(ctx context.Context) ([]Hyperliquid
 			continue
 		}
 		c := ctxs[i]
+		// OI must be USD notional (consistent with Binance/Extended/Variational).
+		oi := ""
+		oiBase, _ := strconv.ParseFloat(c.OpenInterest, 64)
+		markP, _ := strconv.ParseFloat(c.MarkPx, 64)
+		if oiBase > 0 && markP > 0 {
+			oi = strconv.FormatFloat(oiBase*markP, 'f', -1, 64)
+		}
 		markets = append(markets, HyperliquidFundingData{
 			Symbol:    u.Name,
 			BaseAsset: u.Name,
@@ -150,7 +157,7 @@ func (a *HyperliquidAdapter) FetchAllFunding(ctx context.Context) ([]Hyperliquid
 			FundingRate: c.Funding,
 			MarkPrice:   c.MarkPx,
 			IndexPrice:  c.OraclePx,
-			OI:          c.OpenInterest,
+			OI:          oi,
 			ObservedAt:  now,
 		})
 	}

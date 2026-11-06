@@ -1435,3 +1435,18 @@ change.
 |----|------|----------|
 | PS-E-01 | existing `TestE2E_Trader_WalletTabsFlow` | performance still 200 with default `mode=perps` and series map |
 
+---
+
+### 19.21 Funding Arbitrage E2E
+
+Note: OI is USD notional (Hyperliquid converted in adapter; consistent with Binance/Extended/Variational).
+
+#### E2E (`//go:build e2e`)
+
+| ID | Case | Expected |
+|----|------|----------|
+| E2E-FND-01 | happy path | GET /api/v1/funding/arbitrage?venue_id=<A>,<B>: 200; exactly 1 pair; tokens len 1; symbol HUMA-PERP; funding_available=true; is_stale=false; venue_a_funding_rate 0.0001; venue_a_interval_seconds 28800; venue_a_oi 1000; venue_b_oi 2000; rate_1h_percent != nil; long_venue_id = lower-rate venue A; short = B; meta page=1 total_pages=1 has_more=false limit=50 |
+| E2E-FND-02 | stale | default: 0 tokens; include_stale=true: 1 token with is_stale=true |
+| E2E-FND-03 | pagination | 3 tokens (T1,T4,T5), limit=2: page1 2 tokens has_more=true total_pages=2; page2 1 token has_more=false |
+| E2E-FND-04 | validation | 1 venue -> 400; duplicate venue_id -> 400 |
+

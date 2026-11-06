@@ -69,7 +69,7 @@ func TestHyperliquidAdapter_FetchAllFunding_Valid(t *testing.T) {
 		t.Errorf("BTC identity: %+v", btc)
 	}
 	if btc.FundingRate != "0.0000125" || btc.MarkPrice != "67000.5" ||
-		btc.IndexPrice != "67001.0" || btc.OI != "100.5" {
+		btc.IndexPrice != "67001.0" || btc.OI != "6733550.25" {
 		t.Errorf("BTC fields: %+v", btc)
 	}
 	if time.Since(btc.ObservedAt) > time.Minute {

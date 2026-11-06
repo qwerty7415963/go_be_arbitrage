@@ -145,6 +145,9 @@ var expectedSecured = []string{
 	// admin telegram settings (JWT + admin role)
 	"GET /api/v1/admin/telegram/settings",
 	"PATCH /api/v1/admin/telegram/settings",
+	// admin perp-dexes (JWT + admin role) v1.6
+	"GET /api/v1/admin/perp-dexes",
+	"PATCH /api/v1/admin/perp-dexes",
 }
 
 // DOCS-S-02: exactly the JWT-protected endpoints are documented with
