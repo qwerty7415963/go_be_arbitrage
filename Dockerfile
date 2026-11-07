@@ -1,8 +1,6 @@
 # Build stage
 FROM golang:1.27.1-alpine AS builder
 
-ARG CACHEBUST=1
-
 RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app
@@ -14,11 +12,9 @@ RUN go mod download
 # Copy source
 COPY . .
 
-RUN echo "=== /app contents ==="; ls -la /app; echo "=== go files ==="; find /app -maxdepth 3 -name "*.go" | head -20; echo "=== go.mod ==="; head -3 /app/go.mod 2>/dev/null || echo "no go.mod at /app/go.mod"; true
-
 # Build with optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-w -s" -o /arbitrage-be .
+    go build -ldflags="-w -s" -o /arbitrage-be ./cmd/server
 
 # Runtime stage
 FROM alpine:3.21
