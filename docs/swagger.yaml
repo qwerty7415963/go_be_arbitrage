@@ -1495,6 +1495,122 @@ definitions:
       spot:
         $ref: '#/definitions/trader.SpotBalancesDTO'
     type: object
+  trader.BucketDetail:
+    properties:
+      as_of:
+        type: string
+      bucket_id:
+        type: string
+      coverage:
+        $ref: '#/definitions/trader.BucketDetailCoverage'
+      kind:
+        type: string
+      long_ratio:
+        type: number
+      markets_top:
+        items:
+          $ref: '#/definitions/trader.BucketMarketTop'
+        type: array
+      notional_split:
+        $ref: '#/definitions/trader.BucketNotionalSplit'
+      pnl_split:
+        $ref: '#/definitions/trader.BucketPnlSplit'
+      positioning:
+        items:
+          $ref: '#/definitions/trader.BucketPositioningPoint'
+        type: array
+      sentiment:
+        type: string
+      wallet_count:
+        type: integer
+    type: object
+  trader.BucketDetailCoverage:
+    properties:
+      wallets_with_positions:
+        type: integer
+      wallets_with_trades:
+        type: integer
+    type: object
+  trader.BucketMarketRow:
+    properties:
+      market:
+        type: string
+      notional_long:
+        type: number
+      notional_short:
+        type: number
+      pnl_loss:
+        type: number
+      pnl_profit:
+        type: number
+      sentiment:
+        type: string
+      traders_long:
+        type: integer
+      traders_short:
+        type: integer
+    type: object
+  trader.BucketMarketTop:
+    properties:
+      market:
+        type: string
+      notional:
+        type: number
+      sentiment:
+        type: string
+      traders:
+        type: integer
+      upnl:
+        type: number
+    type: object
+  trader.BucketNotionalSplit:
+    properties:
+      long_usd:
+        type: number
+      short_usd:
+        type: number
+    type: object
+  trader.BucketPnlSplit:
+    properties:
+      pct_loss:
+        type: number
+      pct_profit:
+        type: number
+      usd_loss:
+        type: number
+      usd_profit:
+        type: number
+    type: object
+  trader.BucketPositioningPoint:
+    properties:
+      long_pct:
+        type: number
+      t:
+        type: string
+    type: object
+  trader.BucketWalletRow:
+    properties:
+      address:
+        type: string
+      bias:
+        type: string
+      cohort:
+        type: string
+      display_name:
+        type: string
+      leverage:
+        type: number
+      perp_equity:
+        type: number
+      position_value:
+        type: number
+      realized_pnl:
+        type: number
+      volume_range:
+        type: number
+      win_rate:
+        type: number
+    type: object
   trader.DataStatus:
     enum:
     - ready
@@ -1623,6 +1739,88 @@ definitions:
       status:
         description: open | historical
         type: string
+    type: object
+  trader.OverviewAccountBucket:
+    properties:
+      equity_total:
+        type: number
+      id:
+        type: string
+      long_count:
+        type: integer
+      long_notional:
+        type: number
+      long_ratio:
+        type: number
+      max_equity:
+        type: number
+      min_equity:
+        type: number
+      sentiment:
+        type: string
+      series:
+        items:
+          $ref: '#/definitions/trader.OverviewPoint'
+        type: array
+      short_count:
+        type: integer
+      short_notional:
+        type: number
+      volume_total:
+        type: number
+      wallet_count:
+        type: integer
+    type: object
+  trader.OverviewBucket:
+    properties:
+      id:
+        type: string
+      long_count:
+        type: integer
+      long_notional:
+        type: number
+      long_ratio:
+        type: number
+      max_pnl:
+        type: number
+      min_pnl:
+        type: number
+      pnl_total:
+        type: number
+      sentiment:
+        type: string
+      series:
+        items:
+          $ref: '#/definitions/trader.OverviewPoint'
+        type: array
+      short_count:
+        type: integer
+      short_notional:
+        type: number
+      volume_total:
+        type: number
+      wallet_count:
+        type: integer
+    type: object
+  trader.OverviewCoverage:
+    properties:
+      account_value_wallets:
+        type: integer
+      data_status:
+        additionalProperties:
+          type: integer
+        type: object
+      pnl_wallets:
+        type: integer
+      series_wallets:
+        type: integer
+    type: object
+  trader.OverviewPoint:
+    properties:
+      t:
+        type: string
+      v:
+        type: number
     type: object
   trader.PerformanceDTO:
     properties:
@@ -1916,6 +2114,29 @@ definitions:
         items:
           $ref: '#/definitions/trader.SpotBalanceDTO'
         type: array
+    type: object
+  trader.TraderOverview:
+    properties:
+      account_buckets:
+        items:
+          $ref: '#/definitions/trader.OverviewAccountBucket'
+        type: array
+      as_of:
+        type: string
+      coverage:
+        $ref: '#/definitions/trader.OverviewCoverage'
+      period:
+        type: string
+      pnl_buckets:
+        items:
+          $ref: '#/definitions/trader.OverviewBucket'
+        type: array
+      pnl_metric:
+        type: string
+      universe_size:
+        type: integer
+      venue:
+        type: string
     type: object
   trader.TransferDTO:
     properties:
@@ -6980,6 +7201,340 @@ paths:
                   $ref: '#/definitions/api.ErrorBody'
               type: object
       summary: Trader transfers (public, on-demand)
+      tags:
+      - traders
+  /api/v1/traders/overview:
+    get:
+      description: Aggregate trader overview buckets (PnL + account) with series.
+      parameters:
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30D
+        description: Period
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - ALL
+        in: query
+        name: period
+        type: string
+      - default: realized_pnl
+        description: PnL metric
+        enum:
+        - pnl
+        - realized_pnl
+        in: query
+        name: pnl_metric
+        type: string
+      - default: 30
+        description: Series days 7..90
+        in: query
+        name: series_days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/trader.TraderOverview'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Trader overview (public)
+      tags:
+      - traders
+  /api/v1/traders/overview/buckets/{kind}/{id}:
+    get:
+      parameters:
+      - description: Bucket kind
+        enum:
+        - pnl
+        - account
+        in: path
+        name: kind
+        required: true
+        type: string
+      - description: Bucket id
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30D
+        description: Period
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - ALL
+        in: query
+        name: period
+        type: string
+      - default: 30D
+        description: Range
+        enum:
+        - 24H
+        - 7D
+        - 30D
+        in: query
+        name: range
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/trader.BucketDetail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Bucket detail (public)
+      tags:
+      - traders
+  /api/v1/traders/overview/buckets/{kind}/{id}/markets:
+    get:
+      parameters:
+      - description: Bucket kind
+        enum:
+        - pnl
+        - account
+        in: path
+        name: kind
+        required: true
+        type: string
+      - description: Bucket id
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30D
+        description: Period
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - ALL
+        in: query
+        name: period
+        type: string
+      - default: 30D
+        description: Range
+        enum:
+        - 24H
+        - 7D
+        - 30D
+        in: query
+        name: range
+        type: string
+      - description: Search market
+        in: query
+        name: search
+        type: string
+      - default: notional
+        description: Sort
+        enum:
+        - notional
+        - upnl
+        - traders
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Direction
+        enum:
+        - asc
+        - desc
+        in: query
+        name: dir
+        type: string
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Limit 1..100
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/trader.BucketMarketRow'
+                  type: array
+                meta:
+                  $ref: '#/definitions/api.Meta'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Bucket markets (public)
+      tags:
+      - traders
+  /api/v1/traders/overview/buckets/{kind}/{id}/wallets:
+    get:
+      parameters:
+      - description: Bucket kind
+        enum:
+        - pnl
+        - account
+        in: path
+        name: kind
+        required: true
+        type: string
+      - description: Bucket id
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30D
+        description: Period
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - ALL
+        in: query
+        name: period
+        type: string
+      - default: equity
+        description: Sort
+        enum:
+        - equity
+        - win_rate
+        - volume
+        - pnl
+        - bias
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Direction
+        enum:
+        - asc
+        - desc
+        in: query
+        name: dir
+        type: string
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Limit 1..100
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/trader.BucketWalletRow'
+                  type: array
+                meta:
+                  $ref: '#/definitions/api.Meta'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Bucket wallets (public)
       tags:
       - traders
   /api/v1/traders/search:

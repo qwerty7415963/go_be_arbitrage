@@ -24,6 +24,10 @@ type ServiceInterface interface {
 	Orders(ctx context.Context, venueCode, addr, status string, limit int) (*OrdersDTO, error)
 	Transfers(ctx context.Context, venueCode, addr string, days, limit int, cursor string) (*TransfersPage, error)
 	Performance(ctx context.Context, venueCode, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
+	Overview(ctx context.Context, venueCode, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
+	BucketDetail(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
+	BucketWallets(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
+	BucketMarkets(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error)
 }
 
 var _ ServiceInterface = (*Service)(nil)
@@ -56,6 +60,10 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, readMiddleware ...gin.
 	if len(readMiddleware) > 0 {
 		read.Use(readMiddleware...)
 	}
+	read.GET("/overview", h.Overview)
+	read.GET("/overview/buckets/:kind/:id", h.BucketDetail)
+	read.GET("/overview/buckets/:kind/:id/wallets", h.BucketWallets)
+	read.GET("/overview/buckets/:kind/:id/markets", h.BucketMarkets)
 	read.GET("/:wallet/positions", h.Positions)
 	read.GET("/:wallet/activity", h.Activity)
 	read.GET("/:wallet/balances", h.Balances)

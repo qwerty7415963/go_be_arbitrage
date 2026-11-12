@@ -10,19 +10,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
 
 type mockService struct {
-	searchFn      func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
-	detailFn      func(ctx context.Context, venue, addr, period string) (*Detail, error)
-	positionsFn   func(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error)
-	activityFn    func(ctx context.Context, venue, addr string, q ActivityQuery) (*ActivityPage, error)
-	balancesFn    func(ctx context.Context, venue, addr string) (*BalancesDTO, error)
-	fillsFn       func(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error)
-	ordersFn      func(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error)
-	transfersFn   func(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error)
-	performanceFn func(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
+	searchFn        func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
+	detailFn        func(ctx context.Context, venue, addr, period string) (*Detail, error)
+	positionsFn     func(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error)
+	activityFn      func(ctx context.Context, venue, addr string, q ActivityQuery) (*ActivityPage, error)
+	balancesFn      func(ctx context.Context, venue, addr string) (*BalancesDTO, error)
+	fillsFn         func(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error)
+	ordersFn        func(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error)
+	transfersFn     func(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error)
+	performanceFn   func(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
+	overviewFn      func(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
+	bucketDetailFn  func(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
+	bucketWalletsFn func(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
+	bucketMarketsFn func(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error)
 }
 
 func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
@@ -80,6 +85,34 @@ func (m *mockService) Performance(ctx context.Context, venue, addr, period, mode
 		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
 	return m.performanceFn(ctx, venue, addr, period, mode, seriesOnly)
+}
+
+func (m *mockService) Overview(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error) {
+	if m.overviewFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.overviewFn(ctx, venue, period, pnlMetric, seriesDays)
+}
+
+func (m *mockService) BucketDetail(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error) {
+	if m.bucketDetailFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.bucketDetailFn(ctx, venue, kind, id, period, rangeCode)
+}
+
+func (m *mockService) BucketWallets(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error) {
+	if m.bucketWalletsFn == nil {
+		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.bucketWalletsFn(ctx, venue, kind, id, period, sort, dir, page, limit)
+}
+
+func (m *mockService) BucketMarkets(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error) {
+	if m.bucketMarketsFn == nil {
+		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.bucketMarketsFn(ctx, venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
 }
 
 func testRouter(h *Handler, userID string) *gin.Engine {
@@ -427,3 +460,147 @@ func TestHandler_Performance_SeriesOnlyFalseDefault(t *testing.T) {
 		t.Errorf("metrics must be present")
 	}
 }
+
+func TestHandler_BucketDetail_DefaultsAndShape(t *testing.T) {
+	var gotVenue, gotKind, gotID, gotPeriod, gotRange string
+	h := NewHandler(&mockService{bucketDetailFn: func(_ context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error) {
+		gotVenue, gotKind, gotID, gotPeriod, gotRange = venue, kind, id, period, rangeCode
+		return &BucketDetail{Kind: kind, BucketID: id, WalletCount: 2}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	if gotVenue != "hyperliquid" || gotKind != "pnl" || gotID != "profitable" || gotPeriod != "30D" || gotRange != "30D" {
+		t.Errorf("defaults not forwarded: %q %q %q %q %q", gotVenue, gotKind, gotID, gotPeriod, gotRange)
+	}
+	var resp struct {
+		Success bool         `json:"success"`
+		Data    BucketDetail `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.Success || resp.Data.Kind != "pnl" || resp.Data.BucketID != "profitable" || resp.Data.WalletCount != 2 {
+		t.Errorf("shape: %+v", resp)
+	}
+}
+
+func TestHandler_BucketDetail_ErrorMapping(t *testing.T) {
+	h := NewHandler(&mockService{bucketDetailFn: func(_ context.Context, _, _, _, _, _ string) (*BucketDetail, error) {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "bucket not found")
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable", "")
+	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+
+	h2 := NewHandler(&mockService{bucketDetailFn: func(_ context.Context, _, _, _, _, _ string) (*BucketDetail, error) {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket id")
+	}})
+	w2 := doReq(t, testRouter(h2, ""), "GET", "/api/v1/traders/overview/buckets/pnl/bogus", "")
+	if w2.Code != http.StatusBadRequest || errCode(t, w2) != "INVALID_FILTER" {
+		t.Errorf("got %d %s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestHandler_BucketWallets_DefaultsAndShape(t *testing.T) {
+	var gotSort, gotDir string
+	var gotPage, gotLimit int
+	h := NewHandler(&mockService{bucketWalletsFn: func(_ context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error) {
+		gotSort, gotDir = sort, dir
+		gotPage, gotLimit = page, limit
+		return []BucketWalletRow{{Address: "0xabc", DisplayName: strPtr("name")}}, 1, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/account/whale/wallets", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	if gotSort != "equity" || gotDir != "desc" || gotPage != 1 || gotLimit != 20 {
+		t.Errorf("defaults not forwarded: sort=%q dir=%q page=%d limit=%d", gotSort, gotDir, gotPage, gotLimit)
+	}
+	var resp struct {
+		Success bool              `json:"success"`
+		Data    []BucketWalletRow `json:"data"`
+		Meta    *api.Meta         `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.Success || len(resp.Data) != 1 || resp.Data[0].Address != "0xabc" {
+		t.Errorf("shape: %+v", resp)
+	}
+	if resp.Meta == nil || resp.Meta.Total != 1 || resp.Meta.Page != 1 {
+		t.Errorf("meta: %+v", resp.Meta)
+	}
+}
+
+func TestHandler_BucketWallets_Validation(t *testing.T) {
+	h := NewHandler(&mockService{})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets?page=0", "")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("page=0: got %d %s", w.Code, w.Body.String())
+	}
+	w2 := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets?limit=101", "")
+	if w2.Code != http.StatusBadRequest {
+		t.Errorf("limit=101: got %d %s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestHandler_BucketWallets_ErrorMapping(t *testing.T) {
+	h := NewHandler(&mockService{bucketWalletsFn: func(_ context.Context, _, _, _, _, _, _ string, _, _ int) ([]BucketWalletRow, int, error) {
+		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "bucket not found")
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets", "")
+	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandler_BucketMarkets_DefaultsAndShape(t *testing.T) {
+	var gotRange, gotSort, gotDir, gotSearch string
+	var gotPage, gotLimit int
+	h := NewHandler(&mockService{bucketMarketsFn: func(_ context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error) {
+		gotRange, gotSort, gotDir, gotSearch = rangeCode, sort, dir, search
+		gotPage, gotLimit = page, limit
+		return []BucketMarketRow{{Market: "BTC", NotionalLong: 10}}, 1, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	if gotRange != "30D" || gotSort != "notional" || gotDir != "desc" || gotSearch != "" || gotPage != 1 || gotLimit != 20 {
+		t.Errorf("defaults: range=%q sort=%q dir=%q search=%q page=%d limit=%d", gotRange, gotSort, gotDir, gotSearch, gotPage, gotLimit)
+	}
+	var resp struct {
+		Success bool              `json:"success"`
+		Data    []BucketMarketRow `json:"data"`
+		Meta    *api.Meta         `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.Success || len(resp.Data) != 1 || resp.Data[0].Market != "BTC" {
+		t.Errorf("shape: %+v", resp)
+	}
+}
+
+func TestHandler_BucketMarkets_Validation(t *testing.T) {
+	h := NewHandler(&mockService{})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets?limit=0", "")
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("limit=0: got %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandler_BucketMarkets_ErrorMapping(t *testing.T) {
+	h := NewHandler(&mockService{bucketMarketsFn: func(_ context.Context, _, _, _, _, _, _, _, _ string, _, _ int) ([]BucketMarketRow, int, error) {
+		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "bucket not found")
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets", "")
+	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
+		t.Errorf("got %d %s", w.Code, w.Body.String())
+	}
+}
+
+func strPtr(s string) *string { return &s }

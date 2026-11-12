@@ -7347,6 +7347,535 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/traders/overview": {
+            "get": {
+                "description": "Aggregate trader overview buckets (PnL + account) with series.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader overview (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Period",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pnl",
+                            "realized_pnl"
+                        ],
+                        "type": "string",
+                        "default": "realized_pnl",
+                        "description": "PnL metric",
+                        "name": "pnl_metric",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Series days 7..90",
+                        "name": "series_days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/trader.TraderOverview"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/overview/buckets/{kind}/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Bucket detail (public)",
+                "parameters": [
+                    {
+                        "enum": [
+                            "pnl",
+                            "account"
+                        ],
+                        "type": "string",
+                        "description": "Bucket kind",
+                        "name": "kind",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Period",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "24H",
+                            "7D",
+                            "30D"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Range",
+                        "name": "range",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/trader.BucketDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/overview/buckets/{kind}/{id}/markets": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Bucket markets (public)",
+                "parameters": [
+                    {
+                        "enum": [
+                            "pnl",
+                            "account"
+                        ],
+                        "type": "string",
+                        "description": "Bucket kind",
+                        "name": "kind",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Period",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "24H",
+                            "7D",
+                            "30D"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Range",
+                        "name": "range",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search market",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "notional",
+                            "upnl",
+                            "traders"
+                        ],
+                        "type": "string",
+                        "default": "notional",
+                        "description": "Sort",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Direction",
+                        "name": "dir",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit 1..100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/trader.BucketMarketRow"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/api.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/overview/buckets/{kind}/{id}/wallets": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Bucket wallets (public)",
+                "parameters": [
+                    {
+                        "enum": [
+                            "pnl",
+                            "account"
+                        ],
+                        "type": "string",
+                        "description": "Bucket kind",
+                        "name": "kind",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bucket id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Period",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "equity",
+                            "win_rate",
+                            "volume",
+                            "pnl",
+                            "bias"
+                        ],
+                        "type": "string",
+                        "default": "equity",
+                        "description": "Sort",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Direction",
+                        "name": "dir",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit 1..100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/trader.BucketWalletRow"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/api.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/traders/search": {
             "post": {
                 "description": "Trader scan over period metrics (spec v1.1). Two additive pagination modes: legacy keyset cursor (no page field; next page via meta.cursor/has_more) and numbered pages (page \u003e= 1 selects LIMIT/OFFSET with offset=(page-1)*limit; a cursor in the same body is ignored; meta carries page/total/total_pages with total_pages=ceil(total/limit)). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.",
@@ -11608,6 +12137,184 @@ const docTemplate = `{
                 }
             }
         },
+        "trader.BucketDetail": {
+            "type": "object",
+            "properties": {
+                "as_of": {
+                    "type": "string"
+                },
+                "bucket_id": {
+                    "type": "string"
+                },
+                "coverage": {
+                    "$ref": "#/definitions/trader.BucketDetailCoverage"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "long_ratio": {
+                    "type": "number"
+                },
+                "markets_top": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.BucketMarketTop"
+                    }
+                },
+                "notional_split": {
+                    "$ref": "#/definitions/trader.BucketNotionalSplit"
+                },
+                "pnl_split": {
+                    "$ref": "#/definitions/trader.BucketPnlSplit"
+                },
+                "positioning": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.BucketPositioningPoint"
+                    }
+                },
+                "sentiment": {
+                    "type": "string"
+                },
+                "wallet_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "trader.BucketDetailCoverage": {
+            "type": "object",
+            "properties": {
+                "wallets_with_positions": {
+                    "type": "integer"
+                },
+                "wallets_with_trades": {
+                    "type": "integer"
+                }
+            }
+        },
+        "trader.BucketMarketRow": {
+            "type": "object",
+            "properties": {
+                "market": {
+                    "type": "string"
+                },
+                "notional_long": {
+                    "type": "number"
+                },
+                "notional_short": {
+                    "type": "number"
+                },
+                "pnl_loss": {
+                    "type": "number"
+                },
+                "pnl_profit": {
+                    "type": "number"
+                },
+                "sentiment": {
+                    "type": "string"
+                },
+                "traders_long": {
+                    "type": "integer"
+                },
+                "traders_short": {
+                    "type": "integer"
+                }
+            }
+        },
+        "trader.BucketMarketTop": {
+            "type": "object",
+            "properties": {
+                "market": {
+                    "type": "string"
+                },
+                "notional": {
+                    "type": "number"
+                },
+                "sentiment": {
+                    "type": "string"
+                },
+                "traders": {
+                    "type": "integer"
+                },
+                "upnl": {
+                    "type": "number"
+                }
+            }
+        },
+        "trader.BucketNotionalSplit": {
+            "type": "object",
+            "properties": {
+                "long_usd": {
+                    "type": "number"
+                },
+                "short_usd": {
+                    "type": "number"
+                }
+            }
+        },
+        "trader.BucketPnlSplit": {
+            "type": "object",
+            "properties": {
+                "pct_loss": {
+                    "type": "number"
+                },
+                "pct_profit": {
+                    "type": "number"
+                },
+                "usd_loss": {
+                    "type": "number"
+                },
+                "usd_profit": {
+                    "type": "number"
+                }
+            }
+        },
+        "trader.BucketPositioningPoint": {
+            "type": "object",
+            "properties": {
+                "long_pct": {
+                    "type": "number"
+                },
+                "t": {
+                    "type": "string"
+                }
+            }
+        },
+        "trader.BucketWalletRow": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "bias": {
+                    "type": "string"
+                },
+                "cohort": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "leverage": {
+                    "type": "number"
+                },
+                "perp_equity": {
+                    "type": "number"
+                },
+                "position_value": {
+                    "type": "number"
+                },
+                "realized_pnl": {
+                    "type": "number"
+                },
+                "volume_range": {
+                    "type": "number"
+                },
+                "win_rate": {
+                    "type": "number"
+                }
+            }
+        },
         "trader.DataStatus": {
             "type": "string",
             "enum": [
@@ -11794,6 +12501,131 @@ const docTemplate = `{
                 "status": {
                     "description": "open | historical",
                     "type": "string"
+                }
+            }
+        },
+        "trader.OverviewAccountBucket": {
+            "type": "object",
+            "properties": {
+                "equity_total": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "long_notional": {
+                    "type": "number"
+                },
+                "long_ratio": {
+                    "type": "number"
+                },
+                "max_equity": {
+                    "type": "number"
+                },
+                "min_equity": {
+                    "type": "number"
+                },
+                "sentiment": {
+                    "type": "string"
+                },
+                "series": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.OverviewPoint"
+                    }
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "short_notional": {
+                    "type": "number"
+                },
+                "volume_total": {
+                    "type": "number"
+                },
+                "wallet_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "trader.OverviewBucket": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "long_notional": {
+                    "type": "number"
+                },
+                "long_ratio": {
+                    "type": "number"
+                },
+                "max_pnl": {
+                    "type": "number"
+                },
+                "min_pnl": {
+                    "type": "number"
+                },
+                "pnl_total": {
+                    "type": "number"
+                },
+                "sentiment": {
+                    "type": "string"
+                },
+                "series": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.OverviewPoint"
+                    }
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "short_notional": {
+                    "type": "number"
+                },
+                "volume_total": {
+                    "type": "number"
+                },
+                "wallet_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "trader.OverviewCoverage": {
+            "type": "object",
+            "properties": {
+                "account_value_wallets": {
+                    "type": "integer"
+                },
+                "data_status": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "pnl_wallets": {
+                    "type": "integer"
+                },
+                "series_wallets": {
+                    "type": "integer"
+                }
+            }
+        },
+        "trader.OverviewPoint": {
+            "type": "object",
+            "properties": {
+                "t": {
+                    "type": "string"
+                },
+                "v": {
+                    "type": "number"
                 }
             }
         },
@@ -12240,6 +13072,41 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/trader.SpotBalanceDTO"
                     }
+                }
+            }
+        },
+        "trader.TraderOverview": {
+            "type": "object",
+            "properties": {
+                "account_buckets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.OverviewAccountBucket"
+                    }
+                },
+                "as_of": {
+                    "type": "string"
+                },
+                "coverage": {
+                    "$ref": "#/definitions/trader.OverviewCoverage"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "pnl_buckets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.OverviewBucket"
+                    }
+                },
+                "pnl_metric": {
+                    "type": "string"
+                },
+                "universe_size": {
+                    "type": "integer"
+                },
+                "venue": {
+                    "type": "string"
                 }
             }
         },

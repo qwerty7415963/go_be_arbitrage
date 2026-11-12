@@ -526,7 +526,7 @@ func (r *Repository) GetPositionSummary(ctx context.Context, venueID uuid.UUID, 
 // falls on day (UTC) in ONE transaction: DELETE the day window, then INSERT
 // the recomputed list. Empty lists still delete (a recompute that closed the
 // cycle must clear stale rows). Crash-safe recompute (DETAIL-PLAN A4).
-// Entry/exit/size (migration 000030) are written when present; pre-000030
+// Entry/exit/size (migration 000032) are written when present; pre-000032
 // rows keep NULL after the backfill window ages out.
 func (r *Repository) ReplaceTradesForDay(ctx context.Context, venueID uuid.UUID, addr string, day time.Time, trades []CompletedTrade) error {
 	day = day.UTC().Truncate(24 * time.Hour)
@@ -571,7 +571,7 @@ func (r *Repository) ReplaceTradesForDay(ctx context.Context, venueID uuid.UUID,
 // (closed_at DESC, market ASC, opened_at ASC). Pass afterClosedAt == nil for
 // the first page; otherwise the cursor triple from the previous page's last
 // row. The caller fetches limit+1 to detect has_more (DETAIL-PLAN A4).
-// Entry/exit/size added by migration 000030 (NULL for old rows).
+// Entry/exit/size added by migration 000032 (NULL for old rows).
 func (r *Repository) ListTrades(ctx context.Context, venueID uuid.UUID, addr string, limit int, afterClosedAt *time.Time, afterMarket string, afterOpenedAt *time.Time) ([]CompletedTradeRow, error) {
 	if limit <= 0 {
 		limit = 20

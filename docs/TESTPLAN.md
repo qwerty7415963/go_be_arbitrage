@@ -1450,3 +1450,93 @@ Note: OI is USD notional (Hyperliquid converted in adapter; consistent with Bina
 | E2E-FND-03 | pagination | 3 tokens (T1,T4,T5), limit=2: page1 2 tokens has_more=true total_pages=2; page2 1 token has_more=false |
 | E2E-FND-04 | validation | 1 venue -> 400; duplicate venue_id -> 400 |
 
+
+
+### 19.22 Trader Overview (contract v2.0)
+
+Endpoint: GET /api/v1/traders/overview. Public (no JWT).
+
+#### Unit (internal/trader/overview_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| OV-U-01 | PnLBucketFor boundaries | correct bucket for each threshold (pnl=0 excluded) |
+| OV-U-08 | PnL=0 excluded | PnLBucketFor(0) returns "" |
+| OV-U-09 | all zero PnL | empty buckets (no pnl buckets populated) |
+| OV-U-02 | AccountBucketFor boundaries | correct bucket |
+| OV-U-03 | Sentiment thresholds | correct label incl. zero total -> neutral |
+| OV-U-04 | LongRatio | correct ratio, zero total -> 0 |
+| OV-U-05 | ApproxNotional | correct split, zero total -> 0,0 |
+| OV-U-10 | ApproxNotional for account buckets | reuse helper; account bucket notional computed from volume/count |
+| OV-U-11 | account bucket sentiment | sentiment derived from long_count/short_count (reuse Sentiment tests) |
+| OV-U-06 | CumulativeSeries | carry forward missing days |
+
+#### Handler (internal/trader/handler_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| OV-H-01 | defaults | 200 with overviewFn called with defaults |
+| OV-H-02 | invalid period | 400 INVALID_FILTER |
+| OV-H-03 | invalid pnl_metric | 400 INVALID_FILTER |
+| OV-H-04 | invalid series_days | 400 INVALID_FILTER |
+| OV-H-05 | service error | 500 |
+
+#### Integration (//go:build integration)
+
+| ID | Case | Expected |
+|----|------|----------|
+| OV-I-01 | aggregate pnl buckets | correct counts/sums |
+| OV-I-02 | latest equity dedup | uses latest end_equity |
+| OV-I-03 | null equity excluded | not counted |
+| OV-I-04 | series window | only days within window |
+| OV-I-05 | venue/period isolation | empty for other venue/period |
+| OV-I-06 | data status counts | distribution matches |
+| OV-I-07 | volume aggregate for account buckets | volume sum and notional computed |
+| OV-I-08 | account bucket sentiment from counts | sentiment matches long_count/short_count ratio |
+
+#### E2E (//go:build e2e)
+
+| ID | Case | Expected |
+|----|------|----------|
+| OV-E-01 | TestE2E_TraderOverview | 200, 6 pnl buckets, 5 account buckets, coverage counts |
+| OV-E-02 | invalid params | 400 |
+| OV-E-06 | account bucket notional | seed volume; assert account bucket long_notional > 0 |
+| OV-E-07 | account bucket sentiment | assert account bucket sentiment != "neutral" when ratio is skewed |
+
+### 19.23 Bucket Detail (contract v2.1)
+
+Endpoint: GET /api/v1/traders/overview/buckets/:kind/:id (+ /wallets, /markets). Public (no JWT).
+
+#### Unit (internal/trader/overview_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| BD-U-01 | ValidBucketID | validates kind/id |
+| BD-U-02 | SentimentFloat | notional ratio sentiment |
+| BD-U-03 | rangeDays | 24H/7D/30D mapping |
+
+#### Handler (internal/trader/handler_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| BD-H-01 | bucket detail defaults | 200 |
+| BD-H-02 | invalid kind | 400 |
+| BD-H-03 | invalid bucket id | 400 |
+| BD-H-04 | invalid range | 400 |
+| BD-H-05 | not found | 404 |
+
+#### Integration (//go:build integration)
+
+| ID | Case | Expected |
+|----|------|----------|
+| BD-I-01 | bucket summary aggregates | correct wallet count, pnl split, notional |
+| BD-I-02 | positioning series | daily long share (positioning = snapshot notional, fallback trades) |
+| BD-I-03 | markets aggregation | positions/trades fallback |
+| BD-I-04 | wallets pagination/sort | correct order/pages |
+| BD-I-05 | retention | trades 60d, snapshots 30d |
+
+#### E2E (//go:build e2e)
+
+| ID | Case | Expected |
+|----|------|----------|
+| BD-E-01 | bucket detail endpoints | 200 with seeded data |

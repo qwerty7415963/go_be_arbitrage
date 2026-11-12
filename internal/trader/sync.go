@@ -101,6 +101,7 @@ type SyncService struct {
 	repo      *Repository
 	fetch     FillFetcher
 	portfolio PortfolioFetcher // optional; nil skips equity (V1.1 wiring sets it)
+	positions PositionFetcher  // optional; nil skips position persistence
 	venueID   uuid.UUID
 	opts      SyncOptions
 	logf      func(format string, args ...any)
@@ -115,6 +116,12 @@ func NewSyncService(repo *Repository, fetch FillFetcher, venueID uuid.UUID, opts
 // WithPortfolio enables the equity-curve job (V1.1); nil disables it.
 func (s *SyncService) WithPortfolio(p PortfolioFetcher) *SyncService {
 	s.portfolio = p
+	return s
+}
+
+// WithPositions enables durable position persistence for hot wallets.
+func (s *SyncService) WithPositions(p PositionFetcher) *SyncService {
+	s.positions = p
 	return s
 }
 
@@ -199,10 +206,25 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		now.Sub(*state.LastPortfolioSyncAt) >= s.opts.PortfolioInterval) {
 		s.syncEquity(ctx, addr, now)
 	}
-	// WS-E: positions-30s sync + durable trades writes removed. Detail is
-	// LIVE (§1.1 positions REST, §1.2 activity 30d); sync keeps daily/period
-	// for the scanner only (no ReplaceTradesForDay, no PruneTrades, no
-	// last_positions_sync_at writes here).
+
+	hot := false
+	if state.BackfillCompletedAt != nil {
+		var lastTrade *time.Time
+		_ = s.repo.pool.QueryRow(ctx, `
+			SELECT last_trade_at FROM trader_registry
+			WHERE venue_id = $1 AND wallet_address = $2`,
+			s.venueID, addr).Scan(&lastTrade)
+		tier := tierFor(lastTrade, true, now, s.opts.ColdAfter)
+		hot = tier == tierHot
+	}
+	if hot && s.positions != nil {
+		if snap, err := s.positions.FetchPositions(ctx, addr); err == nil && snap != nil {
+			_ = s.repo.ReplacePositions(ctx, s.venueID, addr, snap)
+		}
+	}
+
+	s.dailyPositionSnapshot(ctx, addr, now)
+
 	if err := s.recalcAll(ctx, addr, now, truncated, &now, false); err != nil {
 		return err
 	}
@@ -280,9 +302,9 @@ func (s *SyncService) recomputeAffected(ctx context.Context, addr string, fetche
 		if err := s.repo.UpsertDailyStats(ctx, row); err != nil {
 			return err
 		}
-		// WS-E: durable trades writes removed (ReplaceTradesForDay calls in
-		// the sync path). Detail activity is LIVE (§1.2 30d); sync keeps
-		// daily/period for the scanner only.
+		if err := s.repo.ReplaceTradesForDay(ctx, s.venueID, addr, day, byCloseDay[key]); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -410,6 +432,54 @@ func (s *SyncService) resolvePnL(ctx context.Context, addr, period string, reali
 		}
 	}
 	return realized
+}
+
+// dailyPositionSnapshot upserts today's position snapshot (idempotent).
+func (s *SyncService) dailyPositionSnapshot(ctx context.Context, addr string, now time.Time) {
+	positions, _ := s.repo.GetPositions(ctx, s.venueID, addr)
+	summary, _ := s.repo.GetPositionSummary(ctx, s.venueID, addr)
+	var longN, shortN float64
+	var upnlSum float64
+	hasUpnl := false
+	for _, p := range positions {
+		v := 0.0
+		if p.PositionValue != nil {
+			v = mathAbs(*p.PositionValue)
+		}
+		if p.Side == "LONG" {
+			longN += v
+		} else {
+			shortN += v
+		}
+		if p.UnrealizedPnl != nil {
+			upnlSum += *p.UnrealizedPnl
+			hasUpnl = true
+		}
+	}
+	var accountValue *float64
+	var asOf time.Time = now.UTC()
+	if summary != nil {
+		if summary.AccountValue != nil {
+			v := *summary.AccountValue
+			accountValue = &v
+		}
+		if !summary.AsOf.IsZero() {
+			asOf = summary.AsOf.UTC()
+		}
+	}
+	var upnl *float64
+	if hasUpnl {
+		v := upnlSum
+		upnl = &v
+	}
+	_ = s.repo.UpsertPositionSnapshotDaily(ctx, s.venueID, addr, now.UTC().Truncate(24*time.Hour), longN, shortN, accountValue, upnl, asOf)
+}
+
+func mathAbs(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func maxFillCursor(fills []Fill) (time.Time, *int64) {

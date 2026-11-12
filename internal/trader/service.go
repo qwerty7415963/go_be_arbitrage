@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,11 +49,25 @@ type Service struct {
 	onDemand    OnDemandClient
 	cache       *OnDemandCache
 	appSettings appSettingsProvider
+
+	overviewMu    sync.Mutex
+	overviewCache map[string]cachedOverview
+
+	bucketDetailMu     sync.Mutex
+	bucketDetailCache  map[string]cachedBucketDetail
+	bucketWalletsMu    sync.Mutex
+	bucketWalletsCache map[string]cachedBucketWallets
+	bucketMarketsMu    sync.Mutex
+	bucketMarketsCache map[string]cachedBucketMarkets
 }
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte, appSettings ...appSettingsProvider) *Service {
 	s := &Service{repo: repo, groups: groups, secret: cursorSecret,
-		cache: NewOnDemandCache(LiveCacheTTL)}
+		cache:              NewOnDemandCache(LiveCacheTTL),
+		overviewCache:      map[string]cachedOverview{},
+		bucketDetailCache:  map[string]cachedBucketDetail{},
+		bucketWalletsCache: map[string]cachedBucketWallets{},
+		bucketMarketsCache: map[string]cachedBucketMarkets{}}
 	if len(appSettings) > 0 {
 		s.appSettings = appSettings[0]
 	}
@@ -769,4 +784,26 @@ func activityPageFromSnapshot(s *Service, fp string, snap *LiveActivitySnapshot,
 		}
 	}
 	return page
+}
+
+type cachedOverview struct {
+	val TraderOverview
+	exp time.Time
+}
+
+type cachedBucketDetail struct {
+	val BucketDetail
+	exp time.Time
+}
+
+type cachedBucketWallets struct {
+	val   []BucketWalletRow
+	total int
+	exp   time.Time
+}
+
+type cachedBucketMarkets struct {
+	val   []BucketMarketRow
+	total int
+	exp   time.Time
 }

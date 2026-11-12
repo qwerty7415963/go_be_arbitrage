@@ -24,9 +24,11 @@ type RetentionResult struct {
 	FundingRates    int64 `json:"funding_rates"`
 	Opportunities   int64 `json:"opportunities"`
 	SystemEvents    int64 `json:"system_events"`
-	TraderDaily     int64 `json:"trader_daily"`
-	TraderEquity    int64 `json:"trader_equity"`
-	DeadTraders     int64 `json:"dead_traders"`
+	TraderDaily            int64 `json:"trader_daily"`
+	TraderEquity           int64 `json:"trader_equity"`
+	TraderTrades           int64 `json:"trader_trades"`
+	TraderPositionSnapshots int64 `json:"trader_position_snapshots"`
+	DeadTraders            int64 `json:"dead_traders"`
 }
 
 func (s *RetentionService) CleanupRawMarketEvents(ctx context.Context, maxAge time.Duration) (int64, error) {
@@ -138,6 +140,26 @@ func (s *RetentionService) CleanupTraderEquity(ctx context.Context, maxAge time.
 	return result.RowsAffected(), nil
 }
 
+// CleanupTraderTrades deletes durable closed trades older than maxAge.
+func (s *RetentionService) CleanupTraderTrades(ctx context.Context, maxAge time.Duration) (int64, error) {
+	query := `DELETE FROM trader_trades WHERE closed_at < NOW() - $1::interval`
+	result, err := s.db.Exec(ctx, query, maxAge.String())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+// CleanupTraderPositionSnapshotDaily deletes daily snapshots older than maxAge.
+func (s *RetentionService) CleanupTraderPositionSnapshotDaily(ctx context.Context, maxAge time.Duration) (int64, error) {
+	query := `DELETE FROM trader_position_snapshot_daily WHERE snapshot_date < CURRENT_DATE - $1::interval`
+	result, err := s.db.Exec(ctx, query, maxAge.String())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 // RunFullCleanup runs every table cleanup, continuing past per-table
 // failures (a missing/unavailable table must not block the rest). Returns
 // partial counts plus the joined errors, if any.
@@ -169,6 +191,10 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 		func() (int64, error) { return s.CleanupTraderDaily(ctx, config.TraderDailyMaxAge) })
 	run("trader_equity", func(n int64) { result.TraderEquity = n },
 		func() (int64, error) { return s.CleanupTraderEquity(ctx, config.TraderEquityMaxAge) })
+	run("trader_trades", func(n int64) { result.TraderTrades = n },
+		func() (int64, error) { return s.CleanupTraderTrades(ctx, config.TraderTradesMaxAge) })
+	run("trader_position_snapshots", func(n int64) { result.TraderPositionSnapshots = n },
+		func() (int64, error) { return s.CleanupTraderPositionSnapshotDaily(ctx, config.TraderPositionSnapshotDailyMaxAge) })
 	if config.TraderPruneEnabled {
 		run("dead_traders", func(n int64) { result.DeadTraders = n },
 			func() (int64, error) { return s.CleanupDeadTraders(ctx, config.TraderPruneStaleAfter) })
@@ -183,9 +209,11 @@ type RetentionConfig struct {
 	MarketTickersMaxAge   time.Duration
 	FundingRatesMaxAge    time.Duration
 	SystemEventsMaxAge    time.Duration
-	TraderDailyMaxAge     time.Duration
-	TraderEquityMaxAge    time.Duration
-	TraderPruneEnabled    bool
+	TraderDailyMaxAge                time.Duration
+	TraderEquityMaxAge               time.Duration
+	TraderTradesMaxAge               time.Duration
+	TraderPositionSnapshotDailyMaxAge time.Duration
+	TraderPruneEnabled               bool
 	TraderPruneStaleAfter time.Duration
 }
 
@@ -196,8 +224,10 @@ func DefaultRetentionConfig() RetentionConfig {
 		MarketTickersMaxAge:   30 * 24 * time.Hour,
 		FundingRatesMaxAge:    90 * 24 * time.Hour,
 		SystemEventsMaxAge:    90 * 24 * time.Hour,
-		TraderDailyMaxAge:     400 * 24 * time.Hour,
-		TraderEquityMaxAge:    400 * 24 * time.Hour,
+		TraderDailyMaxAge:                400 * 24 * time.Hour,
+		TraderEquityMaxAge:               400 * 24 * time.Hour,
+		TraderTradesMaxAge:               60 * 24 * time.Hour,
+		TraderPositionSnapshotDailyMaxAge: 30 * 24 * time.Hour,
 		TraderPruneEnabled:    true,
 		TraderPruneStaleAfter: 30 * 24 * time.Hour,
 	}
