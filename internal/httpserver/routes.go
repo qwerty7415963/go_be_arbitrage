@@ -9,6 +9,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/appsettings"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/assetlogo"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/execution"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/fundingarbitrage"
@@ -50,6 +51,7 @@ func (s *Server) SetupRoutes(
 	traderGroupHandler *tradergroup.Handler,
 	telegramHandler *telegram.Handler,
 	appSettingsHandler *appsettings.Handler,
+	assetLogoHandler *assetlogo.Handler,
 ) {
 	s.engine.Use(middleware.RequestID())
 	s.engine.Use(middleware.Logger(s.logger))
@@ -177,6 +179,10 @@ func (s *Server) SetupRoutes(
 		// are public; trader-groups require JWT.
 		traderHandler.RegisterRoutes(v1, Timeout(55*time.Second))
 		traderGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		adminTraders := v1.Group("/admin/traders")
+		adminTraders.Use(middleware.JWT(authService))
+		adminTraders.Use(middleware.RequireRole("admin"))
+		traderHandler.RegisterAdminRoutes(adminTraders)
 		if telegramHandler != nil {
 			telegramHandler.RegisterRoutes(v1, middleware.JWT(authService))
 		}
@@ -196,6 +202,21 @@ func (s *Server) SetupRoutes(
 				adminPerpDexes.PATCH("", appSettingsHandler.UpdatePerpDexes)
 			}
 		}
+		// Asset Logos
+		if assetLogoHandler != nil {
+			assetLogoRoutes := v1.Group("/assets")
+			{
+				assetLogoRoutes.GET("/logos/:assetId", assetLogoHandler.ServeLogo)
+			}
+			adminAssetLogos := v1.Group("/admin/assets/logos")
+			adminAssetLogos.Use(middleware.JWT(authService))
+			adminAssetLogos.Use(middleware.RequireRole("admin"))
+			{
+				adminAssetLogos.POST("/refresh", assetLogoHandler.RefreshLogos)
+				adminAssetLogos.GET("", assetLogoHandler.ListLogos)
+			}
+		}
+
 		// Storage & Audit
 		storageRoutes := v1.Group("/storage")
 		{

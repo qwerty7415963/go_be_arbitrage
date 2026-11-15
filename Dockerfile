@@ -28,7 +28,7 @@ RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup -h /app -s /sbin/nologin
 
 # Security: create required directories with proper ownership
-RUN mkdir -p /app/data /app/logs /app/config && \
+RUN mkdir -p /app/data /app/data/logos /app/logs /app/config && \
     chown -R appuser:appgroup /app
 
 WORKDIR /app

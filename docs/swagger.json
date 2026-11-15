@@ -20,6 +20,132 @@
     "host": "localhost:8080",
     "basePath": "/",
     "paths": {
+        "/api/v1/admin/assets/logos": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List asset logos filtered by status. Requires JWT + admin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-assets"
+                ],
+                "summary": "List asset logos by status",
+                "parameters": [
+                    {
+                        "enum": [
+                            "missing",
+                            "error",
+                            "pending"
+                        ],
+                        "type": "string",
+                        "description": "Status filter",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/assets/logos/refresh": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Enqueue logo resolution jobs. Requires JWT + admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-assets"
+                ],
+                "summary": "Refresh asset logos",
+                "parameters": [
+                    {
+                        "description": "Refresh request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/assetlogo.refreshLogosRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/perp-dexes": {
             "get": {
                 "security": [
@@ -367,6 +493,163 @@
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/traders/sync-positions": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Fetches, persists and snapshots positions for the resolved wallets.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Manually sync trader positions (admin)",
+                "parameters": [
+                    {
+                        "description": "venue, kind, bucket, period, limit, wallets",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/trader.SyncPositionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/trader.SyncPositionsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/assets/logos/{assetId}": {
+            "get": {
+                "description": "Serve a stored asset logo file.",
+                "produces": [
+                    "image/png",
+                    "image/webp",
+                    "image/jpeg"
+                ],
+                "tags": [
+                    "assets"
+                ],
+                "summary": "Get asset logo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset ID",
+                        "name": "assetId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Response"
                         }
                     }
                 }
@@ -10071,6 +10354,20 @@
                 }
             }
         },
+        "assetlogo.refreshLogosRequest": {
+            "type": "object",
+            "properties": {
+                "all": {
+                    "type": "boolean"
+                },
+                "asset_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "auth.AuthResponse": {
             "type": "object",
             "properties": {
@@ -12153,11 +12450,17 @@
                 "long_ratio": {
                     "type": "number"
                 },
+                "markets_source": {
+                    "type": "string"
+                },
                 "markets_top": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/trader.BucketMarketTop"
                     }
+                },
+                "notional_source": {
+                    "type": "string"
                 },
                 "notional_split": {
                     "$ref": "#/definitions/trader.BucketNotionalSplit"
@@ -12193,6 +12496,15 @@
         "trader.BucketMarketRow": {
             "type": "object",
             "properties": {
+                "asset_category": {
+                    "type": "string"
+                },
+                "asset_id": {
+                    "type": "string"
+                },
+                "logo_url": {
+                    "type": "string"
+                },
                 "market": {
                     "type": "string"
                 },
@@ -12222,6 +12534,15 @@
         "trader.BucketMarketTop": {
             "type": "object",
             "properties": {
+                "asset_category": {
+                    "type": "string"
+                },
+                "asset_id": {
+                    "type": "string"
+                },
+                "logo_url": {
+                    "type": "string"
+                },
                 "market": {
                     "type": "string"
                 },
@@ -12303,6 +12624,9 @@
                     "type": "number"
                 },
                 "realized_pnl": {
+                    "type": "number"
+                },
+                "sum_upnl": {
                     "type": "number"
                 },
                 "volume_range": {
@@ -13070,6 +13394,63 @@
                     "items": {
                         "$ref": "#/definitions/trader.SpotBalanceDTO"
                     }
+                }
+            }
+        },
+        "trader.SyncPositionsError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "wallet": {
+                    "type": "string"
+                }
+            }
+        },
+        "trader.SyncPositionsRequest": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "wallets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "trader.SyncPositionsResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.SyncPositionsError"
+                    }
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "requested": {
+                    "type": "integer"
+                },
+                "synced": {
+                    "type": "integer"
                 }
             }
         },

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/appsettings"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/assetlogo"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/assetlogo/providers"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/auth"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/collector"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
@@ -49,6 +51,10 @@ type App struct {
 	unifiedService     *unifiedstate.Service
 	storageHandler     *storage.Handler
 	retentionService   *storage.RetentionService
+	assetLogoStorage   assetlogo.LogoStorage
+	assetLogoCache     *assetlogo.Cache
+	assetLogoResolver  *assetlogo.Resolver
+	assetLogoHandler   *assetlogo.Handler
 	authHandler        *auth.Handler
 	collector          *collector.Collector
 	opportunityService *opportunity.Service
@@ -99,6 +105,22 @@ func New(cfg *config.Config) (*App, error) {
 	instrumentRepo := instrument.NewRepository(db.Pool())
 	instrumentService := instrument.NewService(instrumentRepo)
 	instrumentHandler := instrument.NewHandler(instrumentService)
+
+	assetLogoRepo := assetlogo.NewRepository(db.Pool())
+	if err := assetlogo.Seed(ctx, assetLogoRepo); err != nil {
+		log.Warn("failed to seed asset logos", "error", err)
+	}
+
+	assetLogoStorage := assetlogo.NewLocalStorage(cfg.LogoDir)
+	assetLogoCache := assetlogo.NewCache()
+	assetLogoCache.ReadyTTL = time.Duration(cfg.LogoRefreshDays) * 24 * time.Hour
+	assetLogoCache.NegativeTTL = time.Duration(cfg.LogoNegativeDays) * 24 * time.Hour
+
+	twProvider := &providers.TrustWalletProvider{Client: assetlogo.NewSafeHTTPClient()}
+	ldProvider := &providers.LogoDevProvider{SecretKey: cfg.LogoDevSecretKey, Client: assetlogo.NewSafeHTTPClient()}
+	assetLogoResolver := assetlogo.NewResolver(assetLogoRepo, assetLogoStorage, assetLogoCache, twProvider, ldProvider)
+	assetLogoResolver.Workers = cfg.LogoWorkers
+	assetLogoHandler := assetlogo.NewHandler(assetLogoResolver, assetLogoStorage, assetLogoRepo, assetLogoCache)
 
 	rawEventRepo := market.NewRawEventRepository(db.Pool())
 	normalizedEventRepo := market.NewNormalizedEventRepository(db.Pool())
@@ -174,7 +196,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	traderGroupRepo := tradergroup.NewRepository(db.Pool(), appSettingsService)
 	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
-	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret).WithAppSettings(appSettingsService)
+	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret).WithAppSettings(appSettingsService).WithAssetLogoResolver(assetLogoResolver)
 	traderHandler := trader.NewHandler(traderService)
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
 
@@ -242,7 +264,8 @@ func New(cfg *config.Config) (*App, error) {
 		// /sync priority lane). Live reads use hlLive (WS-A).
 		traderSyncSvc = trader.NewSyncService(traderRepo,
 			trader.HLFillAdapter{C: hlClient}, venueID, traderSyncOptions()).
-			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient})
+			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient}).
+			WithPositions(trader.HLPositionAdapter{C: hlClient})
 		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
 		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
 			func(evs []hyperliquid.WSTradeEvent) { wsHarvest.Submit(trader.AdaptWSBatch(evs)) })
@@ -274,8 +297,12 @@ func New(cfg *config.Config) (*App, error) {
 		fundingArbitrageCache,
 	)
 
+	if traderSyncSvc != nil {
+		traderHandler.WithSync(traderSyncSvc)
+	}
+
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, telegramHandler, appSettingsHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, telegramHandler, appSettingsHandler, assetLogoHandler)
 
 	return &App{
 		config:             cfg,
@@ -307,6 +334,10 @@ func New(cfg *config.Config) (*App, error) {
 		notifySupervisor:   notifySupervisor,
 		notifyDispatcher:   notifyDispatcher,
 		notifyWorker:       notifyWorker,
+		assetLogoStorage:   assetLogoStorage,
+		assetLogoCache:     assetLogoCache,
+		assetLogoResolver:  assetLogoResolver,
+		assetLogoHandler:   assetLogoHandler,
 	}, nil
 }
 
@@ -406,6 +437,29 @@ func runWSTradeDiscovery(ctx context.Context, log *logger.Logger, client *hyperl
 	}
 }
 
+// runLogoCleanupWorker scans the logo storage dir daily and removes orphan files.
+func runLogoCleanupWorker(ctx context.Context, log *logger.Logger, r *assetlogo.Resolver) {
+	run := func() {
+		n, err := r.CleanupOrphans(ctx)
+		if err != nil {
+			log.Warn("logo cleanup partial", "error", err)
+			return
+		}
+		log.Info("logo cleanup finished", "deleted", n)
+	}
+	run()
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
 func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -424,6 +478,28 @@ func (a *App) Run() error {
 	// POST /api/v1/storage/retention/cleanup.
 	if a.retentionService != nil {
 		go runRetentionWorker(ctx, a.logger, a.retentionService)
+	}
+
+	if a.assetLogoResolver != nil {
+		a.assetLogoResolver.Start(ctx)
+		go func() {
+			a.assetLogoResolver.Prewarm(ctx)
+		}()
+		go func() {
+			runLogoCleanupWorker(ctx, a.logger, a.assetLogoResolver)
+		}()
+		go func() {
+			ticker := time.NewTicker(24 * time.Hour)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					a.assetLogoResolver.Prewarm(ctx)
+				}
+			}
+		}()
 	}
 
 	// Start Trader Scanner workers (WS-E: scanner only): leaderboard discovery
@@ -488,6 +564,10 @@ func (a *App) Shutdown(ctx context.Context) error {
 
 	if err := a.httpServer.Shutdown(shutdownCtx); err != nil {
 		a.logger.Error("shutdown http server", "error", err)
+	}
+
+	if a.assetLogoResolver != nil {
+		a.assetLogoResolver.Stop()
 	}
 
 	a.database.Close()

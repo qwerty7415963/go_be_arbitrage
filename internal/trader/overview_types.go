@@ -1,5 +1,7 @@
 package trader
 
+import "github.com/google/uuid"
+
 // TraderOverview is the trader overview aggregate.
 type TraderOverview struct {
 	AsOf           string                  `json:"as_of"`
@@ -62,17 +64,19 @@ type OverviewCoverage struct {
 
 // BucketDetail is the bucket detail aggregate.
 type BucketDetail struct {
-	AsOf          string                   `json:"as_of"`
-	Kind          string                   `json:"kind"`
-	BucketID      string                   `json:"bucket_id"`
-	WalletCount   int                      `json:"wallet_count"`
-	Sentiment     string                   `json:"sentiment"`
-	LongRatio     float64                  `json:"long_ratio"`
-	PnlSplit      BucketPnlSplit           `json:"pnl_split"`
-	NotionalSplit BucketNotionalSplit      `json:"notional_split"`
-	Positioning   []BucketPositioningPoint `json:"positioning"`
-	MarketsTop    []BucketMarketTop        `json:"markets_top"`
-	Coverage      BucketDetailCoverage     `json:"coverage"`
+	AsOf           string                   `json:"as_of"`
+	Kind           string                   `json:"kind"`
+	BucketID       string                   `json:"bucket_id"`
+	MarketsSource  string                   `json:"markets_source"`
+	NotionalSource string                   `json:"notional_source"`
+	WalletCount    int                      `json:"wallet_count"`
+	Sentiment      string                   `json:"sentiment"`
+	LongRatio      float64                  `json:"long_ratio"`
+	PnlSplit       BucketPnlSplit           `json:"pnl_split"`
+	NotionalSplit  BucketNotionalSplit      `json:"notional_split"`
+	Positioning    []BucketPositioningPoint `json:"positioning"`
+	MarketsTop     []BucketMarketTop        `json:"markets_top"`
+	Coverage       BucketDetailCoverage     `json:"coverage"`
 }
 
 type BucketPnlSplit struct {
@@ -93,11 +97,14 @@ type BucketPositioningPoint struct {
 }
 
 type BucketMarketTop struct {
-	Market    string  `json:"market"`
-	Notional  float64 `json:"notional"`
-	Upnl      float64 `json:"upnl"`
-	Sentiment string  `json:"sentiment"`
-	Traders   int     `json:"traders"`
+	Market        string    `json:"market"`
+	Notional      float64   `json:"notional"`
+	Upnl          float64   `json:"upnl"`
+	Sentiment     string    `json:"sentiment"`
+	Traders       int       `json:"traders"`
+	AssetID       uuid.UUID `json:"asset_id"`
+	AssetCategory string    `json:"asset_category"`
+	LogoURL       string    `json:"logo_url"`
 }
 
 type BucketDetailCoverage struct {
@@ -106,28 +113,32 @@ type BucketDetailCoverage struct {
 }
 
 type BucketWalletRow struct {
-	Address       string  `json:"address"`
-	DisplayName   *string `json:"display_name"`
-	PerpEquity    float64 `json:"perp_equity"`
-	PositionValue float64 `json:"position_value"`
-	Leverage      float64 `json:"leverage"`
-	WinRate       float64 `json:"win_rate"`
-	VolumeRange   float64 `json:"volume_range"`
-	RealizedPnl   float64 `json:"realized_pnl"`
-	Bias          string  `json:"bias"`
-	Cohort        string  `json:"cohort"`
+	Address       string   `json:"address"`
+	DisplayName   *string  `json:"display_name"`
+	PerpEquity    float64  `json:"perp_equity"`
+	PositionValue *float64 `json:"position_value"`
+	SumUpnl       *float64 `json:"sum_upnl"`
+	Leverage      float64  `json:"leverage"`
+	WinRate       *float64 `json:"win_rate"`
+	VolumeRange   *float64 `json:"volume_range"`
+	RealizedPnl   *float64 `json:"realized_pnl"`
+	Bias          string   `json:"bias"`
+	Cohort        string   `json:"cohort"`
 
 	LongCount  int64 `json:"-"`
 	ShortCount int64 `json:"-"`
 }
 
 type BucketMarketRow struct {
-	Market        string  `json:"market"`
-	Sentiment     string  `json:"sentiment"`
-	NotionalLong  float64 `json:"notional_long"`
-	NotionalShort float64 `json:"notional_short"`
-	TradersLong   int     `json:"traders_long"`
-	TradersShort  int     `json:"traders_short"`
-	PnlProfit     float64 `json:"pnl_profit"`
-	PnlLoss       float64 `json:"pnl_loss"`
+	Market        string    `json:"market"`
+	Sentiment     string    `json:"sentiment"`
+	NotionalLong  float64   `json:"notional_long"`
+	NotionalShort float64   `json:"notional_short"`
+	TradersLong   int       `json:"traders_long"`
+	TradersShort  int       `json:"traders_short"`
+	PnlProfit     float64   `json:"pnl_profit"`
+	PnlLoss       float64   `json:"pnl_loss"`
+	AssetID       uuid.UUID `json:"asset_id"`
+	AssetCategory string    `json:"asset_category"`
+	LogoURL       string    `json:"logo_url"`
 }

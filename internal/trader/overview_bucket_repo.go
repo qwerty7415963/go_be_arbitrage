@@ -2,6 +2,7 @@ package trader
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -258,11 +259,12 @@ type repoBucketWallet struct {
 	Address       string
 	DisplayName   *string
 	PerpEquity    float64
-	PositionValue float64
+	PositionValue *float64
+	SumUpnl       *float64
 	Leverage      float64
-	WinRate       float64
-	VolumeRange   float64
-	RealizedPnl   float64
+	WinRate       *float64
+	VolumeRange   *float64
+	RealizedPnl   *float64
 	LongCount     int64
 	ShortCount    int64
 }
@@ -298,11 +300,11 @@ func (r *Repository) BucketWallets(ctx context.Context, venueID uuid.UUID, kind,
 	sortExpr := "COALESCE(e.end_equity, 0)"
 	switch sort {
 	case "win_rate":
-		sortExpr = "COALESCE(m.win_rate, 0)"
+		sortExpr = "m.win_rate"
 	case "volume":
-		sortExpr = "COALESCE(tv.volume, m.volume, 0)"
+		sortExpr = "COALESCE(tv.volume, m.volume)"
 	case "pnl":
-		sortExpr = "COALESCE(m.realized_pnl, 0)"
+		sortExpr = "m.realized_pnl"
 	case "bias":
 		sortExpr = "COALESCE(m.long_count, 0)::float / NULLIF(COALESCE(m.long_count, 0) + COALESCE(m.short_count, 0), 0)"
 	}
@@ -326,13 +328,13 @@ func (r *Repository) BucketWallets(ctx context.Context, venueID uuid.UUID, kind,
 		)
 		SELECT r.wallet_address, r.display_name,
 		       COALESCE(e.end_equity, 0) AS perp_equity,
-		       COALESCE(p.pos_value, 0) AS position_value,
+		       p.pos_value AS position_value,
 		       CASE WHEN COALESCE(s.account_value, 0) <> 0
 		            THEN COALESCE(s.total_ntl_pos, 0) / s.account_value
 		            ELSE COALESCE(p.avg_leverage, 0) END AS leverage,
-		       COALESCE(m.win_rate, 0) AS win_rate,
-		       COALESCE(tv.volume, m.volume, 0) AS volume_range,
-		       COALESCE(m.realized_pnl, 0) AS realized_pnl,
+		       m.win_rate AS win_rate,
+		       COALESCE(tv.volume, m.volume) AS volume_range,
+		       m.realized_pnl AS realized_pnl,
 		       COALESCE(m.long_count, 0)::bigint AS long_count,
 		       COALESCE(m.short_count, 0)::bigint AS short_count
 		FROM bucket_wallets bw
@@ -350,7 +352,7 @@ func (r *Repository) BucketWallets(ctx context.Context, venueID uuid.UUID, kind,
 		  ON p.venue_id = $1 AND p.wallet_address = bw.wallet_address
 		LEFT JOIN tradevol tv
 		  ON tv.venue_id = $1 AND tv.wallet_address = bw.wallet_address
-		ORDER BY ` + sortExpr + ` ` + dir + `, r.wallet_address ASC
+		ORDER BY ` + sortExpr + ` ` + dir + ` NULLS LAST, r.wallet_address ASC
 		LIMIT $4 OFFSET $5`
 	rows, err := r.pool.Query(ctx, q, venueID, period, rangeStart, limit, offset)
 	if err != nil {
@@ -360,10 +362,15 @@ func (r *Repository) BucketWallets(ctx context.Context, venueID uuid.UUID, kind,
 	var out []repoBucketWallet
 	for rows.Next() {
 		var w repoBucketWallet
-		if err := rows.Scan(&w.Address, &w.DisplayName, &w.PerpEquity, &w.PositionValue,
+		var posValue sql.NullFloat64
+		if err := rows.Scan(&w.Address, &w.DisplayName, &w.PerpEquity, &posValue,
 			&w.Leverage, &w.WinRate, &w.VolumeRange, &w.RealizedPnl,
 			&w.LongCount, &w.ShortCount); err != nil {
 			return nil, 0, err
+		}
+		if posValue.Valid {
+			v := posValue.Float64
+			w.PositionValue = &v
 		}
 		out = append(out, w)
 	}
@@ -371,7 +378,7 @@ func (r *Repository) BucketWallets(ctx context.Context, venueID uuid.UUID, kind,
 }
 
 // BucketMarkets returns paginated market aggregates for a bucket.
-func (r *Repository) BucketMarkets(ctx context.Context, venueID uuid.UUID, wallets []string, rangeStart time.Time, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error) {
+func (r *Repository) BucketMarkets(ctx context.Context, venueID uuid.UUID, wallets []string, rangeStart time.Time, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -385,12 +392,14 @@ func (r *Repository) BucketMarkets(ctx context.Context, venueID uuid.UUID, walle
 	if err := r.pool.QueryRow(ctx, `
 		SELECT COUNT(*)::int FROM trader_positions
 		WHERE venue_id = $1 AND wallet_address = ANY($2)`, venueID, wallets).Scan(&posCount); err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 	if posCount > 0 {
-		return r.bucketMarketsPositions(ctx, venueID, wallets, search, sort, dir, page, limit)
+		rows, total, err := r.bucketMarketsPositions(ctx, venueID, wallets, search, sort, dir, page, limit)
+		return rows, total, "positions", err
 	}
-	return r.bucketMarketsTrades(ctx, venueID, wallets, rangeStart, search, sort, dir, page, limit)
+	rows, total, err := r.bucketMarketsTrades(ctx, venueID, wallets, rangeStart, search, sort, dir, page, limit)
+	return rows, total, "trades", err
 }
 
 func (r *Repository) bucketMarketsPositions(ctx context.Context, venueID uuid.UUID, wallets []string, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error) {
@@ -504,6 +513,47 @@ func (r *Repository) bucketMarketsTrades(ctx context.Context, venueID uuid.UUID,
 		out = append(out, m)
 	}
 	return out, total, rows.Err()
+}
+
+// AssetAliasInfo is the resolved asset metadata for a venue symbol.
+type AssetAliasInfo struct {
+	AssetID  uuid.UUID
+	Category string
+	LogoURL  string
+}
+
+// GetAssetAliasesByVenueSymbols resolves asset metadata for a set of venue symbols.
+func (r *Repository) GetAssetAliasesByVenueSymbols(ctx context.Context, venueID uuid.UUID, symbols []string) (map[string]AssetAliasInfo, error) {
+	out := make(map[string]AssetAliasInfo)
+	if len(symbols) == 0 {
+		return out, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT aa.venue_symbol, a.id, a.asset_class,
+			COALESCE((SELECT al.storage_path FROM asset_logos al WHERE al.asset_id = a.id AND al.status = 'found' AND al.storage_path IS NOT NULL LIMIT 1), '') AS storage_path,
+			COALESCE((SELECT al.url FROM asset_logos al WHERE al.asset_id = a.id AND al.status = 'found' AND al.url IS NOT NULL AND al.url <> '' LIMIT 1), '') AS logo_url
+		FROM asset_aliases aa
+		JOIN assets a ON a.id = aa.asset_id
+		WHERE aa.venue_id = $1 AND aa.venue_symbol = ANY($2)`, venueID, symbols)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var symbol string
+		var assetID uuid.UUID
+		var category string
+		var storagePath string
+		var logoURL string
+		if err := rows.Scan(&symbol, &assetID, &category, &storagePath, &logoURL); err != nil {
+			return nil, err
+		}
+		if logoURL == "" && storagePath != "" {
+			logoURL = "/api/v1/assets/logos/" + assetID.String()
+		}
+		out[symbol] = AssetAliasInfo{AssetID: assetID, Category: category, LogoURL: logoURL}
+	}
+	return out, rows.Err()
 }
 
 // UpsertPositionSnapshotDaily upserts a daily position snapshot row.

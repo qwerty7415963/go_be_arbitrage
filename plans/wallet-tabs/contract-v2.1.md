@@ -80,7 +80,7 @@ Bucket membership predicate (shared with overview):
 - pnl kind: trader_period_metrics WHERE venue_id AND period AND bucket_of(pnl_metric) = id AND pnl IS NOT NULL AND pnl <> 0
 - account kind: latest trader_equity_daily.end_equity in bucket range (end_equity > 0)
 
-Positioning series: daily long share by trade volume (from trader_trades) over range. If no trades, fall back to trader_daily_stats long_count/short_count share.
+Positioning series: daily long share by notional from trader_position_snapshot_daily over range, carrying forward the last real value only after the first real data point; falls back to trader_trades volume (and then trader_daily_stats long_count/short_count share) when no snapshots exist. Empty array when no data.
 
 Markets top: aggregate trader_positions by market (coin) for wallets in bucket: notional = SUM(|position_value|), upnl = SUM(unrealized_pnl), sentiment from long/short notional ratio, traders = COUNT(DISTINCT wallet). Top 12 by notional desc. If no positions, aggregate trader_trades by market: notional = SUM(volume), upnl = SUM(pnl), sentiment from side volume ratio, traders = COUNT(DISTINCT wallet).
 

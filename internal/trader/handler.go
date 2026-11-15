@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -27,7 +28,7 @@ type ServiceInterface interface {
 	Overview(ctx context.Context, venueCode, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
 	BucketDetail(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
 	BucketWallets(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
-	BucketMarkets(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error)
+	BucketMarkets(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error)
 }
 
 var _ ServiceInterface = (*Service)(nil)
@@ -36,8 +37,9 @@ var _ ServiceInterface = (*Service)(nil)
 // (LIVE-CONTRACT v1.2 §1.1-§1.7, no sync dependency). WS-E: POST /sync +
 // priority lane removed (§1.9); scanner keeps its own sync (untouched).
 type Handler struct {
-	svc ServiceInterface
-	ws  *ActivityWSHandler
+	svc  ServiceInterface
+	ws   *ActivityWSHandler
+	sync *SyncService
 }
 
 func NewHandler(svc ServiceInterface) *Handler { return &Handler{svc: svc} }
@@ -47,6 +49,17 @@ func NewHandler(svc ServiceInterface) *Handler { return &Handler{svc: svc} }
 func (h *Handler) WithWS(ws *ActivityWSHandler) *Handler {
 	h.ws = ws
 	return h
+}
+
+// WithSync attaches the sync service used by the manual position sync trigger.
+func (h *Handler) WithSync(sync *SyncService) *Handler {
+	h.sync = sync
+	return h
+}
+
+// RegisterAdminRoutes registers admin-only trader routes.
+func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup) {
+	router.POST("/sync-positions", h.SyncPositions)
 }
 
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup, readMiddleware ...gin.HandlerFunc) {
@@ -373,4 +386,147 @@ func (h *Handler) Performance(c *gin.Context) {
 		return
 	}
 	api.RespondSuccess(c, d)
+}
+
+// SyncPositionsRequest is the body for POST /api/v1/admin/traders/sync-positions.
+type SyncPositionsRequest struct {
+	Venue   string   `json:"venue"`
+	Kind    string   `json:"kind"`
+	Bucket  string   `json:"bucket"`
+	Period  string   `json:"period"`
+	Limit   int      `json:"limit"`
+	Wallets []string `json:"wallets"`
+}
+
+// SyncPositionsError is one per-wallet failure.
+type SyncPositionsError struct {
+	Wallet string `json:"wallet"`
+	Error  string `json:"error"`
+}
+
+// SyncPositionsResponse is the result of a manual sync trigger.
+type SyncPositionsResponse struct {
+	Requested int                  `json:"requested"`
+	Synced    int                  `json:"synced"`
+	Failed    int                  `json:"failed"`
+	Errors    []SyncPositionsError `json:"errors"`
+}
+
+// SyncPositions godoc
+// @Summary      Manually sync trader positions (admin)
+// @Description  Fetches, persists and snapshots positions for the resolved wallets.
+// @Tags         traders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body  SyncPositionsRequest  true  "venue, kind, bucket, period, limit, wallets"
+// @Success      200  {object}  api.Response{data=SyncPositionsResponse}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
+// @Failure      503  {object}  api.Response{error=api.ErrorBody}
+// @Router       /api/v1/admin/traders/sync-positions [post]
+func (h *Handler) SyncPositions(c *gin.Context) {
+	var req SyncPositionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid sync body"))
+		return
+	}
+	venue := strings.TrimSpace(req.Venue)
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	kind := strings.ToLower(strings.TrimSpace(req.Kind))
+	if kind != "" && kind != "pnl" && kind != "account" {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid kind"))
+		return
+	}
+	bucket := strings.TrimSpace(req.Bucket)
+	if bucket != "" {
+		if kind == "" {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "kind required with bucket"))
+			return
+		}
+		if !ValidBucketID(kind, bucket) {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket"))
+			return
+		}
+	}
+	period := strings.ToUpper(strings.TrimSpace(req.Period))
+	if period == "" {
+		period = Period30D
+	}
+	switch period {
+	case Period1D, Period7D, Period30D, PeriodALL:
+	default:
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period"))
+		return
+	}
+	limit := req.Limit
+	if limit == 0 {
+		limit = 10
+	}
+	if limit < 1 || limit > 50 {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..50"))
+		return
+	}
+
+	if h.sync == nil {
+		appErr := domain.NewError(domain.ErrCodeInternal, "positions not configured")
+		appErr.StatusCode = http.StatusServiceUnavailable
+		api.RespondError(c, appErr)
+		return
+	}
+
+	var wallets []string
+	if len(req.Wallets) > 0 {
+		wallets = append([]string(nil), req.Wallets...)
+		if len(wallets) > 50 {
+			wallets = wallets[:50]
+		}
+	} else if kind != "" && bucket != "" {
+		venueID, err := h.sync.repo.VenueIDByCode(c.Request.Context(), venue)
+		if err != nil {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue"))
+			return
+		}
+		addrList, err := h.sync.repo.BucketWalletAddresses(c.Request.Context(), venueID, kind, bucket, period)
+		if err != nil {
+			api.RespondError(c, appErr(err))
+			return
+		}
+		wallets = addrList
+		if len(wallets) > 50 {
+			wallets = wallets[:50]
+		}
+	} else {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "wallets or kind+bucket required"))
+		return
+	}
+
+	if len(req.Wallets) > 0 && h.sync.repo != nil {
+		if _, err := h.sync.repo.VenueIDByCode(c.Request.Context(), venue); err != nil {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue"))
+			return
+		}
+	}
+
+	requested := len(wallets)
+	synced := 0
+	failed := 0
+	errs := []SyncPositionsError{}
+	for _, w := range wallets {
+		if err := h.sync.SyncPositions(c.Request.Context(), w); err != nil {
+			failed++
+			errs = append(errs, SyncPositionsError{Wallet: w, Error: err.Error()})
+		} else {
+			synced++
+		}
+	}
+	c.JSON(http.StatusOK, api.Response{Success: true, Data: SyncPositionsResponse{
+		Requested: requested,
+		Synced:    synced,
+		Failed:    failed,
+		Errors:    errs,
+	}})
 }

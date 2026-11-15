@@ -1514,6 +1514,8 @@ Endpoint: GET /api/v1/traders/overview/buckets/:kind/:id (+ /wallets, /markets).
 | BD-U-01 | ValidBucketID | validates kind/id |
 | BD-U-02 | SentimentFloat | notional ratio sentiment |
 | BD-U-03 | rangeDays | 24H/7D/30D mapping |
+| BD-U-04 | WinRatePct(0,0)/(2,1) | nil / 66.666... |
+
 
 #### Handler (internal/trader/handler_test.go)
 
@@ -1534,9 +1536,135 @@ Endpoint: GET /api/v1/traders/overview/buckets/:kind/:id (+ /wallets, /markets).
 | BD-I-03 | markets aggregation | positions/trades fallback |
 | BD-I-04 | wallets pagination/sort | correct order/pages |
 | BD-I-05 | retention | trades 60d, snapshots 30d |
+| BD-I-06 | null metrics wallet | win_rate/volume/realized_pnl are null |
+| BD-I-07 | trades wallet (wins=2,losses=1) | win_rate ≈ 66.67 |
+| BD-I-08 | ORDER BY win_rate DESC NULLS LAST | nulls last |
+
 
 #### E2E (//go:build e2e)
 
 | ID | Case | Expected |
 |----|------|----------|
 | BD-E-01 | bucket detail endpoints | 200 with seeded data |
+| E2E-BD-06 | wallet no trades vs trades | "—" / correct % |
+
+### 19.24 Trader Position Sync (contract manual sync)
+
+Endpoint: POST /api/v1/admin/traders/sync-positions. Admin (JWT + admin role).
+
+#### Unit (internal/trader/sync_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| PS-U-01 | SyncPositions nil positions | error "positions not configured" |
+| PS-U-02 | SyncPositions fetch success | ReplacePositions + daily snapshot written |
+| PS-U-03 | SyncPositions fetch failure | error returned, no replace |
+
+#### Handler (internal/trader/handler_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| PS-H-01 | no JWT | 401 |
+| PS-H-02 | non-admin | 403 |
+| PS-H-03 | invalid body | 400 |
+| PS-H-04 | nil sync | 503 |
+| PS-H-05 | success | 200 with counts |
+
+#### Integration (//go:build integration)
+
+| ID | Case | Expected |
+|----|------|----------|
+| PS-I-01 | stub fetcher | trader_positions + trader_position_snapshot_daily rows written |
+
+#### E2E (//go:build e2e)
+
+| ID | Case | Expected |
+|----|------|----------|
+| PS-E-01 | admin login -> POST sync-positions | 200 with counts |
+### 19.25 Asset Logo Registry (Phase 1)
+
+#### Unit (internal/assetlogo/*_test.go, internal/assetlogo/providers/*_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| AL-U-01 | CanonicalKeyCryptoNative format | crypto:native:BTC |
+| AL-U-02 | IsValidAssetClass | true for known classes |
+| AL-U-03 | TrustWallet BuildURL native | correct raw.githubusercontent URL |
+| AL-U-04 | TrustWallet BuildURL token | correct assets/<contract>/logo.png URL |
+| AL-U-05 | LogoDev disabled without secret | ErrProviderDisabled |
+| AL-U-06 | LogoDev status 200 | ResolvedLogo with bytes + etag |
+| AL-U-07 | LogoDev status 202 | RetryAfter parsed |
+| AL-U-08 | LogoDev status 404 | error |
+| AL-U-09 | LogoDev status 402 | error |
+
+#### Integration (//go:build integration)
+
+| ID | Case | Expected |
+|----|------|----------|
+| AL-I-01 | CreateAsset upsert by canonical_key | row updated |
+| AL-I-02 | asset_aliases UNIQUE NULLS NOT DISTINCT | duplicate (NULL venue) rejected |
+| AL-I-03 | ListMissingAssets | assets with missing/error logos |
+| AL-I-04 | ListAssetsByVenue | assets aliased to venue |
+| AL-I-05 | Seed idempotency | same count after re-run |
+
+## Asset Logo Registry (Phase 2)
+
+### Unit
+- ASSETLOGO-STORAGE-01: LocalStorage.Put atomic write, chmod 0644, dir creation.
+- ASSETLOGO-STORAGE-02: Path traversal protection rejects non-UUID assetID.
+- ASSETLOGO-STORAGE-03: ValidateImage rejects non-allowed MIME (svg), oversize, bad magic bytes, invalid dimensions.
+- ASSETLOGO-STORAGE-04: ValidateDownloadURL allowlists hosts.
+- ASSETLOGO-CACHE-01: Cache hit returns deep copy; TTL expiry.
+- ASSETLOGO-CACHE-02: Negative TTL 7d; ready TTL 30d.
+- ASSETLOGO-CACHE-03: Single-flight lock serializes per asset.
+- ASSETLOGO-RESOLVER-01: Enqueue dedups in-flight.
+- ASSETLOGO-RESOLVER-02: Resolve returns stale/nil and enqueues.
+- ASSETLOGO-RESOLVER-03: ResolveSync stores file and updates DB.
+- ASSETLOGO-HANDLER-01: ServeLogo 404 when missing.
+- ASSETLOGO-HANDLER-02: RefreshLogos returns enqueued/skipped.
+- ASSETLOGO-HANDLER-03: ListLogos invalid status 400.
+
+### Integration
+- ASSETLOGO-INT-01: Resolver resolves via stub HTTP provider and persists file.
+
+## Asset Logo Registry (Phase 3)
+
+### 19.26 Asset Logo Integration
+
+#### Unit
+- OVERVIEW-BUCKET-MARKETS-LOGO-01: BucketMarkets enrichment sets asset_id/asset_category/logo_url from aliases.
+- OVERVIEW-BUCKET-MARKETS-LOGO-02: Missing alias yields zero asset_id and empty logo_url.
+- OVERVIEW-BUCKET-MARKETS-LOGO-03: Logo URL populated when ready, empty when missing.
+
+#### Integration
+- OVERVIEW-BUCKET-MARKETS-LOGO-INT-01: Seed asset aliases + logos -> bucket markets response includes asset_id/logo_url.
+
+#### E2E
+- E2E_ASSET_LOGO_01: markets_top includes asset_id and logo_url (or null).
+
+## Asset Logo Registry (Phase 2)
+...
+
+## 19.26 Asset Logo Registry E2E
+
+### E2E
+- E2E_ASSET_LOGO_01: GET bucket detail markets_top includes asset_id and logo_url (ready) or empty/null (missing).
+- E2E_ASSET_LOGO_02: GET /api/v1/assets/logos/:assetId returns 200 for ready with Cache-Control: public, max-age=31536000, immutable + ETag; 304 on If-None-Match; 404 for missing.
+- E2E_ASSET_LOGO_03: POST /api/v1/admin/assets/logos/refresh returns 200 with enqueued count (admin auth).
+- E2E_ASSET_LOGO_04: Serve route reads file from disk (no provider calls).
+
+## Source-aware labels + live positions (bucket detail)
+
+### Unit
+- OVERVIEW-BUCKET-MARKETS-SOURCE-01: BucketDetail.MarketsSource is positions when posCount>0 else trades.
+- OVERVIEW-BUCKET-MARKETS-SOURCE-02: BucketDetail.NotionalSource is period_volume.
+- OVERVIEW-BUCKET-WALLET-LIVE-01: BucketWallets enriches PositionValue/SumUpnl from live positions.
+- OVERVIEW-BUCKET-WALLET-LIVE-02: BucketWallets leaves PositionValue/SumUpnl null on HL error/timeout.
+
+### Integration
+- OVERVIEW-BUCKET-MARKETS-SOURCE-INT-01: repo.BucketMarkets returns source positions when positions exist.
+- OVERVIEW-BUCKET-WALLET-LIVE-INT-01: HL unavailable -> PositionValue/SumUpnl null.
+
+### E2E
+- E2E_BUCKET_DETAIL_SOURCE_01: bucket detail markets_source + notional_source asserted.
+

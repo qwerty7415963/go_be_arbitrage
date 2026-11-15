@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
@@ -115,9 +118,10 @@ func (s *Service) BucketDetail(ctx context.Context, venueCode, kind, id, period,
 	}
 
 	positioning := make([]BucketPositioningPoint, 0, days)
-	lastPct := 0.5
+	lastPct := -1.0
 	for d := start; !d.After(now.Truncate(24 * time.Hour)); d = d.AddDate(0, 0, 1) {
 		day := d.UTC().Truncate(24 * time.Hour)
+		hasReal := false
 		var pct float64
 		if useSnap {
 			if v, ok := snapMap[day]; ok {
@@ -125,43 +129,51 @@ func (s *Service) BucketDetail(ctx context.Context, venueCode, kind, id, period,
 				total := tl + ts
 				if total > 0 {
 					pct = tl / total
-				} else {
-					pct = lastPct
+					hasReal = true
 				}
-			} else {
-				pct = lastPct
 			}
 		} else {
 			tl, ts := tradeMap[day][0], tradeMap[day][1]
 			total := tl + ts
 			if total > 0 {
 				pct = tl / total
+				hasReal = true
 			} else {
 				lc2, sc2 := statMap[day][0], statMap[day][1]
 				tot := lc2 + sc2
 				if tot > 0 {
 					pct = float64(lc2) / float64(tot)
-				} else {
-					pct = lastPct
+					hasReal = true
 				}
 			}
 		}
-		lastPct = pct
-		positioning = append(positioning, BucketPositioningPoint{T: day.Format("2006-01-02"), LongPct: pct})
+		if hasReal {
+			lastPct = pct
+			positioning = append(positioning, BucketPositioningPoint{T: day.Format("2006-01-02"), LongPct: pct})
+		} else if lastPct >= 0 {
+			positioning = append(positioning, BucketPositioningPoint{T: day.Format("2006-01-02"), LongPct: lastPct})
+		}
+	}
+	if len(positioning) == 0 {
+		positioning = []BucketPositioningPoint{}
 	}
 
-	markets, _, err := s.repo.BucketMarkets(ctx, venueID, wallets, start, "", "notional", "desc", 1, 12)
+	markets, _, marketsSource, err := s.repo.BucketMarkets(ctx, venueID, wallets, start, "", "notional", "desc", 1, 12)
 	if err != nil {
 		return nil, err
 	}
+	s.enrichBucketMarkets(ctx, venueID, markets)
 	marketsTop := make([]BucketMarketTop, 0, len(markets))
 	for _, m := range markets {
 		marketsTop = append(marketsTop, BucketMarketTop{
-			Market:    m.Market,
-			Notional:  m.NotionalLong + m.NotionalShort,
-			Upnl:      m.PnlProfit + m.PnlLoss,
-			Sentiment: m.Sentiment,
-			Traders:   m.TradersLong + m.TradersShort,
+			Market:        m.Market,
+			Notional:      m.NotionalLong + m.NotionalShort,
+			Upnl:          m.PnlProfit + m.PnlLoss,
+			Sentiment:     m.Sentiment,
+			Traders:       m.TradersLong + m.TradersShort,
+			AssetID:       m.AssetID,
+			AssetCategory: m.AssetCategory,
+			LogoURL:       m.LogoURL,
 		})
 	}
 
@@ -171,12 +183,14 @@ func (s *Service) BucketDetail(ctx context.Context, venueCode, kind, id, period,
 	}
 
 	result := BucketDetail{
-		AsOf:        now.Format(time.RFC3339),
-		Kind:        kind,
-		BucketID:    id,
-		WalletCount: len(wallets),
-		Sentiment:   sentiment,
-		LongRatio:   longRatio,
+		AsOf:           now.Format(time.RFC3339),
+		Kind:           kind,
+		BucketID:       id,
+		MarketsSource:  marketsSource,
+		NotionalSource: "period_volume",
+		WalletCount:    len(wallets),
+		Sentiment:      sentiment,
+		LongRatio:      longRatio,
 		PnlSplit: BucketPnlSplit{
 			PctProfit: pctProfit,
 			PctLoss:   pctLoss,
@@ -286,7 +300,8 @@ func (s *Service) BucketWallets(ctx context.Context, venueCode, kind, id, period
 			Address:       r.Address,
 			DisplayName:   r.DisplayName,
 			PerpEquity:    r.PerpEquity,
-			PositionValue: r.PositionValue,
+			PositionValue: nil,
+			SumUpnl:       nil,
 			Leverage:      r.Leverage,
 			WinRate:       r.WinRate,
 			VolumeRange:   r.VolumeRange,
@@ -297,6 +312,46 @@ func (s *Service) BucketWallets(ctx context.Context, venueCode, kind, id, period
 			ShortCount:    r.ShortCount,
 		})
 	}
+
+	// Enrich with live positions (concurrency 4, 10s total timeout).
+	liveCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	type liveRes struct {
+		pv   *float64
+		upnl *float64
+	}
+	res := make([]liveRes, len(out))
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	for i := range out {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			snap, err := s.Positions(liveCtx, venue, out[i].Address, "", "")
+			if err != nil || snap == nil || snap.DataStatus != DataReady {
+				return
+			}
+			if snap.Summary != nil && snap.Summary.TotalNtlPos != nil {
+				v := *snap.Summary.TotalNtlPos
+				res[i].pv = &v
+			}
+			sum := 0.0
+			for _, p := range snap.Positions {
+				if p.UnrealizedPnl != nil {
+					sum += *p.UnrealizedPnl
+				}
+			}
+			v := sum
+			res[i].upnl = &v
+		}(i)
+	}
+	wg.Wait()
+	for i := range out {
+		out[i].PositionValue = res[i].pv
+		out[i].SumUpnl = res[i].upnl
+	}
 	cached := make([]BucketWalletRow, len(out))
 	for i := range out {
 		cached[i] = out[i]
@@ -306,18 +361,18 @@ func (s *Service) BucketWallets(ctx context.Context, venueCode, kind, id, period
 	return out, total, nil
 }
 
-func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error) {
+func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error) {
 	venue := strings.ToLower(strings.TrimSpace(venueCode))
 	if venue == "" {
 		venue = DefaultVenue
 	}
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	if kind != "pnl" && kind != "account" {
-		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid kind")
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid kind")
 	}
 	id = strings.TrimSpace(id)
 	if !ValidBucketID(kind, id) {
-		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket id")
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket id")
 	}
 	period = strings.ToUpper(strings.TrimSpace(period))
 	if period == "" {
@@ -326,7 +381,7 @@ func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period
 	switch period {
 	case Period1D, Period7D, Period30D, PeriodALL:
 	default:
-		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
 	}
 	rangeCode = strings.ToUpper(strings.TrimSpace(rangeCode))
 	if rangeCode == "" {
@@ -334,7 +389,7 @@ func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period
 	}
 	days, err := rangeDays(rangeCode)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 	sort = strings.ToLower(strings.TrimSpace(sort))
 	if sort == "" {
@@ -343,14 +398,14 @@ func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period
 	switch sort {
 	case "notional", "upnl", "traders":
 	default:
-		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort")
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort")
 	}
 	dir = strings.ToLower(strings.TrimSpace(dir))
 	if dir == "" {
 		dir = "desc"
 	}
 	if dir != "asc" && dir != "desc" {
-		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir")
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir")
 	}
 	if page < 1 {
 		page = 1
@@ -359,7 +414,7 @@ func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period
 		limit = 20
 	}
 	if limit > 100 {
-		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
 	}
 
 	cacheKey := fmt.Sprintf("markets|%s|%s|%s|%s|%s|%s|%s|%s|%d|%d", venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
@@ -368,29 +423,30 @@ func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period
 	if c, ok := s.bucketMarketsCache[cacheKey]; ok && time.Now().Before(c.exp) {
 		out := make([]BucketMarketRow, len(c.val))
 		copy(out, c.val)
-		return out, c.total, nil
+		return out, c.total, c.source, nil
 	}
 
 	venueID, err := s.repo.VenueIDByCode(ctx, venue)
 	if err != nil {
-		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
 	}
 	wallets, err := s.repo.BucketWalletAddresses(ctx, venueID, kind, id, period)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 	if len(wallets) == 0 {
-		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "bucket not found")
+		return nil, 0, "", domain.NewError(domain.ErrCodeNotFound, "bucket not found")
 	}
 	rangeStart := time.Now().UTC().AddDate(0, 0, -days+1).Truncate(24 * time.Hour)
-	rows, total, err := s.repo.BucketMarkets(ctx, venueID, wallets, rangeStart, search, sort, dir, page, limit)
+	rows, total, source, err := s.repo.BucketMarkets(ctx, venueID, wallets, rangeStart, search, sort, dir, page, limit)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, "", err
 	}
 	out := make([]BucketMarketRow, len(rows))
 	copy(out, rows)
-	s.bucketMarketsCache[cacheKey] = cachedBucketMarkets{val: out, total: total, exp: time.Now().UTC().Add(5 * time.Minute)}
-	return out, total, nil
+	s.enrichBucketMarkets(ctx, venueID, out)
+	s.bucketMarketsCache[cacheKey] = cachedBucketMarkets{val: out, total: total, source: source, exp: time.Now().UTC().Add(5 * time.Minute)}
+	return out, total, source, nil
 }
 
 func rangeDays(rangeCode string) (int, error) {
@@ -403,6 +459,48 @@ func rangeDays(rangeCode string) (int, error) {
 		return 30, nil
 	}
 	return 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid range")
+}
+
+func (s *Service) enrichBucketMarkets(ctx context.Context, venueID uuid.UUID, rows []BucketMarketRow) {
+	if len(rows) == 0 {
+		return
+	}
+	symbols := make([]string, 0, len(rows))
+	for _, m := range rows {
+		symbols = append(symbols, m.Market)
+	}
+	aliases := map[string]AssetAliasInfo{}
+	if s.repo != nil {
+		if a, err := s.repo.GetAssetAliasesByVenueSymbols(ctx, venueID, symbols); err == nil && a != nil {
+			aliases = a
+		}
+	}
+	missing := make([]uuid.UUID, 0)
+	for i := range rows {
+		info, ok := aliases[rows[i].Market]
+		if !ok {
+			rows[i].AssetID = uuid.Nil
+			rows[i].AssetCategory = ""
+			rows[i].LogoURL = ""
+			continue
+		}
+		rows[i].AssetID = info.AssetID
+		rows[i].AssetCategory = info.Category
+		logoURL := ""
+		if s.assetLogoResolver != nil {
+			logoURL = s.assetLogoResolver.LogoURL(ctx, info.AssetID)
+		}
+		if logoURL == "" {
+			logoURL = info.LogoURL
+		}
+		rows[i].LogoURL = logoURL
+		if logoURL == "" {
+			missing = append(missing, info.AssetID)
+		}
+	}
+	if s.assetLogoResolver != nil && len(missing) > 0 {
+		s.assetLogoResolver.ResolveMany(ctx, missing)
+	}
 }
 
 func periodRangeStart(period string, now time.Time) time.Time {

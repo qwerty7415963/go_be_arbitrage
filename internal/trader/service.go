@@ -38,6 +38,13 @@ type GroupOwner interface {
 // (parity with the legacy scanner); the group filter and trader-groups stay
 // auth-gated. WS-E: syncing/stale machinery removed; detail data_status ∈
 // {ready,error} ONLY.
+// AssetLogoResolver is the seam for resolving asset logo metadata.
+type AssetLogoResolver interface {
+	ResolveMany(ctx context.Context, assetIDs []uuid.UUID)
+	LogoURL(ctx context.Context, assetID uuid.UUID) string
+	Enqueue(assetID uuid.UUID) bool
+}
+
 type Service struct {
 	repo   *Repository
 	groups GroupOwner
@@ -46,9 +53,10 @@ type Service struct {
 	// pacer, concurrency gate, ctx timeout) + TTL cache + single-flight. Nil
 	// disables HL reads (unit contexts without a venue client); handlers then
 	// surface data_status=error via degradation (never 500).
-	onDemand    OnDemandClient
-	cache       *OnDemandCache
-	appSettings appSettingsProvider
+	onDemand          OnDemandClient
+	cache             *OnDemandCache
+	appSettings       appSettingsProvider
+	assetLogoResolver AssetLogoResolver
 
 	overviewMu    sync.Mutex
 	overviewCache map[string]cachedOverview
@@ -87,6 +95,12 @@ func (s *Service) WithOnDemand(c OnDemandClient, cache *OnDemandCache) *Service 
 // WithAppSettings attaches the admin settings service used for the perp dex list.
 func (s *Service) WithAppSettings(a appSettingsProvider) *Service {
 	s.appSettings = a
+	return s
+}
+
+// WithAssetLogoResolver attaches the asset logo resolver used to enrich market rows.
+func (s *Service) WithAssetLogoResolver(r AssetLogoResolver) *Service {
+	s.assetLogoResolver = r
 	return s
 }
 
@@ -803,7 +817,8 @@ type cachedBucketWallets struct {
 }
 
 type cachedBucketMarkets struct {
-	val   []BucketMarketRow
-	total int
-	exp   time.Time
+	val    []BucketMarketRow
+	total  int
+	source string
+	exp    time.Time
 }

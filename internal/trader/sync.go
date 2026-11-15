@@ -2,6 +2,7 @@ package trader
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sync"
 	"time"
@@ -123,6 +124,25 @@ func (s *SyncService) WithPortfolio(p PortfolioFetcher) *SyncService {
 func (s *SyncService) WithPositions(p PositionFetcher) *SyncService {
 	s.positions = p
 	return s
+}
+
+// SyncPositions fetches and persists positions for a single wallet without
+// any hot-tier gating. Used by the manual admin trigger.
+func (s *SyncService) SyncPositions(ctx context.Context, addr string) error {
+	if s.positions == nil {
+		return errors.New("positions not configured")
+	}
+	snap, err := s.positions.FetchPositions(ctx, addr)
+	if err != nil {
+		return err
+	}
+	if snap != nil {
+		if err := s.repo.ReplacePositions(ctx, s.venueID, addr, snap); err != nil {
+			return err
+		}
+	}
+	s.dailyPositionSnapshot(ctx, addr, time.Now().UTC())
+	return nil
 }
 
 // SyncWallet runs one full pass for an address: fetch → stage → recompute

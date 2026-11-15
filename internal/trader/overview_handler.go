@@ -182,7 +182,7 @@ func (h *Handler) BucketMarkets(c *gin.Context) {
 		}
 		limit = n
 	}
-	rows, total, err := h.svc.BucketMarkets(c.Request.Context(), venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
+	rows, total, _, err := h.svc.BucketMarkets(c.Request.Context(), venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return

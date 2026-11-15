@@ -170,6 +170,16 @@ func TestValidBucketID(t *testing.T) {
 	}
 }
 
+func TestWinRatePct_NullAndValue(t *testing.T) {
+	if got := WinRatePct(0, 0); got != nil {
+		t.Errorf("WinRatePct(0,0) = %v, want nil", got)
+	}
+	got := WinRatePct(2, 1)
+	if got == nil || *got < 66.66 || *got > 66.67 {
+		t.Errorf("WinRatePct(2,1) = %v, want 66.666...", got)
+	}
+}
+
 func TestRangeDays(t *testing.T) {
 	cases := []struct {
 		in   string

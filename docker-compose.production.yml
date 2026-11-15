@@ -18,6 +18,7 @@ services:
     volumes:
       - app-data:/app/data
       - app-logs:/app/logs
+      - logo-data:/app/data/logos
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
       interval: 30s
@@ -84,10 +85,12 @@ volumes:
     driver: local
   redis-data:
     driver: local
-  app-data:
-    driver: local
-  app-logs:
-    driver: local
+   app-data:
+     driver: local
+   app-logs:
+     driver: local
+   logo-data:
+     driver: local
 
 networks:
   arbitrage-net:

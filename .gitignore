@@ -70,7 +70,9 @@ dlv-debug/
 *.benchmem
 
 # Fuzz
-testdata/fuzz/
+testdata/
+data/logos/
+data/logos/fuzz/
 
 # Build
 dist/

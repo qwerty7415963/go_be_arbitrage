@@ -544,12 +544,16 @@ func TestRepo_Overview_BucketDetail(t *testing.T) {
 	}
 
 	// BucketMarkets
-	mrows, mtotal, err := repo.BucketMarkets(ctx, venueID, []string{addr1, addr2}, day0, "", "notional", "desc", 1, 10)
+	mrows, mtotal, msource, err := repo.BucketMarkets(ctx, venueID, []string{addr1, addr2}, day0, "", "notional", "desc", 1, 10)
+	_ = msource
 	if err != nil {
 		t.Fatalf("bucket markets: %v", err)
 	}
 	if mtotal == 0 || len(mrows) == 0 {
 		t.Errorf("bucket markets: total=%d len=%d", mtotal, len(mrows))
+	}
+	if msource != "positions" {
+		t.Errorf("bucket markets source: got %s want positions", msource)
 	}
 
 	// venue isolation
@@ -576,5 +580,102 @@ func TestRepo_Overview_BucketDetail(t *testing.T) {
 	}
 	if len(wsPeriod) != 0 {
 		t.Errorf("period isolation failed: %v", wsPeriod)
+	}
+}
+
+func TestRepo_Overview_BucketWalletsNullMetrics(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+
+	venueCode := fmt.Sprintf("trader-test-venue-%d", time.Now().UnixNano())
+	if _, err := pool.Exec(ctx, `INSERT INTO venues (code, name, venue_type) VALUES ($1, 'Trader Test Venue', 'PERP_DEX')`, venueCode); err != nil {
+		t.Fatalf("venue: %v", err)
+	}
+	var venueID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM venues WHERE code = $1`, venueCode).Scan(&venueID); err != nil {
+		t.Fatalf("venue id: %v", err)
+	}
+
+	addrNull := testAddr()
+	addrTrades := testAddr()
+	cleanupAddrs(t, pool, venueID, addrNull, addrTrades)
+	for _, a := range []string{addrNull, addrTrades} {
+		if _, _, err := repo.UpsertRegistry(ctx, venueID, a, SourceLeaderboard, nil, nil); err != nil {
+			t.Fatalf("registry: %v", err)
+		}
+	}
+
+	day0 := time.Now().UTC().Truncate(24 * time.Hour)
+	eqNull := 1000.0
+	eqTrades := 2000.0
+	for _, pair := range []struct {
+		addr string
+		eq   float64
+	}{
+		{addrNull, eqNull},
+		{addrTrades, eqTrades},
+	} {
+		eq := pair.eq
+		if err := repo.UpsertEquityDaily(ctx, venueID, pair.addr, EquityDay{Date: day0, StartEquity: &eq, EndEquity: &eq, PeakEquity: &eq}); err != nil {
+			t.Fatalf("eq: %v", err)
+		}
+	}
+
+	// seed trades wallet with metrics (wins=2, losses=1)
+	pnl := 5000.0
+	vol := 1000.0
+	tc := int64(3)
+	lc, sc := int64(2), int64(1)
+	wr := *WinRatePct(2, 1)
+	m := &PeriodMetrics{VenueID: venueID, WalletAddress: addrTrades, Period: Period30D,
+		AsOf: time.Now().UTC(), PnL: &pnl, RealizedPnL: &pnl, Volume: &vol,
+		TradeCount: &tc, LongCount: &lc, ShortCount: &sc, WinRate: &wr,
+		DataStatus: DataReady, CalculationVersion: CurrentCalculationVersion}
+	if err := repo.UpsertPeriodMetrics(ctx, m); err != nil {
+		t.Fatalf("period: %v", err)
+	}
+
+	// null metrics wallet: no period metrics row
+
+	rows, total, err := repo.BucketWallets(ctx, venueID, "account", "small", Period30D, day0, "equity", "desc", 1, 10)
+	if err != nil {
+		t.Fatalf("bucket wallets: %v", err)
+	}
+	if total != 2 || len(rows) != 2 {
+		t.Fatalf("bucket wallets: total=%d len=%d", total, len(rows))
+	}
+	byAddr := map[string]repoBucketWallet{}
+	for _, r := range rows {
+		byAddr[r.Address] = r
+	}
+	if byAddr[addrNull].WinRate != nil || byAddr[addrNull].VolumeRange != nil || byAddr[addrNull].RealizedPnl != nil {
+		t.Errorf("null metrics wallet should be null: %+v", byAddr[addrNull])
+	}
+	tr := byAddr[addrTrades]
+	if tr.WinRate == nil || *tr.WinRate < 66.66 || *tr.WinRate > 66.67 {
+		t.Errorf("trades wallet win_rate: %v", tr.WinRate)
+	}
+	if tr.VolumeRange == nil || *tr.VolumeRange != vol {
+		t.Errorf("trades wallet volume: %v", tr.VolumeRange)
+	}
+	if tr.RealizedPnl == nil || *tr.RealizedPnl != pnl {
+		t.Errorf("trades wallet pnl: %v", tr.RealizedPnl)
+	}
+
+	// ORDER BY win_rate DESC NULLS LAST
+	sorted, _, err := repo.BucketWallets(ctx, venueID, "account", "small", Period30D, day0, "win_rate", "desc", 1, 10)
+	if err != nil {
+		t.Fatalf("sorted: %v", err)
+	}
+	if len(sorted) < 2 {
+		t.Fatalf("sorted len: %d", len(sorted))
+	}
+	if sorted[0].Address != addrTrades {
+		t.Errorf("NULLS LAST desc: first=%s want %s", sorted[0].Address, addrTrades)
+	}
+	if sorted[1].Address != addrNull {
+		t.Errorf("NULLS LAST desc: second=%s want %s", sorted[1].Address, addrNull)
 	}
 }

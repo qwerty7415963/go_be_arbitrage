@@ -27,7 +27,7 @@ type mockService struct {
 	overviewFn      func(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
 	bucketDetailFn  func(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
 	bucketWalletsFn func(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
-	bucketMarketsFn func(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error)
+	bucketMarketsFn func(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error)
 }
 
 func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
@@ -108,9 +108,9 @@ func (m *mockService) BucketWallets(ctx context.Context, venue, kind, id, period
 	return m.bucketWalletsFn(ctx, venue, kind, id, period, sort, dir, page, limit)
 }
 
-func (m *mockService) BucketMarkets(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error) {
+func (m *mockService) BucketMarkets(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error) {
 	if m.bucketMarketsFn == nil {
-		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+		return nil, 0, "", domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
 	return m.bucketMarketsFn(ctx, venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
 }
@@ -560,10 +560,10 @@ func TestHandler_BucketWallets_ErrorMapping(t *testing.T) {
 func TestHandler_BucketMarkets_DefaultsAndShape(t *testing.T) {
 	var gotRange, gotSort, gotDir, gotSearch string
 	var gotPage, gotLimit int
-	h := NewHandler(&mockService{bucketMarketsFn: func(_ context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, error) {
+	h := NewHandler(&mockService{bucketMarketsFn: func(_ context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error) {
 		gotRange, gotSort, gotDir, gotSearch = rangeCode, sort, dir, search
 		gotPage, gotLimit = page, limit
-		return []BucketMarketRow{{Market: "BTC", NotionalLong: 10}}, 1, nil
+		return []BucketMarketRow{{Market: "BTC", NotionalLong: 10}}, 1, "positions", nil
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets", "")
 	if w.Code != http.StatusOK {
@@ -594,8 +594,8 @@ func TestHandler_BucketMarkets_Validation(t *testing.T) {
 }
 
 func TestHandler_BucketMarkets_ErrorMapping(t *testing.T) {
-	h := NewHandler(&mockService{bucketMarketsFn: func(_ context.Context, _, _, _, _, _, _, _, _ string, _, _ int) ([]BucketMarketRow, int, error) {
-		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "bucket not found")
+	h := NewHandler(&mockService{bucketMarketsFn: func(_ context.Context, _, _, _, _, _, _, _, _ string, _, _ int) ([]BucketMarketRow, int, string, error) {
+		return nil, 0, "", domain.NewError(domain.ErrCodeNotFound, "bucket not found")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets", "")
 	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {

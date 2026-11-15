@@ -86,6 +86,12 @@ func TestE2E_BucketDetail(t *testing.T) {
 	if _, ok := data["markets_top"].([]any); !ok {
 		t.Errorf("markets_top missing")
 	}
+	if data["markets_source"] != "positions" {
+		t.Errorf("markets_source: %v", data["markets_source"])
+	}
+	if data["notional_source"] != "period_volume" {
+		t.Errorf("notional_source: %v", data["notional_source"])
+	}
 
 	// bucket wallets
 	code, resp = s.doJSON(t, "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets?venue=trader-e2e-venue", "", "")

@@ -19,18 +19,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/assetlogo"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 )
 
 type traderSuite struct {
-	db      *pgxpool.Pool
-	router  *gin.Engine
-	userA   uuid.UUID
-	userB   uuid.UUID
-	venueID uuid.UUID
-	addrs   []string
+	db               *pgxpool.Pool
+	router           *gin.Engine
+	userA            uuid.UUID
+	userB            uuid.UUID
+	venueID          uuid.UUID
+	addrs            []string
+	logoDir          string
+	assetLogoRepo    *assetlogo.Repository
+	assetLogoStorage assetlogo.LogoStorage
 }
 
 func traderSeedAddr(i int) string {
@@ -123,17 +127,33 @@ func setupTraderSuite(t *testing.T) *traderSuite {
 	})
 
 	secret := []byte("e2e-cursor-secret-32-bytes!!!!!")
-	svc := trader.NewService(repo, tradergroup.NewRepository(pool), secret)
+	s.logoDir = t.TempDir()
+	s.assetLogoRepo = assetlogo.NewRepository(pool)
+	s.assetLogoStorage = assetlogo.NewLocalStorage(s.logoDir)
+	assetLogoCache := assetlogo.NewCache()
+	assetLogoResolver := assetlogo.NewResolver(s.assetLogoRepo, s.assetLogoStorage, assetLogoCache)
+	svc := trader.NewService(repo, tradergroup.NewRepository(pool), secret).WithAssetLogoResolver(assetLogoResolver)
 	router := gin.New()
 	v1 := router.Group("/api/v1")
 	v1.Use(func(c *gin.Context) {
 		if uid := c.GetHeader("X-Test-User"); uid != "" {
 			c.Set("user_id", uid)
 		}
+		if role := c.GetHeader("X-Test-Role"); role != "" {
+			c.Set("role", role)
+		} else {
+			c.Set("role", "user")
+		}
 		c.Next()
 	})
 	trader.NewHandler(svc).RegisterRoutes(v1)
 	tradergroup.NewHandler(tradergroup.NewRepository(pool)).RegisterRoutes(v1)
+	assetLogoHandler := assetlogo.NewHandler(assetLogoResolver, s.assetLogoStorage, s.assetLogoRepo, assetLogoCache)
+	assets := v1.Group("/assets")
+	assets.GET("/logos/:assetId", assetLogoHandler.ServeLogo)
+	adminAssets := v1.Group("/admin/assets/logos")
+	adminAssets.POST("/refresh", assetLogoHandler.RefreshLogos)
+	adminAssets.GET("", assetLogoHandler.ListLogos)
 	s.router = router
 	return s
 }

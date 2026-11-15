@@ -148,6 +148,11 @@ var expectedSecured = []string{
 	// admin perp-dexes (JWT + admin role) v1.6
 	"GET /api/v1/admin/perp-dexes",
 	"PATCH /api/v1/admin/perp-dexes",
+	// admin traders (JWT + admin role)
+	"POST /api/v1/admin/traders/sync-positions",
+	// admin asset logos (JWT + admin role)
+	"POST /api/v1/admin/assets/logos/refresh",
+	"GET /api/v1/admin/assets/logos",
 }
 
 // DOCS-S-02: exactly the JWT-protected endpoints are documented with

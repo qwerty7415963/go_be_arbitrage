@@ -79,6 +79,15 @@ definitions:
     required:
     - max_wallets_per_user
     type: object
+  assetlogo.refreshLogosRequest:
+    properties:
+      all:
+        type: boolean
+      asset_ids:
+        items:
+          type: string
+        type: array
+    type: object
   auth.AuthResponse:
     properties:
       access_token:
@@ -1507,10 +1516,14 @@ definitions:
         type: string
       long_ratio:
         type: number
+      markets_source:
+        type: string
       markets_top:
         items:
           $ref: '#/definitions/trader.BucketMarketTop'
         type: array
+      notional_source:
+        type: string
       notional_split:
         $ref: '#/definitions/trader.BucketNotionalSplit'
       pnl_split:
@@ -1533,6 +1546,12 @@ definitions:
     type: object
   trader.BucketMarketRow:
     properties:
+      asset_category:
+        type: string
+      asset_id:
+        type: string
+      logo_url:
+        type: string
       market:
         type: string
       notional_long:
@@ -1552,6 +1571,12 @@ definitions:
     type: object
   trader.BucketMarketTop:
     properties:
+      asset_category:
+        type: string
+      asset_id:
+        type: string
+      logo_url:
+        type: string
       market:
         type: string
       notional:
@@ -1605,6 +1630,8 @@ definitions:
       position_value:
         type: number
       realized_pnl:
+        type: number
+      sum_upnl:
         type: number
       volume_range:
         type: number
@@ -2115,6 +2142,43 @@ definitions:
           $ref: '#/definitions/trader.SpotBalanceDTO'
         type: array
     type: object
+  trader.SyncPositionsError:
+    properties:
+      error:
+        type: string
+      wallet:
+        type: string
+    type: object
+  trader.SyncPositionsRequest:
+    properties:
+      bucket:
+        type: string
+      kind:
+        type: string
+      limit:
+        type: integer
+      period:
+        type: string
+      venue:
+        type: string
+      wallets:
+        items:
+          type: string
+        type: array
+    type: object
+  trader.SyncPositionsResponse:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/trader.SyncPositionsError'
+        type: array
+      failed:
+        type: integer
+      requested:
+        type: integer
+      synced:
+        type: integer
+    type: object
   trader.TraderOverview:
     properties:
       account_buckets:
@@ -2561,6 +2625,87 @@ info:
   title: Arbitrage Platform API
   version: "1.0"
 paths:
+  /api/v1/admin/assets/logos:
+    get:
+      description: List asset logos filtered by status. Requires JWT + admin.
+      parameters:
+      - description: Status filter
+        enum:
+        - missing
+        - error
+        - pending
+        in: query
+        name: status
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Response'
+      security:
+      - BearerAuth: []
+      summary: List asset logos by status
+      tags:
+      - admin-assets
+  /api/v1/admin/assets/logos/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Enqueue logo resolution jobs. Requires JWT + admin.
+      parameters:
+      - description: Refresh request
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/assetlogo.refreshLogosRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/api.Response'
+      security:
+      - BearerAuth: []
+      summary: Refresh asset logos
+      tags:
+      - admin-assets
   /api/v1/admin/perp-dexes:
     get:
       description: Get admin-configurable perp dex list. Requires JWT + admin role.
@@ -2749,6 +2894,94 @@ paths:
       summary: Update Telegram settings
       tags:
       - admin-telegram
+  /api/v1/admin/traders/sync-positions:
+    post:
+      consumes:
+      - application/json
+      description: Fetches, persists and snapshots positions for the resolved wallets.
+      parameters:
+      - description: venue, kind, bucket, period, limit, wallets
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/trader.SyncPositionsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/trader.SyncPositionsResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Manually sync trader positions (admin)
+      tags:
+      - traders
+  /api/v1/assets/logos/{assetId}:
+    get:
+      description: Serve a stored asset logo file.
+      parameters:
+      - description: Asset ID
+        in: path
+        name: assetId
+        required: true
+        type: string
+      produces:
+      - image/png
+      - image/webp
+      - image/jpeg
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Response'
+      summary: Get asset logo
+      tags:
+      - assets
   /api/v1/auth/change-password:
     post:
       consumes:

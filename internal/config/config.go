@@ -10,13 +10,18 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Log      LogConfig      `yaml:"log"`
-	WS       WSConfig       `yaml:"ws"`
-	CORS     CORSConfig     `yaml:"cors"`
-	Telegram TelegramConfig `yaml:"telegram"`
+	Server           ServerConfig   `yaml:"server"`
+	Database         DatabaseConfig `yaml:"database"`
+	Auth             AuthConfig     `yaml:"auth"`
+	Log              LogConfig      `yaml:"log"`
+	WS               WSConfig       `yaml:"ws"`
+	CORS             CORSConfig     `yaml:"cors"`
+	Telegram         TelegramConfig `yaml:"telegram"`
+	LogoDir          string         `yaml:"logo_dir"`
+	LogoRefreshDays  int            `yaml:"logo_refresh_days"`
+	LogoNegativeDays int            `yaml:"logo_negative_days"`
+	LogoWorkers      int            `yaml:"logo_workers"`
+	LogoDevSecretKey string         `yaml:"logo_dev_secret_key"`
 }
 
 type ServerConfig struct {
@@ -112,6 +117,11 @@ func Load() (*Config, error) {
 			BotUsername:  getEnv("TELEGRAM_BOT_USERNAME", ""),
 			AppPublicURL: getEnv("APP_PUBLIC_URL", "http://localhost:3000"),
 		},
+		LogoDir:          getEnv("ARBITRAGE_LOGO_DIR", "./data/logos"),
+		LogoRefreshDays:  getEnvInt("ARBITRAGE_LOGO_REFRESH_DAYS", 30),
+		LogoNegativeDays: getEnvInt("ARBITRAGE_LOGO_NEGATIVE_DAYS", 7),
+		LogoWorkers:      getEnvInt("ARBITRAGE_LOGO_WORKERS", 2),
+		LogoDevSecretKey: getEnv("LOGO_DEV_SECRET_KEY", ""),
 	}
 
 	if err := cfg.Validate(); err != nil {
