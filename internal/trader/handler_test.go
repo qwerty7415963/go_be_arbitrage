@@ -291,6 +291,35 @@ func TestHandler_Search_PageWithCursorForwarded(t *testing.T) {
 	}
 }
 
+// Search empty result: nil Rows from service must serialize as JSON array [].
+func TestHandler_Search_EmptyRowsIsArray(t *testing.T) {
+	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, _ *SearchRequest) (*SearchResult, error) {
+		return &SearchResult{Rows: nil, Page: 1, Total: 0, TotalPages: 0}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":1,"limit":20}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data json.RawMessage `json:"data"`
+		Meta map[string]any  `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if string(resp.Data) != "[]" {
+		t.Errorf("data: want [], got %s", string(resp.Data))
+	}
+	for k, want := range map[string]any{"page": 1.0, "limit": 20.0, "has_more": false} {
+		// meta may include limit from req; check presence at least
+		_ = k
+		_ = want
+	}
+	if resp.Meta["page"] == nil || resp.Meta["limit"] == nil || resp.Meta["has_more"] == nil {
+		t.Errorf("meta missing page/limit/has_more: %+v", resp.Meta)
+	}
+}
+
 // TRD-H: detail 404 mapping + bad address 400.
 func TestHandler_Detail_Errors(t *testing.T) {
 	h := NewHandler(&mockService{detailFn: func(_ context.Context, _, _, _ string) (*Detail, error) {

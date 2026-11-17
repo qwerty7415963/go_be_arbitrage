@@ -132,7 +132,11 @@ func (h *Handler) Search(c *gin.Context) {
 		api.RespondError(c, appErr(err))
 		return
 	}
-	c.JSON(http.StatusOK, api.Response{Success: true, Data: res.Rows, Meta: &api.Meta{
+	rows := res.Rows
+	if rows == nil {
+		rows = []*PeriodMetrics{}
+	}
+	c.JSON(http.StatusOK, api.Response{Success: true, Data: rows, Meta: &api.Meta{
 		Page: res.Page, Total: res.Total, TotalPages: res.TotalPages,
 		Limit: req.Limit, HasMore: res.HasMore, Cursor: res.NextCursor,
 	}})

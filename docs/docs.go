@@ -13180,6 +13180,18 @@ const docTemplate = `{
                 "size": {
                     "type": "number"
                 },
+                "sl_pxs": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "tp_pxs": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
                 "unrealized_pnl": {
                     "type": "number"
                 }

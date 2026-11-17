@@ -8,9 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
@@ -19,6 +22,11 @@ import (
 // appSettingsProvider is the seam for admin-configurable perp dex list.
 type appSettingsProvider interface {
 	GetPerpDexes(ctx context.Context) ([]string, error)
+}
+
+// tpslFetcher is the optional seam for frontend-open-orders (contract v2.2).
+type tpslFetcher interface {
+	FetchFrontendOpenOrders(ctx context.Context, address string, dex ...string) ([]hyperliquid.OpenOrder, error)
 }
 
 // errUpstreamUnavailable signals a nil on-demand client (unit contexts
@@ -378,6 +386,8 @@ type PositionDTO struct {
 	Leverage         *float64   `json:"leverage"`
 	MaxLeverage      *float64   `json:"max_leverage"`
 	MarginUsed       *float64   `json:"margin_used"`
+	TpPxs            []float64  `json:"tp_pxs"`
+	SlPxs            []float64  `json:"sl_pxs"`
 	AsOf             *time.Time `json:"as_of"`
 }
 
@@ -592,6 +602,44 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir s
 		if snap.AsOf.IsZero() {
 			snap.AsOf = now
 		}
+		// Attach TP/SL from frontendOpenOrders (contract v2.2). Non-fatal.
+		if tf, ok := s.onDemand.(tpslFetcher); ok && tf != nil {
+			allOrders := make([]hyperliquid.OpenOrder, 0)
+			jobs := make([]string, 0, 1+len(dexes))
+			jobs = append(jobs, "")
+			jobs = append(jobs, dexes...)
+			var mu sync.Mutex
+			var wg sync.WaitGroup
+			sem := make(chan struct{}, 4)
+			for _, d := range jobs {
+				wg.Add(1)
+				go func(d string) {
+					defer wg.Done()
+					select {
+					case sem <- struct{}{}:
+					case <-ctx.Done():
+						return
+					}
+					defer func() { <-sem }()
+					var raw []hyperliquid.OpenOrder
+					var err error
+					if d == "" {
+						raw, err = tf.FetchFrontendOpenOrders(ctx, addr)
+					} else {
+						raw, err = tf.FetchFrontendOpenOrders(ctx, addr, d)
+					}
+					if err != nil {
+						slog.Warn("frontendOpenOrders fetch failed", "dex", d, "err", err)
+						return
+					}
+					mu.Lock()
+					allOrders = append(allOrders, raw...)
+					mu.Unlock()
+				}(d)
+			}
+			wg.Wait()
+			snap.Positions = attachTPSL(snap.Positions, allOrders)
+		}
 		return snap, nil
 	})
 	_ = freshHit
@@ -625,6 +673,14 @@ func snapshotToDTO(snap *PositionSnapshot, sort, dir string, status DataStatus) 
 	sortPositions(positions, sort, dir)
 	rows := make([]PositionDTO, 0, len(positions))
 	for _, p := range positions {
+		tp := p.TpPxs
+		if tp == nil {
+			tp = []float64{}
+		}
+		sl := p.SlPxs
+		if sl == nil {
+			sl = []float64{}
+		}
 		rows = append(rows, PositionDTO{
 			Coin: p.Coin, Side: p.Side, Size: p.Size,
 			EntryPrice: p.EntryPrice, MarkPrice: p.MarkPrice,
@@ -632,6 +688,7 @@ func snapshotToDTO(snap *PositionSnapshot, sort, dir string, status DataStatus) 
 			ReturnOnEquity: p.ReturnOnEquity, LiquidationPrice: p.LiquidationPrice,
 			Leverage: p.Leverage, MaxLeverage: p.MaxLeverage,
 			MarginUsed: p.MarginUsed, AsOf: &asOf,
+			TpPxs: tp, SlPxs: sl,
 		})
 	}
 	summary := &PositionSummaryDTO{

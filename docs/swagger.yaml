@@ -1999,6 +1999,14 @@ definitions:
         type: string
       size:
         type: number
+      sl_pxs:
+        items:
+          type: number
+        type: array
+      tp_pxs:
+        items:
+          type: number
+        type: array
       unrealized_pnl:
         type: number
     type: object

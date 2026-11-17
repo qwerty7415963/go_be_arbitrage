@@ -3,6 +3,9 @@ package trader
 import (
 	"context"
 	"fmt"
+	"math"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +28,8 @@ type Position struct {
 	Leverage         *float64
 	MaxLeverage      *float64
 	MarginUsed       *float64
+	TpPxs            []float64
+	SlPxs            []float64
 }
 
 // PositionSummary is the account-level margin summary (one row per wallet).
@@ -353,4 +358,218 @@ func fetchOpenOrdersAllDexes(ctx context.Context, client any, addr string, dexes
 		merged = []OrderDTO{}
 	}
 	return merged, nil
+}
+func isClosingSide(posSide, orderSide string) bool {
+	ps := strings.ToUpper(strings.TrimSpace(posSide))
+	os := strings.ToUpper(strings.TrimSpace(orderSide))
+	switch ps {
+	case "LONG":
+		return os == "A" || os == "ASK" || os == "SELL" || os == "SHORT"
+	case "SHORT":
+		return os == "B" || os == "BID" || os == "BUY" || os == "LONG"
+	}
+	return false
+}
+
+func flattenOrders(orders []hyperliquid.OpenOrder) []hyperliquid.OpenOrder {
+	out := make([]hyperliquid.OpenOrder, 0, len(orders))
+	var walk func(o hyperliquid.OpenOrder, parent *hyperliquid.OpenOrder)
+	walk = func(o hyperliquid.OpenOrder, parent *hyperliquid.OpenOrder) {
+		if parent != nil {
+			if strings.TrimSpace(o.Coin) == "" {
+				o.Coin = parent.Coin
+			}
+			if strings.TrimSpace(o.Side) == "" {
+				o.Side = parent.Side
+			}
+			if !o.ReduceOnly && parent.ReduceOnly {
+				o.ReduceOnly = true
+			}
+			if strings.TrimSpace(o.TriggerPx) == "" {
+				o.TriggerPx = parent.TriggerPx
+			}
+			if strings.TrimSpace(o.OrderType) == "" {
+				o.OrderType = parent.OrderType
+			}
+			if o.IsTrigger == nil {
+				o.IsTrigger = parent.IsTrigger
+			}
+			if o.IsPositionTpsl == nil {
+				o.IsPositionTpsl = parent.IsPositionTpsl
+			}
+		}
+		out = append(out, o)
+		for _, ch := range o.Children {
+			cc := ch
+			walk(cc, &o)
+		}
+	}
+	for _, o := range orders {
+		oo := o
+		walk(oo, nil)
+	}
+	if out == nil {
+		out = []hyperliquid.OpenOrder{}
+	}
+	return out
+}
+
+func normCoin(v any) string {
+	s := ""
+	switch val := v.(type) {
+	case string:
+		s = val
+	case hyperliquid.OpenOrder:
+		s = val.Coin
+	case *hyperliquid.OpenOrder:
+		if val != nil {
+			s = val.Coin
+		}
+	}
+	s = strings.TrimSpace(s)
+	if i := strings.LastIndex(s, ":"); i >= 0 {
+		s = s[i+1:]
+	}
+	return strings.ToUpper(strings.TrimSpace(s))
+}
+
+func parseTrigger(v any) (float64, bool) {
+	s := ""
+	switch val := v.(type) {
+	case string:
+		s = val
+	case hyperliquid.OpenOrder:
+		s = val.TriggerPx
+	case *hyperliquid.OpenOrder:
+		if val != nil {
+			s = val.TriggerPx
+		}
+	case float64:
+		return val, true
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
+}
+
+func isTP(v any) bool {
+	ot := ""
+	switch val := v.(type) {
+	case string:
+		ot = val
+	case hyperliquid.OpenOrder:
+		ot = val.OrderType
+	case *hyperliquid.OpenOrder:
+		if val != nil {
+			ot = val.OrderType
+		}
+	}
+	return strings.Contains(strings.ToLower(ot), "take profit")
+}
+
+func isSL(v any) bool {
+	ot := ""
+	switch val := v.(type) {
+	case string:
+		ot = val
+	case hyperliquid.OpenOrder:
+		ot = val.OrderType
+	case *hyperliquid.OpenOrder:
+		if val != nil {
+			ot = val.OrderType
+		}
+	}
+	return strings.Contains(strings.ToLower(ot), "stop")
+}
+
+func dedupeFloats(xs []float64) []float64 {
+	seen := map[string]struct{}{}
+	out := make([]float64, 0, len(xs))
+	for _, x := range xs {
+		key := strconv.FormatFloat(x, 'f', -1, 64)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, x)
+	}
+	if out == nil {
+		out = []float64{}
+	}
+	return out
+}
+
+func sortTPSL(prices []float64, mark *float64) []float64 {
+	arr := prices
+	if arr == nil {
+		arr = []float64{}
+		return arr
+	}
+	sort.SliceStable(arr, func(i, j int) bool {
+		if mark == nil {
+			return arr[i] < arr[j]
+		}
+		di := math.Abs(arr[i] - *mark)
+		dj := math.Abs(arr[j] - *mark)
+		if di != dj {
+			return di < dj
+		}
+		return arr[i] < arr[j]
+	})
+	return arr
+}
+
+func attachTPSL(positions []Position, orders []hyperliquid.OpenOrder) []Position {
+	if positions == nil {
+		positions = []Position{}
+	}
+	out := make([]Position, len(positions))
+	copy(out, positions)
+	flat := flattenOrders(orders)
+	for pi := range out {
+		pos := &out[pi]
+		if pos.TpPxs == nil {
+			pos.TpPxs = []float64{}
+		}
+		if pos.SlPxs == nil {
+			pos.SlPxs = []float64{}
+		}
+		tp := []float64{}
+		sl := []float64{}
+		for _, o := range flat {
+			if !o.ReduceOnly {
+				continue
+			}
+			trig, ok := parseTrigger(o)
+			if !ok || trig <= 0 {
+				continue
+			}
+			if !isClosingSide(pos.Side, o.Side) {
+				continue
+			}
+			if normCoin(o) != pos.Coin {
+				continue
+			}
+			if isTP(o) {
+				tp = append(tp, trig)
+			} else if isSL(o) {
+				sl = append(sl, trig)
+			}
+		}
+		pos.TpPxs = sortTPSL(dedupeFloats(tp), pos.MarkPrice)
+		pos.SlPxs = sortTPSL(dedupeFloats(sl), pos.MarkPrice)
+		if pos.TpPxs == nil {
+			pos.TpPxs = []float64{}
+		}
+		if pos.SlPxs == nil {
+			pos.SlPxs = []float64{}
+		}
+	}
+	return out
 }

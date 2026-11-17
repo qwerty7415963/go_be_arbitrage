@@ -203,6 +203,24 @@ func (l *LiveClient) FetchOpenOrders(ctx context.Context, address string, dex ..
 	return res, err
 }
 
+// FetchFrontendOpenOrders implements frontend-enriched open orders (wallet-tabs v2.2).
+func (l *LiveClient) FetchFrontendOpenOrders(ctx context.Context, address string, dex ...string) ([]OpenOrder, error) {
+	release, err := l.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	var res []OpenOrder
+	err = l.doWithRetry(ctx, func() error {
+		ctx2, cancel := l.singleCtx(ctx)
+		defer cancel()
+		var e error
+		res, e = l.inner.FetchFrontendOpenOrders(ctx2, address, dex...)
+		return e
+	})
+	return res, err
+}
+
 // FetchHistoricalOrders implements historical orders (§1.5).
 func (l *LiveClient) FetchHistoricalOrders(ctx context.Context, address string) ([]HistoricalOrder, error) {
 	release, err := l.acquire(ctx)

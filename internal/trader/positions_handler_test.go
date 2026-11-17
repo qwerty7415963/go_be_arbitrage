@@ -165,3 +165,56 @@ func TestHandler_Activity_UnknownWallet(t *testing.T) {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
 }
+
+// TPSL-H-01 (TPSL-06): positions payload carries tp_pxs/sl_pxs arrays.
+func TestHandler_Positions_TPSL_Fields(t *testing.T) {
+	now := time.Now().UTC()
+	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
+		return &PositionSnapshotDTO{
+			Summary:    &PositionSummaryDTO{AccountValue: fptrDTO(1), AsOf: &now},
+			Positions:  []PositionDTO{{Coin: "BTC", Side: "LONG", Size: 0.5, TpPxs: []float64{110}, SlPxs: []float64{90}}},
+			DataStatus: DataReady,
+			AsOf:       &now,
+		}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+	data := decodeData(t, w.Body.Bytes())
+	rows := data["positions"].([]any)
+	r := rows[0].(map[string]any)
+	if r["tp_pxs"] == nil || r["sl_pxs"] == nil {
+		t.Errorf("tp_pxs/sl_pxs missing: %v", r)
+	}
+}
+
+// TPSL-H-02 (TPSL-29): empty arrays serialized as [] not null.
+func TestHandler_Positions_TPSL_EmptyArrays(t *testing.T) {
+	now := time.Now().UTC()
+	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
+		return &PositionSnapshotDTO{
+			Positions:  []PositionDTO{{Coin: "BTC", Side: "LONG", Size: 0.5, TpPxs: []float64{}, SlPxs: []float64{}}},
+			DataStatus: DataReady,
+			AsOf:       &now,
+		}, nil
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
+	data := decodeData(t, w.Body.Bytes())
+	rows := data["positions"].([]any)
+	r := rows[0].(map[string]any)
+	if r["tp_pxs"] == nil {
+		t.Errorf("tp_pxs null")
+	}
+}
+
+// TPSL-H-03 (TPSL-30): unknown wallet still 404.
+func TestHandler_Positions_TPSL_UnknownWallet(t *testing.T) {
+	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "trader not found")
+	}})
+	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
+	if w.Code != http.StatusNotFound {
+		t.Errorf("got %d", w.Code)
+	}
+}

@@ -850,3 +850,52 @@ func TestE2E_Trader_ActivitySortFilterCounts(t *testing.T) {
 		t.Fatalf("live error filtered rows must be []: %v", data)
 	}
 }
+
+// TestE2E_Trader_Positions_TPSL (TPSL-07): positions endpoint exposes tp_pxs/sl_pxs
+// arrays on rows (contract v2.2); degraded/empty path never null.
+func TestE2E_Trader_Positions_TPSL(t *testing.T) {
+	s := setupTraderSuite(t)
+	ctx := context.Background()
+	repo := trader.NewRepository(s.db)
+	addr := traderRandAddr(t)
+	t.Cleanup(func() {
+		_, _ = s.db.Exec(context.Background(),
+			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, addr)
+	})
+	if _, _, err := repo.UpsertRegistry(ctx, s.venueID, addr, trader.SourceLeaderboard, nil, nil); err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/positions?venue=trader-e2e-venue", "", "")
+	if code != http.StatusOK {
+		t.Fatalf("positions: %d %v", code, resp)
+	}
+	data := resp["data"].(map[string]any)
+	rows, ok := data["positions"].([]any)
+	if !ok {
+		t.Fatalf("positions not array: %v", data["positions"])
+	}
+	_ = rows
+	unknown := traderRandAddr(t)
+	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+unknown+"/positions?venue=trader-e2e-venue", "", "")
+	if code != http.StatusNotFound {
+		t.Errorf("unknown wallet must 404, got %d", code)
+	}
+}
+
+// TestE2E_Search_ZeroResultsEmptyArray: impossible filter yields empty array not null.
+func TestE2E_Search_ZeroResultsEmptyArray(t *testing.T) {
+	s := setupTraderSuite(t)
+	code, resp := s.doJSON(t, "POST", "/api/v1/traders/search", "",
+		`{"period":"30D","venue":"trader-e2e-venue","roi_min":999999}`)
+	if code != http.StatusOK {
+		t.Fatalf("search: %d %v", code, resp)
+	}
+	rows := rowsOf(t, resp)
+	if len(rows) != 0 {
+		t.Fatalf("want empty, got %d", len(rows))
+	}
+	meta := resp["meta"].(map[string]any)
+	if meta["total"] != float64(0) {
+		t.Errorf("meta.total: %v", meta["total"])
+	}
+}

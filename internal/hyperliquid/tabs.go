@@ -37,18 +37,20 @@ type LedgerUpdate struct {
 
 // OpenOrder is one row of openOrders.
 type OpenOrder struct {
-	Coin             string `json:"coin"`
-	LimitPx          string `json:"limitPx"`
-	Oid              int64  `json:"oid"`
-	Side             string `json:"side"`
-	Sz               string `json:"sz"`
-	Timestamp        int64  `json:"timestamp"`
-	OrderType        string `json:"orderType"`
-	OrigSz           string `json:"origSz"`
-	ReduceOnly       bool   `json:"reduceOnly"`
-	TriggerCondition string `json:"triggerCondition"`
-	TriggerPx        string `json:"triggerPx"`
-	IsPositionTpsl   *bool  `json:"isPositionTpsl"`
+	Coin             string      `json:"coin"`
+	LimitPx          string      `json:"limitPx"`
+	Oid              int64       `json:"oid"`
+	Side             string      `json:"side"`
+	Sz               string      `json:"sz"`
+	Timestamp        int64       `json:"timestamp"`
+	OrderType        string      `json:"orderType"`
+	OrigSz           string      `json:"origSz"`
+	ReduceOnly       bool        `json:"reduceOnly"`
+	TriggerCondition string      `json:"triggerCondition"`
+	TriggerPx        string      `json:"triggerPx"`
+	IsTrigger        *bool       `json:"isTrigger"`
+	IsPositionTpsl   *bool       `json:"isPositionTpsl"`
+	Children         []OpenOrder `json:"children"`
 }
 
 // HistoricalOrder is one row of historicalOrders.
@@ -130,6 +132,27 @@ func (c *Client) FetchOpenOrders(ctx context.Context, address string, dex ...str
 		}
 	}
 	if err := c.postInfo(ctx, body, &out, "openOrders", 8<<20); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []OpenOrder{}
+	}
+	return out, nil
+}
+
+// FetchFrontendOpenOrders returns live open orders enriched with frontend
+// metadata (trigger info, reduce-only, children, isPositionTpsl). Source for
+// position TP/SL attachment (contract wallet-tabs v2.2). POST
+// {type:"frontendOpenOrders", user} with optional "dex".
+func (c *Client) FetchFrontendOpenOrders(ctx context.Context, address string, dex ...string) ([]OpenOrder, error) {
+	var out []OpenOrder
+	body := map[string]any{"type": "frontendOpenOrders", "user": address}
+	if len(dex) > 0 {
+		if d := strings.TrimSpace(dex[0]); d != "" {
+			body["dex"] = d
+		}
+	}
+	if err := c.postInfo(ctx, body, &out, "frontendOpenOrders", 8<<20); err != nil {
 		return nil, err
 	}
 	if out == nil {

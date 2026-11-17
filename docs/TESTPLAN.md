@@ -1668,3 +1668,85 @@ Endpoint: POST /api/v1/admin/traders/sync-positions. Admin (JWT + admin role).
 ### E2E
 - E2E_BUCKET_DETAIL_SOURCE_01: bucket detail markets_source + notional_source asserted.
 
+### 19.27 Positions TP/SL (contract v2.2)
+
+Endpoint: GET /api/v1/traders/{wallet}/positions?venue=hyperliquid&sort=coin&dir=asc. Additive fields tp_pxs/sl_pxs (number[], always present).
+
+#### Unit (internal/trader/positions_tpsl_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| TPSL-01 | attachTPSL nil positions | empty non-nil slice |
+| TPSL-02 | attachTPSL no orders | TpPxs/SlPxs = [] |
+| TPSL-03 | attachTPSL basic TP+SL (long) | TpPxs=[110], SlPxs=[90] |
+| TPSL-04 | attachTPSL non-closing side excluded | empty lists |
+| TPSL-10 | flatten children inherits fields | child gets parent coin/side/reduceOnly/triggerPx/orderType |
+| TPSL-11 | coin suffix after last ':' | xyz:BTC matches BTC position |
+| TPSL-12 | short position closing side | B side orders attached |
+| TPSL-13 | sort by |px-mark| asc | 110,120,130 for mark 100 |
+| TPSL-14 | mark null sorts price asc | 85,95 |
+| TPSL-15 | dedupe canonical decimal | 110 and 110.0 deduped |
+| TPSL-16 | tie-break price asc | equal abs distance -> price asc |
+| TPSL-17 | reduce_only false excluded | empty |
+| TPSL-18 | trigger_px zero excluded | empty |
+| TPSL-19 | invalid trigger_px excluded | empty |
+| TPSL-21 | attachTPSL does not mutate input | input unchanged |
+| TPSL-26 | non-nil empty arrays | TpPxs/SlPxs non-nil |
+| TPSL-31 | sortTPSL helper | sorted by abs distance |
+
+#### Unit helpers (internal/trader/positions_tpsl_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| TPSL-08 | normCoin suffix | "BTC" |
+| TPSL-09 | parseTrigger valid/invalid | value+ok |
+| TPSL-28 | isTP/isSL classification | correct booleans |
+| TPSL-19 | dedupeFloats basic | unique values |
+
+#### Service (internal/trader/service_tpsl_test.go, //go:build integration)
+
+| ID | Case | Expected |
+|----|------|----------|
+| TPSL-05 | service attaches TP/SL | TpPxs/SlPxs populated |
+| TPSL-20 | service frontend error non-fatal | ready, empty arrays |
+| TPSL-22 | cache key unchanged (60s) | TTL hit |
+| TPSL-23 | per-dex fetch | orders from all dexes |
+| TPSL-24 | frontend error logged, non-fatal | ready |
+| TPSL-25 | no tpslFetcher (nil cast) | positions without TP/SL |
+| TPSL-27 | snapshotToDTO copies arrays | tp_pxs/sl_pxs present |
+| TPSL-32 | nil arrays -> [] | non-null |
+
+#### Handler (internal/trader/positions_handler_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| TPSL-06 | payload carries tp_pxs/sl_pxs | arrays present |
+| TPSL-29 | empty arrays serialized as [] | non-null |
+| TPSL-30 | unknown wallet 404 | 404 |
+
+#### E2E (e2e_trader_test.go, //go:build e2e)
+
+| ID | Case | Expected |
+|----|------|----------|
+| TPSL-07 | positions endpoint exposes arrays | 200, non-null arrays |
+
+
+### 19.28 Search empty result (null -> [])
+
+#### Unit/Handler (internal/trader/handler_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| SRCH-EMPTY-01 | TestHandler_Search_EmptyRowsIsArray: mock service returns Rows nil | HTTP 200, data is JSON array [], meta page/limit/has_more present |
+
+#### Integration (internal/trader/repository_integration_test.go)
+
+| ID | Case | Expected |
+|----|------|----------|
+| SRCH-EMPTY-02 | TestRepo_SearchRaw_EmptyRowsNonNil: searchRaw with roi_min=999999 | len==0 && rows != nil |
+
+#### E2E (e2e_trader_test.go, //go:build e2e)
+
+| ID | Case | Expected |
+|----|------|----------|
+| SRCH-EMPTY-03 | TestE2E_Search_ZeroResultsEmptyArray: POST /api/v1/traders/search roi_min 999999 | 200, data is [], meta.total 0 |

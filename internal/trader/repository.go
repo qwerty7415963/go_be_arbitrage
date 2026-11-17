@@ -668,7 +668,7 @@ func (r *Repository) searchRaw(ctx context.Context, query string, args []any) ([
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*PeriodMetrics
+	out := make([]*PeriodMetrics, 0)
 	for rows.Next() {
 		var m PeriodMetrics
 		var status string

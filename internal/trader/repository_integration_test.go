@@ -293,3 +293,30 @@ func TestRepo_LeaderboardRef_Roundtrip(t *testing.T) {
 		t.Error("absent window must return nil")
 	}
 }
+
+// TestRepo_SearchRaw_EmptyRowsNonNil: impossible filter yields non-nil empty slice.
+func TestRepo_SearchRaw_EmptyRowsNonNil(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	t.Cleanup(pool.Close)
+	repo := NewRepository(pool)
+	venueID := testVenue(t, pool)
+	req := &SearchRequest{Venue: testVenueCode, Limit: 20}
+	r := 999999.0
+	req.ROIMin = &r
+	req.Normalize()
+	if err := req.Validate(); err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	query, args := buildSearchOffsetQuery(req, venueID, nil, 0)
+	rows, err := repo.searchRaw(ctx, query, args)
+	if err != nil {
+		t.Fatalf("searchRaw: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("want 0 rows, got %d", len(rows))
+	}
+	if rows == nil {
+		t.Errorf("rows must be non-nil")
+	}
+}
