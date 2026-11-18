@@ -1771,3 +1771,52 @@ Endpoint: GET /api/v1/traders/{wallet}/positions?venue=hyperliquid&sort=coin&dir
 | ID | Case | Expected |
 |----|------|----------|
 | POS-WS-07 | TestE2E_Positions_WS_Push | client receives full snapshot after OnFill |
+
+### 19.30 Overview performance (contract v2.4)
+
+Endpoint: GET /api/v1/traders/overview (summary + buckets, no series) and GET /api/v1/traders/overview/series.
+
+#### Handler
+| ID | Case | Expected |
+|----|------|----------|
+| OV24-H-01 | TestHandler_Overview_Shape | 200, buckets with empty series |
+| OV24-H-02 | TestHandler_OverviewSeries_Shape | 200, pnl_series/account_series/series_wallets |
+| OV24-H-03 | TestHandler_Overview_ETag | ETag + Cache-Control headers |
+
+#### Service
+| ID | Case | Expected |
+|----|------|----------|
+| OV24-S-01 | TestOverview_SWRCache | stale-while-revalidate returns stale + refresh |
+| OV24-S-02 | TestOverview_Singleflight | concurrent calls single-flight |
+| OV24-S-03 | TestOverview_Warm | warm populates 8 keys |
+
+#### E2E
+| ID | Case | Expected |
+|----|------|----------|
+| OV24-E-01 | TestE2E_Overview_Shape | /overview shape without series |
+
+### 19.31 Overview snapshots (contract v2.5)
+Table: trader_overview_snapshots (venue_id, period, pnl_metric, computed_at, payload JSONB), PK 3 cols.
+
+#### Repository
+| ID | Case | Expected |
+|----|------|----------|
+| OV25-R-01 | TestRepo_OverviewSnapshot_Roundtrip | upsert + get round-trip |
+| OV25-R-02 | TestRepo_OverviewSnapshot_Stale | stale detection |
+
+#### Service
+| ID | Case | Expected |
+|----|------|----------|
+| OV25-S-01 | TestOverview_SnapshotHit | L2 snapshot hit returns payload |
+| OV25-S-02 | TestOverview_SnapshotStale_FallbackLive | stale snapshot falls back to live |
+| OV25-S-03 | TestOverview_LiveCompute_UpsertsSnapshot | live compute upserts snapshot |
+
+#### Handler
+| ID | Case | Expected |
+|----|------|----------|
+| OV25-H-01 | existing overview handler tests | shape unchanged |
+
+#### E2E
+| ID | Case | Expected |
+|----|------|----------|
+| OV25-E-01 | TestE2E_TraderOverview | overview shape unchanged |

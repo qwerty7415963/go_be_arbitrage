@@ -51,6 +51,52 @@ func (h *Handler) Overview(c *gin.Context) {
 		api.RespondError(c, appErr(err))
 		return
 	}
+	c.Header("Cache-Control", "public, max-age=30, stale-while-revalidate=900")
+	c.Header("ETag", `"`+d.AsOf+`"`)
+	c.JSON(http.StatusOK, api.Response{Success: true, Data: d})
+}
+
+// OverviewSeries godoc
+// @Summary      Trader overview series (public)
+// @Description  PnL and account series for trader overview.
+// @Tags         traders
+// @Produce      json
+// @Param        venue        query  string  false  "Venue code" default(hyperliquid)
+// @Param        period       query  string  false  "Period" enums(1D,7D,30D,ALL) default(30D)
+// @Param        pnl_metric   query  string  false  "PnL metric" enums(pnl,realized_pnl) default(realized_pnl)
+// @Param        series_days  query  int     false  "Series days 7..90" default(30)
+// @Success      200  {object}  api.Response{data=OverviewSeries}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Router       /api/v1/traders/overview/series [get]
+func (h *Handler) OverviewSeries(c *gin.Context) {
+	venue := c.DefaultQuery("venue", DefaultVenue)
+	period := strings.ToUpper(strings.TrimSpace(c.DefaultQuery("period", Period30D)))
+	pnlMetric := c.DefaultQuery("pnl_metric", "realized_pnl")
+	seriesDays := 30
+	if raw := c.Query("series_days"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 7 || n > 90 {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "series_days must be 7..90"))
+			return
+		}
+		seriesDays = n
+	}
+	switch period {
+	case Period1D, Period7D, Period30D, PeriodALL:
+	default:
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period"))
+		return
+	}
+	if pnlMetric != "pnl" && pnlMetric != "realized_pnl" {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid pnl_metric"))
+		return
+	}
+	d, err := h.svc.OverviewSeries(c.Request.Context(), venue, period, pnlMetric, seriesDays)
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=30, stale-while-revalidate=900")
 	c.JSON(http.StatusOK, api.Response{Success: true, Data: d})
 }
 

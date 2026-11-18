@@ -15,19 +15,20 @@ import (
 )
 
 type mockService struct {
-	searchFn        func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
-	detailFn        func(ctx context.Context, venue, addr, period string) (*Detail, error)
-	positionsFn     func(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error)
-	activityFn      func(ctx context.Context, venue, addr string, q ActivityQuery) (*ActivityPage, error)
-	balancesFn      func(ctx context.Context, venue, addr string) (*BalancesDTO, error)
-	fillsFn         func(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error)
-	ordersFn        func(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error)
-	transfersFn     func(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error)
-	performanceFn   func(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
-	overviewFn      func(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
-	bucketDetailFn  func(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
-	bucketWalletsFn func(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
-	bucketMarketsFn func(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error)
+	searchFn         func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
+	detailFn         func(ctx context.Context, venue, addr, period string) (*Detail, error)
+	positionsFn      func(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error)
+	activityFn       func(ctx context.Context, venue, addr string, q ActivityQuery) (*ActivityPage, error)
+	balancesFn       func(ctx context.Context, venue, addr string) (*BalancesDTO, error)
+	fillsFn          func(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error)
+	ordersFn         func(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error)
+	transfersFn      func(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error)
+	performanceFn    func(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
+	overviewFn       func(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
+	overviewSeriesFn func(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*OverviewSeries, error)
+	bucketDetailFn   func(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
+	bucketWalletsFn  func(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
+	bucketMarketsFn  func(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error)
 }
 
 func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
@@ -92,6 +93,13 @@ func (m *mockService) Overview(ctx context.Context, venue, period, pnlMetric str
 		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
 	return m.overviewFn(ctx, venue, period, pnlMetric, seriesDays)
+}
+
+func (m *mockService) OverviewSeries(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*OverviewSeries, error) {
+	if m.overviewSeriesFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.overviewSeriesFn(ctx, venue, period, pnlMetric, seriesDays)
 }
 
 func (m *mockService) BucketDetail(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error) {

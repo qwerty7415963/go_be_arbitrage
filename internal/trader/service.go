@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 
 	"github.com/google/uuid"
@@ -67,6 +69,7 @@ type Service struct {
 
 	overviewMu    sync.Mutex
 	overviewCache map[string]cachedOverview
+	overviewSF    singleflight.Group
 
 	bucketDetailMu     sync.Mutex
 	bucketDetailCache  map[string]cachedBucketDetail
@@ -819,8 +822,9 @@ func activityPageFromSnapshot(s *Service, fp string, snap *LiveActivitySnapshot,
 }
 
 type cachedOverview struct {
-	val TraderOverview
-	exp time.Time
+	val        TraderOverview
+	exp        time.Time
+	refreshing bool
 }
 
 type cachedBucketDetail struct {

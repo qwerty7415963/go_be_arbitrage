@@ -97,7 +97,7 @@ func TestRepo_Overview_Aggregates(t *testing.T) {
 		t.Error("extremely_profitable missing")
 	}
 
-	acct, err := repo.AggregateAccountBuckets(ctx, venueID, Period30D)
+	acct, _, err := repo.AggregateAccountBuckets(ctx, venueID, Period30D)
 	if err != nil {
 		t.Fatalf("acct: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestRepo_Overview_NullEquityAndVenueIsolation(t *testing.T) {
 	}
 
 	// null equity excluded from account buckets
-	acct, err := repo.AggregateAccountBuckets(ctx, venueID1, Period30D)
+	acct, _, err := repo.AggregateAccountBuckets(ctx, venueID1, Period30D)
 	if err != nil {
 		t.Fatalf("acct: %v", err)
 	}

@@ -29,9 +29,20 @@ type AccountBucketAgg struct {
 
 // DailyPnLSeriesRow is one (date, bucket, sum) row.
 type DailyPnLSeriesRow struct {
-	Date   time.Time
-	Bucket string
-	Pnl    float64
+	Date   time.Time `json:"date"`
+	Bucket string    `json:"bucket"`
+	Pnl    float64   `json:"pnl"`
+}
+
+// OverviewSeries is the /overview/series response.
+type OverviewSeries struct {
+	Venue         string              `json:"venue"`
+	Period        string              `json:"period"`
+	PnlMetric     string              `json:"pnl_metric"`
+	SeriesDays    int                 `json:"series_days"`
+	SeriesWallets int                 `json:"series_wallets"`
+	PnlSeries     []DailyPnLSeriesRow `json:"pnl_series"`
+	AccountSeries []DailyPnLSeriesRow `json:"account_series"`
 }
 
 func pnlColName(pnlCol string) string {
@@ -98,7 +109,7 @@ func (r *Repository) UniverseSize(ctx context.Context, venueID uuid.UUID, period
 }
 
 // AggregateAccountBuckets aggregates latest equity per wallet into account buckets.
-func (r *Repository) AggregateAccountBuckets(ctx context.Context, venueID uuid.UUID, period string) ([]AccountBucketAgg, error) {
+func (r *Repository) AggregateAccountBuckets(ctx context.Context, venueID uuid.UUID, period string) ([]AccountBucketAgg, int, error) {
 	q := `
 		WITH latest_equity AS (
 		  SELECT DISTINCT ON (wallet_address) wallet_address, end_equity
@@ -132,18 +143,25 @@ func (r *Repository) AggregateAccountBuckets(ctx context.Context, venueID uuid.U
 		GROUP BY b.bucket`
 	rows, err := r.pool.Query(ctx, q, venueID, period)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var out []AccountBucketAgg
 	for rows.Next() {
 		var a AccountBucketAgg
 		if err := rows.Scan(&a.Bucket, &a.Count, &a.EquitySum, &a.VolumeSum, &a.LongCount, &a.ShortCount); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, a)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	n, err := r.AccountWalletCount(ctx, venueID)
+	if err != nil {
+		return out, 0, err
+	}
+	return out, n, nil
 }
 
 // AccountWalletCount counts distinct wallets with latest equity.
@@ -275,4 +293,84 @@ func (r *Repository) DataStatusCounts(ctx context.Context, venueID uuid.UUID, pe
 		out[status] = n
 	}
 	return out, rows.Err()
+}
+
+// AggregateOverviewCore consolidates PnL overview aggregates into one call.
+func (r *Repository) AggregateOverviewCore(ctx context.Context, venueID uuid.UUID, period, pnlCol string) ([]PnLBucketAgg, int, int, map[string]int, error) {
+	col := pnlColName(pnlCol)
+
+	// universe size
+	universeSize, err := r.UniverseSize(ctx, venueID, period)
+	if err != nil {
+		return nil, 0, 0, nil, err
+	}
+	// pnl wallet count
+	pnlWallets, err := r.PnlWalletCount(ctx, venueID, period, pnlCol)
+	if err != nil {
+		return nil, 0, 0, nil, err
+	}
+	// status counts
+	statusCounts, err := r.DataStatusCounts(ctx, venueID, period)
+	if err != nil {
+		return nil, 0, 0, nil, err
+	}
+
+	// buckets with MATERIALIZED CTE
+	q := `
+		WITH pm AS MATERIALIZED (
+		  SELECT ` + col + ` AS metric, volume, long_count, short_count
+		  FROM trader_period_metrics
+		  WHERE venue_id = $1 AND period = $2
+		)
+		SELECT
+		  CASE
+		    WHEN metric >= 1000000 THEN 'extremely_profitable'
+		    WHEN metric > 100000 THEN 'very_profitable'
+		    WHEN metric > 0 AND metric <= 100000 THEN 'profitable'
+		    WHEN metric < 0 AND metric >= -100000 THEN 'unprofitable'
+		    WHEN metric > -1000000 THEN 'very_unprofitable'
+		    ELSE 'rekt'
+		  END AS bucket,
+		  COUNT(*)::int AS wallet_count,
+		  COALESCE(SUM(metric), 0) AS pnl_total,
+		  COALESCE(SUM(volume), 0) AS volume_total,
+		  COALESCE(SUM(long_count), 0)::bigint AS long_count,
+		  COALESCE(SUM(short_count), 0)::bigint AS short_count
+		FROM pm
+		WHERE metric IS NOT NULL AND metric <> 0
+		GROUP BY 1`
+	rows, err := r.pool.Query(ctx, q, venueID, period)
+	if err != nil {
+		return nil, 0, 0, nil, err
+	}
+	defer rows.Close()
+	var out []PnLBucketAgg
+	for rows.Next() {
+		var a PnLBucketAgg
+		if err := rows.Scan(&a.Bucket, &a.Count, &a.PnlSum, &a.VolumeSum, &a.LongCount, &a.ShortCount); err != nil {
+			return nil, 0, 0, nil, err
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, 0, nil, err
+	}
+	return out, universeSize, pnlWallets, statusCounts, nil
+}
+
+// AggregateOverviewSeries consolidates pnl + account series + wallet count.
+func (r *Repository) AggregateOverviewSeries(ctx context.Context, venueID uuid.UUID, period, pnlCol string, since time.Time) ([]DailyPnLSeriesRow, []DailyPnLSeriesRow, int, error) {
+	pnlRows, err := r.AggregateDailyPnLSeries(ctx, venueID, period, pnlCol, since)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	acctRows, err := r.AggregateAccountDailyPnLSeries(ctx, venueID, since)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	n, err := r.SeriesWalletCount(ctx, venueID, period, pnlCol, since)
+	if err != nil {
+		return pnlRows, acctRows, 0, err
+	}
+	return pnlRows, acctRows, n, nil
 }

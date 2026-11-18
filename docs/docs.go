@@ -8159,6 +8159,96 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/traders/overview/series": {
+            "get": {
+                "description": "PnL and account series for trader overview.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Trader overview series (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Period",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pnl",
+                            "realized_pnl"
+                        ],
+                        "type": "string",
+                        "default": "realized_pnl",
+                        "description": "PnL metric",
+                        "name": "pnl_metric",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Series days 7..90",
+                        "name": "series_days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/trader.OverviewSeries"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/traders/search": {
             "post": {
                 "description": "Trader scan over period metrics (spec v1.1). Two additive pagination modes: legacy keyset cursor (no page field; next page via meta.cursor/has_more) and numbered pages (page \u003e= 1 selects LIMIT/OFFSET with offset=(page-1)*limit; a cursor in the same body is ignored; meta carries page/total/total_pages with total_pages=ceil(total/limit)). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.",
@@ -12639,6 +12729,20 @@ const docTemplate = `{
                 }
             }
         },
+        "trader.DailyPnLSeriesRow": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "pnl": {
+                    "type": "number"
+                }
+            }
+        },
         "trader.DataStatus": {
             "type": "string",
             "enum": [
@@ -12950,6 +13054,38 @@ const docTemplate = `{
                 },
                 "v": {
                     "type": "number"
+                }
+            }
+        },
+        "trader.OverviewSeries": {
+            "type": "object",
+            "properties": {
+                "account_series": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.DailyPnLSeriesRow"
+                    }
+                },
+                "period": {
+                    "type": "string"
+                },
+                "pnl_metric": {
+                    "type": "string"
+                },
+                "pnl_series": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/trader.DailyPnLSeriesRow"
+                    }
+                },
+                "series_days": {
+                    "type": "integer"
+                },
+                "series_wallets": {
+                    "type": "integer"
+                },
+                "venue": {
+                    "type": "string"
                 }
             }
         },

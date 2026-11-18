@@ -102,7 +102,9 @@ type tpslErrFake struct {
 func (f *tpslErrFake) FetchClearinghouseState(ctx context.Context, addr string, dex ...string) (*hyperliquid.ClearinghouseState, error) {
 	return f.inner.FetchClearinghouseState(ctx, addr, dex...)
 }
-func (f *tpslErrFake) FetchPerpDexs(ctx context.Context) ([]string, error) { return f.inner.FetchPerpDexs(ctx) }
+func (f *tpslErrFake) FetchPerpDexs(ctx context.Context) ([]string, error) {
+	return f.inner.FetchPerpDexs(ctx)
+}
 func (f *tpslErrFake) FetchSpotState(ctx context.Context, addr string) (*hyperliquid.SpotState, error) {
 	return f.inner.FetchSpotState(ctx, addr)
 }

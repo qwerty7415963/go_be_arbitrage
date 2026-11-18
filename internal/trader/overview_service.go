@@ -2,14 +2,17 @@ package trader
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 )
 
-// Overview returns the Trader Overview aggregate.
+// Overview returns the Trader Overview aggregate (summary + buckets, no series).
 func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric string, seriesDays int) (*TraderOverview, error) {
 	venue := strings.ToLower(strings.TrimSpace(venueCode))
 	if venue == "" {
@@ -38,9 +41,11 @@ func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric str
 	cacheKey := fmt.Sprintf("%s|%s|%s|%d", venue, period, pnlMetric, seriesDays)
 
 	s.overviewMu.Lock()
-	defer s.overviewMu.Unlock()
+	c, ok := s.overviewCache[cacheKey]
+	expired := ok && time.Now().After(c.exp)
+	s.overviewMu.Unlock()
 
-	if c, ok := s.overviewCache[cacheKey]; ok && time.Now().Before(c.exp) {
+	if ok && !expired {
 		v := cloneOverview(c.val)
 		v.Venue = venue
 		v.Period = period
@@ -48,43 +53,160 @@ func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric str
 		return &v, nil
 	}
 
+	if ok && expired {
+		s.overviewMu.Lock()
+		if !s.overviewCache[cacheKey].refreshing {
+			updated := s.overviewCache[cacheKey]
+			updated.refreshing = true
+			s.overviewCache[cacheKey] = updated
+			go func() {
+				_, _, _ = s.overviewSF.Do(cacheKey, func() (any, error) {
+					res, err := s.computeOverview(context.Background(), venue, period, pnlMetric, seriesDays)
+					s.overviewMu.Lock()
+					if err == nil && res != nil {
+						s.overviewCache[cacheKey] = cachedOverview{val: *res, exp: time.Now().Add(15 * time.Minute), refreshing: false}
+						vid, verr := s.repo.VenueIDByCode(context.Background(), venue)
+						if verr == nil && vid != uuid.Nil {
+							if payload, merr := json.Marshal(res); merr == nil {
+								_ = s.repo.UpsertOverviewSnapshot(context.Background(), vid, period, pnlMetric, payload, time.Now().UTC())
+							}
+						}
+					} else {
+						cur := s.overviewCache[cacheKey]
+						cur.refreshing = false
+						s.overviewCache[cacheKey] = cur
+					}
+					s.overviewMu.Unlock()
+					return res, err
+				})
+			}()
+		}
+		s.overviewMu.Unlock()
+
+		v := cloneOverview(c.val)
+		v.Venue = venue
+		v.Period = period
+		v.PnlMetric = pnlMetric
+		return &v, nil
+	}
+
+	// L2 snapshot lookup
+	venueID, _ := s.repo.VenueIDByCode(ctx, venue)
+	if venueID != uuid.Nil {
+		snap, serr := s.repo.GetOverviewSnapshot(ctx, venueID, period, pnlMetric)
+		if serr == nil && snap != nil {
+			threshold := time.Now().Add(-240 * time.Second)
+			if snap.ComputedAt.After(threshold) {
+				var ov TraderOverview
+				if uerr := json.Unmarshal(snap.Payload, &ov); uerr == nil {
+					s.overviewMu.Lock()
+					s.overviewCache[cacheKey] = cachedOverview{val: ov, exp: time.Now().Add(15 * time.Minute), refreshing: false}
+					s.overviewMu.Unlock()
+					out := cloneOverview(ov)
+					out.Venue = venue
+					out.Period = period
+					out.PnlMetric = pnlMetric
+					return &out, nil
+				}
+			}
+		}
+	}
+
+	// L3 live compute
+	v, err, _ := s.overviewSF.Do(cacheKey, func() (any, error) {
+		return s.computeOverview(ctx, venue, period, pnlMetric, seriesDays)
+	})
+	if err != nil {
+		return nil, err
+	}
+	res := v.(*TraderOverview)
+	s.overviewMu.Lock()
+	s.overviewCache[cacheKey] = cachedOverview{val: *res, exp: time.Now().Add(15 * time.Minute), refreshing: false}
+	s.overviewMu.Unlock()
+
+	if venueID == uuid.Nil {
+		venueID, _ = s.repo.VenueIDByCode(ctx, venue)
+	}
+	if venueID != uuid.Nil {
+		if payload, merr := json.Marshal(res); merr == nil {
+			_ = s.repo.UpsertOverviewSnapshot(ctx, venueID, period, pnlMetric, payload, time.Now().UTC())
+		}
+	}
+
+	out := cloneOverview(*res)
+	out.Venue = venue
+	out.Period = period
+	out.PnlMetric = pnlMetric
+	return &out, nil
+}
+
+// OverviewSeries returns the daily series for the overview.
+func (s *Service) OverviewSeries(ctx context.Context, venueCode, period, pnlMetric string, seriesDays int) (*OverviewSeries, error) {
+	venue := strings.ToLower(strings.TrimSpace(venueCode))
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	period = strings.ToUpper(strings.TrimSpace(period))
+	if period == "" {
+		period = Period30D
+	}
+	switch period {
+	case Period1D, Period7D, Period30D, PeriodALL:
+	default:
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
+	}
+	pnlMetric = strings.ToLower(strings.TrimSpace(pnlMetric))
+	if pnlMetric == "" {
+		pnlMetric = "realized_pnl"
+	}
+	if pnlMetric != "pnl" && pnlMetric != "realized_pnl" {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid pnl_metric")
+	}
+	if seriesDays < 7 || seriesDays > 90 {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "series_days must be 7..90")
+	}
+
 	venueID, err := s.repo.VenueIDByCode(ctx, venue)
 	if err != nil {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
 	}
 
-	pnlAggs, err := s.repo.AggregatePnLBuckets(ctx, venueID, period, pnlMetric)
-	if err != nil {
-		return nil, err
-	}
-	accountAggs, err := s.repo.AggregateAccountBuckets(ctx, venueID, period)
-	if err != nil {
-		return nil, err
-	}
-	universeSize, err := s.repo.UniverseSize(ctx, venueID, period)
-	if err != nil {
-		return nil, err
-	}
-	pnlWallets, err := s.repo.PnlWalletCount(ctx, venueID, period, pnlMetric)
-	if err != nil {
-		return nil, err
-	}
-	accountWallets, err := s.repo.AccountWalletCount(ctx, venueID)
-	if err != nil {
-		return nil, err
-	}
-	statusCounts, err := s.repo.DataStatusCounts(ctx, venueID, period)
+	now := time.Now().UTC()
+	since := now.AddDate(0, 0, -seriesDays+1).Truncate(24 * time.Hour)
+	pnlRows, acctRows, seriesWallets, err := s.repo.AggregateOverviewSeries(ctx, venueID, period, pnlMetric, since)
 	if err != nil {
 		return nil, err
 	}
 
-	now := time.Now().UTC()
-	since := now.AddDate(0, 0, -seriesDays+1).Truncate(24 * time.Hour)
-	seriesRows, err := s.repo.AggregateDailyPnLSeries(ctx, venueID, period, pnlMetric, since)
+	result := &OverviewSeries{
+		Venue:         venue,
+		Period:        period,
+		PnlMetric:     pnlMetric,
+		SeriesDays:    seriesDays,
+		SeriesWallets: seriesWallets,
+		PnlSeries:     pnlRows,
+		AccountSeries: acctRows,
+	}
+	if result.PnlSeries == nil {
+		result.PnlSeries = []DailyPnLSeriesRow{}
+	}
+	if result.AccountSeries == nil {
+		result.AccountSeries = []DailyPnLSeriesRow{}
+	}
+	return result, nil
+}
+
+func (s *Service) computeOverview(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error) {
+	venueID, err := s.repo.VenueIDByCode(ctx, venue)
+	if err != nil {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
+	}
+
+	pnlAggs, universeSize, pnlWallets, statusCounts, err := s.repo.AggregateOverviewCore(ctx, venueID, period, pnlMetric)
 	if err != nil {
 		return nil, err
 	}
-	seriesWallets, err := s.repo.SeriesWalletCount(ctx, venueID, period, pnlMetric, since)
+	accountAggs, accountWallets, err := s.repo.AggregateAccountBuckets(ctx, venueID, period)
 	if err != nil {
 		return nil, err
 	}
@@ -105,14 +227,6 @@ func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric str
 		}
 		lr := LongRatio(agg.LongCount, agg.ShortCount)
 		ln, sn := ApproxNotional(agg.VolumeSum, agg.LongCount, agg.ShortCount)
-		daily := map[time.Time]float64{}
-		for _, row := range seriesRows {
-			if row.Bucket != id {
-				continue
-			}
-			daily[row.Date.UTC().Truncate(24*time.Hour)] += row.Pnl
-		}
-		series := CumulativeSeries(daily, since, now)
 		pnlBuckets = append(pnlBuckets, OverviewBucket{
 			ID:            id,
 			MinPnL:        cloneFloatPtr(spec.Min),
@@ -126,7 +240,7 @@ func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric str
 			LongNotional:  ln,
 			ShortNotional: sn,
 			Sentiment:     Sentiment(agg.LongCount, agg.ShortCount),
-			Series:        series,
+			Series:        []OverviewPoint{},
 		})
 	}
 
@@ -163,26 +277,7 @@ func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric str
 		})
 	}
 
-	acctSeriesRows, err := s.repo.AggregateAccountDailyPnLSeries(ctx, venueID, since)
-	if err != nil {
-		return nil, err
-	}
-	acctDaily := map[string]map[time.Time]float64{}
-	for _, row := range acctSeriesRows {
-		if acctDaily[row.Bucket] == nil {
-			acctDaily[row.Bucket] = map[time.Time]float64{}
-		}
-		acctDaily[row.Bucket][row.Date.UTC().Truncate(24*time.Hour)] += row.Pnl
-	}
-	for i := range accountBuckets {
-		id := accountBuckets[i].ID
-		daily := acctDaily[id]
-		if daily == nil {
-			daily = map[time.Time]float64{}
-		}
-		accountBuckets[i].Series = CumulativeSeries(daily, since, now)
-	}
-
+	now := time.Now().UTC()
 	result := TraderOverview{
 		AsOf:           now.Format(time.RFC3339),
 		Venue:          venue,
@@ -194,13 +289,48 @@ func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric str
 		Coverage: OverviewCoverage{
 			PnlWallets:          pnlWallets,
 			AccountValueWallets: accountWallets,
-			SeriesWallets:       seriesWallets,
+			SeriesWallets:       0,
 			DataStatus:          statusCounts,
 		},
 	}
 
-	s.overviewCache[cacheKey] = cachedOverview{val: result, exp: now.Add(5 * time.Minute)}
 	return &result, nil
+}
+
+// RefreshOverviewSnapshots recomputes and upserts all 8 overview snapshots for a venue.
+func (s *Service) RefreshOverviewSnapshots(ctx context.Context, venueID uuid.UUID) {
+	venueCode, err := s.repo.VenueCodeByID(ctx, venueID)
+	if err != nil || venueCode == "" {
+		venueCode = DefaultVenue
+	}
+	periods := []string{Period1D, Period7D, Period30D, PeriodALL}
+	metrics := []string{"pnl", "realized_pnl"}
+	for _, period := range periods {
+		for _, metric := range metrics {
+			res, err := s.computeOverview(ctx, venueCode, period, metric, 30)
+			if err != nil || res == nil {
+				continue
+			}
+			payload, merr := json.Marshal(res)
+			if merr != nil {
+				continue
+			}
+			_ = s.repo.UpsertOverviewSnapshot(ctx, venueID, period, metric, payload, time.Now().UTC())
+			cacheKey := fmt.Sprintf("%s|%s|%s|%d", venueCode, period, metric, 30)
+			s.overviewMu.Lock()
+			s.overviewCache[cacheKey] = cachedOverview{val: *res, exp: time.Now().Add(15 * time.Minute), refreshing: false}
+			s.overviewMu.Unlock()
+		}
+	}
+}
+
+// WarmOverviewCache computes all 8 overview keys in the background.
+func (s *Service) WarmOverviewCache(ctx context.Context) {
+	venueID, err := s.repo.VenueIDByCode(ctx, DefaultVenue)
+	if err != nil {
+		return
+	}
+	s.RefreshOverviewSnapshots(ctx, venueID)
 }
 
 func cloneStringPtr(p *string) *string {

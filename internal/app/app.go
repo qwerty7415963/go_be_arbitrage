@@ -35,6 +35,8 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
+
+	"github.com/google/uuid"
 )
 
 type App struct {
@@ -60,6 +62,8 @@ type App struct {
 	opportunityService *opportunity.Service
 	discoveryService   *trader.DiscoveryService
 	traderSyncService  *trader.SyncService
+	traderService      *trader.Service
+	traderVenueID      uuid.UUID
 	hlClient           *hyperliquid.Client
 	hlLive             *hyperliquid.LiveClient
 	watcherManager     *trader.WatcherManager
@@ -198,6 +202,7 @@ func New(cfg *config.Config) (*App, error) {
 	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
 	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret).WithAppSettings(appSettingsService).WithAssetLogoResolver(assetLogoResolver)
 	traderHandler := trader.NewHandler(traderService)
+	go traderService.WarmOverviewCache(context.Background())
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
 
 	// Telegram notifications (contract v1.4 phase B)
@@ -229,6 +234,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	var discoverySvc *trader.DiscoveryService
 	var traderSyncSvc *trader.SyncService
+	var hyperliquidVenueID uuid.UUID
 	var hlClient *hyperliquid.Client
 	var hlLive *hyperliquid.LiveClient
 	var watcherManager *trader.WatcherManager
@@ -237,6 +243,7 @@ func New(cfg *config.Config) (*App, error) {
 	if venueID, verr := traderRepo.VenueIDByCode(ctx, hyperliquid.VenueCode); verr != nil {
 		log.Warn("hyperliquid venue missing; trader discovery/sync disabled", "error", verr)
 	} else {
+		hyperliquidVenueID = venueID
 		hlClient = hyperliquid.NewClient("", 30*time.Second, 2*time.Second)
 		// LIVE-CONTRACT v1.2 §3 (WS-A): interactive reads use a SEPARATE HL
 		// client (hlLive) with its OWN pacer (floor 200ms), own 429 backoff,
@@ -343,6 +350,8 @@ func New(cfg *config.Config) (*App, error) {
 		opportunityService: opportunityService,
 		discoveryService:   discoverySvc,
 		traderSyncService:  traderSyncSvc,
+		traderService:      traderService,
+		traderVenueID:      hyperliquidVenueID,
 		hlClient:           hlClient,
 		hlLive:             hlLive,
 		watcherManager:     watcherManager,
@@ -539,6 +548,10 @@ func (a *App) Run() error {
 		go runWSTradeDiscovery(ctx, a.logger, a.hlClient, a.wsStream, a.wsHarvest)
 	}
 
+	if a.traderService != nil && a.traderVenueID != uuid.Nil {
+		go runOverviewSnapshotWorker(ctx, a.logger, a.traderService, a.traderVenueID)
+	}
+
 	if a.telegramBot != nil {
 		go a.telegramBot.Start(ctx)
 	}
@@ -594,4 +607,21 @@ func (a *App) Shutdown(ctx context.Context) error {
 
 	a.logger.Info("application shutdown complete")
 	return nil
+}
+
+func runOverviewSnapshotWorker(ctx context.Context, log *logger.Logger, svc *trader.Service, venueID uuid.UUID) {
+	run := func() {
+		svc.RefreshOverviewSnapshots(ctx, venueID)
+	}
+	run()
+	ticker := time.NewTicker(120 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
 }

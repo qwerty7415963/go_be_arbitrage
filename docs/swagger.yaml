@@ -1638,6 +1638,15 @@ definitions:
       win_rate:
         type: number
     type: object
+  trader.DailyPnLSeriesRow:
+    properties:
+      bucket:
+        type: string
+      date:
+        type: string
+      pnl:
+        type: number
+    type: object
   trader.DataStatus:
     enum:
     - ready
@@ -1848,6 +1857,27 @@ definitions:
         type: string
       v:
         type: number
+    type: object
+  trader.OverviewSeries:
+    properties:
+      account_series:
+        items:
+          $ref: '#/definitions/trader.DailyPnLSeriesRow'
+        type: array
+      period:
+        type: string
+      pnl_metric:
+        type: string
+      pnl_series:
+        items:
+          $ref: '#/definitions/trader.DailyPnLSeriesRow'
+        type: array
+      series_days:
+        type: integer
+      series_wallets:
+        type: integer
+      venue:
+        type: string
     type: object
   trader.PerformanceDTO:
     properties:
@@ -7776,6 +7806,62 @@ paths:
                   $ref: '#/definitions/api.ErrorBody'
               type: object
       summary: Bucket wallets (public)
+      tags:
+      - traders
+  /api/v1/traders/overview/series:
+    get:
+      description: PnL and account series for trader overview.
+      parameters:
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - default: 30D
+        description: Period
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - ALL
+        in: query
+        name: period
+        type: string
+      - default: realized_pnl
+        description: PnL metric
+        enum:
+        - pnl
+        - realized_pnl
+        in: query
+        name: pnl_metric
+        type: string
+      - default: 30
+        description: Series days 7..90
+        in: query
+        name: series_days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/trader.OverviewSeries'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Trader overview series (public)
       tags:
       - traders
   /api/v1/traders/search:
