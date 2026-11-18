@@ -44,6 +44,7 @@ type App struct {
 	logger             *logger.Logger
 	database           *database.Database
 	httpServer         *httpserver.Server
+	cancel             context.CancelFunc
 	auth               *auth.Service
 	health             *health.Handler
 	venueService       *venue.Service
@@ -491,6 +492,7 @@ func runLogoCleanupWorker(ctx context.Context, log *logger.Logger, r *assetlogo.
 
 func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
+	a.cancel = cancel
 	defer cancel()
 
 	// Start collector in background
@@ -602,6 +604,12 @@ func (a *App) Shutdown(ctx context.Context) error {
 	if a.assetLogoResolver != nil {
 		a.assetLogoResolver.Stop()
 	}
+
+	if a.cancel != nil {
+		a.cancel()
+	}
+
+	time.Sleep(300 * time.Millisecond)
 
 	a.database.Close()
 
