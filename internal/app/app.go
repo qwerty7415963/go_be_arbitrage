@@ -64,6 +64,7 @@ type App struct {
 	discoveryService   *trader.DiscoveryService
 	traderSyncService  *trader.SyncService
 	traderService      *trader.Service
+	bucketProjector    *trader.BucketProjector
 	traderVenueID      uuid.UUID
 	hlClient           *hyperliquid.Client
 	hlLive             *hyperliquid.LiveClient
@@ -202,6 +203,8 @@ func New(cfg *config.Config) (*App, error) {
 	traderGroupRepo := tradergroup.NewRepository(db.Pool(), appSettingsService)
 	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
 	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret).WithAppSettings(appSettingsService).WithAssetLogoResolver(assetLogoResolver)
+	bucketProjector := trader.NewBucketProjector(traderRepo, traderService)
+	traderService.WithBucketProjector(bucketProjector)
 	traderHandler := trader.NewHandler(traderService)
 	go traderService.WarmOverviewCache(context.Background())
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
@@ -222,7 +225,7 @@ func New(cfg *config.Config) (*App, error) {
 	var notifySupervisor *notify.Supervisor
 	var notifyDispatcher *notify.Dispatcher
 	var notifyWorker *notify.Worker
-	// LIVE-CONTRACT v1.2 §2 (WS-D): realtime path is one refcounted
+	// LIVE-CONTRACT v1.2 Â§2 (WS-D): realtime path is one refcounted
 	// WalletWatcher per watched address (first browser subscriber creates the
 	// 4-feed upstream watcher; last unsubscribe tears it down) over the shared
 	// browser transport GET /traders/ws?wallet=. The legacy global harvest
@@ -246,7 +249,7 @@ func New(cfg *config.Config) (*App, error) {
 	} else {
 		hyperliquidVenueID = venueID
 		hlClient = hyperliquid.NewClient("", 30*time.Second, 2*time.Second)
-		// LIVE-CONTRACT v1.2 §3 (WS-A): interactive reads use a SEPARATE HL
+		// LIVE-CONTRACT v1.2 Â§3 (WS-A): interactive reads use a SEPARATE HL
 		// client (hlLive) with its OWN pacer (floor 200ms), own 429 backoff,
 		// bounded concurrency (~4) and per-request ctx timeouts. Sync's
 		// 2s-floor pacer is untouched. TTL 12s cache + single-flight behind
@@ -256,7 +259,7 @@ func New(cfg *config.Config) (*App, error) {
 		appSettingsService.WithPerpDexFetcher(hlLive)
 		// WS-D: one refcounted WalletWatcher per watched address (first
 		// browser subscriber creates the 4-feed upstream watcher + REST
-		// bootstrap RESYNC→RECONCILE→LIVE; last unsubscribe tears it down).
+		// bootstrap RESYNCâ†’RECONCILEâ†’LIVE; last unsubscribe tears it down).
 		// Shared upstream WS multiplexing is interface-ready (UpstreamDialer);
 		// production runs REST-bootstrap + envelope + reconnect states on the
 		// existing transport; the global harvest feed stays for the scanner.
@@ -293,7 +296,8 @@ func New(cfg *config.Config) (*App, error) {
 		traderSyncSvc = trader.NewSyncService(traderRepo,
 			trader.HLFillAdapter{C: hlClient}, venueID, traderSyncOptions()).
 			WithPortfolio(trader.HLPortfolioAdapter{C: hlClient}).
-			WithPositions(trader.HLPositionAdapter{C: hlClient})
+			WithPositions(trader.HLPositionAdapter{C: hlClient}).
+			WithOnSyncComplete(func(ctx context.Context) { go bucketProjector.Refresh(ctx, venueID) })
 		wsHarvest = trader.NewWSHarvestService(traderRepo, venueID, 500, time.Second)
 		wsStream = hyperliquid.NewTradeStream("", hyperliquid.DefaultMaxCoins,
 			func(evs []hyperliquid.WSTradeEvent) { wsHarvest.Submit(trader.AdaptWSBatch(evs)) })
@@ -352,6 +356,7 @@ func New(cfg *config.Config) (*App, error) {
 		discoveryService:   discoverySvc,
 		traderSyncService:  traderSyncSvc,
 		traderService:      traderService,
+		bucketProjector:    bucketProjector,
 		traderVenueID:      hyperliquidVenueID,
 		hlClient:           hlClient,
 		hlLive:             hlLive,
@@ -373,12 +378,12 @@ func New(cfg *config.Config) (*App, error) {
 
 // Trader Scanner worker tuning: leaderboard refresh (39MB dump) every 15
 // minutes; metric sync every 6 hours (parity with the legacy backfill, WS-E:
-// scanner only — detail is LIVE, no positions-30s ticker); WS trade discovery
+// scanner only â€” detail is LIVE, no positions-30s ticker); WS trade discovery
 // subscribes the perp universe with hourly meta refresh.
 const (
 	traderDiscoveryLimit    = 500
 	traderDiscoveryInterval = 15 * time.Minute
-	traderSyncInterval      = 6 * time.Hour
+	traderSyncInterval      = 3 * time.Hour
 	traderSyncWorkers       = 4
 	traderWSRefreshInterval = time.Hour
 	retentionInterval       = 24 * time.Hour
@@ -552,6 +557,21 @@ func (a *App) Run() error {
 
 	if a.traderService != nil && a.traderVenueID != uuid.Nil {
 		go runOverviewSnapshotWorker(ctx, a.logger, a.traderService, a.traderVenueID)
+	}
+	if a.bucketProjector != nil && a.traderVenueID != uuid.Nil {
+		go func() {
+			a.bucketProjector.Refresh(ctx, a.traderVenueID)
+			ticker := time.NewTicker(30 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					a.bucketProjector.Refresh(ctx, a.traderVenueID)
+				}
+			}
+		}()
 	}
 
 	if a.telegramBot != nil {

@@ -34,7 +34,7 @@ type SyncOptions struct {
 	// PortfolioInterval is the minimum gap between equity refreshes.
 	PortfolioInterval time.Duration
 	// LIVE-CONTRACT v1.2 WS-E: positions-30s sync removed. Detail positions
-	// are LIVE (§1.1 REST, short TTL); the sync engine keeps daily/period for
+	// are LIVE (Â§1.1 REST, short TTL); the sync engine keeps daily/period for
 	// the scanner only. PositionInterval/PositionColdInterval/PositionJitter
 	// are retired (zero values ignored).
 }
@@ -99,14 +99,15 @@ var periodLookbacks = map[string]time.Duration{
 // recompute-based (never blind increments): reruns are identical (BE-020) and
 // crash recovery only replays (BE-033).
 type SyncService struct {
-	repo      *Repository
-	fetch     FillFetcher
-	portfolio PortfolioFetcher // optional; nil skips equity (V1.1 wiring sets it)
-	positions PositionFetcher  // optional; nil skips position persistence
-	venueID   uuid.UUID
-	opts      SyncOptions
-	logf      func(format string, args ...any)
-	counters  syncCounters
+	repo           *Repository
+	fetch          FillFetcher
+	portfolio      PortfolioFetcher // optional; nil skips equity (V1.1 wiring sets it)
+	positions      PositionFetcher  // optional; nil skips position persistence
+	venueID        uuid.UUID
+	opts           SyncOptions
+	onSyncComplete func(ctx context.Context)
+	logf           func(format string, args ...any)
+	counters       syncCounters
 }
 
 func NewSyncService(repo *Repository, fetch FillFetcher, venueID uuid.UUID, opts SyncOptions) *SyncService {
@@ -123,6 +124,12 @@ func (s *SyncService) WithPortfolio(p PortfolioFetcher) *SyncService {
 // WithPositions enables durable position persistence for hot wallets.
 func (s *SyncService) WithPositions(p PositionFetcher) *SyncService {
 	s.positions = p
+	return s
+}
+
+// WithOnSyncComplete registers a hook called after SyncAll when done > 0.
+func (s *SyncService) WithOnSyncComplete(f func(ctx context.Context)) *SyncService {
+	s.onSyncComplete = f
 	return s
 }
 
@@ -145,8 +152,8 @@ func (s *SyncService) SyncPositions(ctx context.Context, addr string) error {
 	return nil
 }
 
-// SyncWallet runs one full pass for an address: fetch → stage → recompute
-// affected days → recalc periods → advance cursor → purge. Fetch failures
+// SyncWallet runs one full pass for an address: fetch â†’ stage â†’ recompute
+// affected days â†’ recalc periods â†’ advance cursor â†’ purge. Fetch failures
 // record error state (BE-010/BE-032) without touching last-good metrics
 // beyond a status flip.
 func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time) (err error) {
@@ -398,7 +405,7 @@ func (s *SyncService) recalcPeriod(ctx context.Context, addr, period string, now
 	tc := trades
 	m.TradeCount = &tc
 	// Display PnL: leaderboard passthrough when fresh, else the computed
-	// realized sum (spec §9). RealizedPnL always carries the computed sum
+	// realized sum (spec Â§9). RealizedPnL always carries the computed sum
 	// for reconciliation.
 	m.RealizedPnL = &pnl
 	m.PnL = s.resolvePnL(ctx, addr, period, &pnl, now)
@@ -439,7 +446,7 @@ func (s *SyncService) resolveROI(ctx context.Context, addr, period string, pnl, 
 	return FallbackROIPct(pnl, volume)
 }
 
-// resolvePnL mirrors resolveROI for display PnL (spec §9: period PnL shown by
+// resolvePnL mirrors resolveROI for display PnL (spec Â§9: period PnL shown by
 // the configured source). Fresh leaderboard window PnL wins; otherwise the
 // computed realized sum.
 func (s *SyncService) resolvePnL(ctx context.Context, addr, period string, realized *float64, now time.Time) *float64 {
@@ -608,6 +615,9 @@ func (s *SyncService) SyncAll(ctx context.Context, now time.Time) (done, failed 
 	})
 	s.logf("sync finished venue=%s done=%d failed=%d duration_ms=%d",
 		s.venueID, done, failed, time.Since(start).Milliseconds())
+	if s.onSyncComplete != nil && done > 0 {
+		s.onSyncComplete(ctx)
+	}
 	return done, failed
 }
 

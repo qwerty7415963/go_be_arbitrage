@@ -43,15 +43,82 @@ func (s *Service) BucketDetail(ctx context.Context, venueCode, kind, id, period,
 	if err != nil {
 		return nil, err
 	}
+	_ = days
 
 	cacheKey := fmt.Sprintf("detail|%s|%s|%s|%s|%s", venue, kind, id, period, rangeCode)
 	s.bucketDetailMu.Lock()
-	defer s.bucketDetailMu.Unlock()
 	if c, ok := s.bucketDetailCache[cacheKey]; ok && time.Now().Before(c.exp) {
 		v := c.val
 		v.Positioning = append([]BucketPositioningPoint(nil), c.val.Positioning...)
 		v.MarketsTop = append([]BucketMarketTop(nil), c.val.MarketsTop...)
+		s.bucketDetailMu.Unlock()
 		return &v, nil
+	}
+	s.bucketDetailMu.Unlock()
+
+	venueID, err := s.repo.VenueIDByCode(ctx, venue)
+	if err != nil {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
+	}
+
+	// read model
+	payload, rerr := s.repo.GetBucketDetailPayload(ctx, venueID, kind, id, period, rangeCode)
+	if rerr == nil && payload != nil && s.isBucketReadModelFresh(payload.RefreshedAt) {
+		s.bucketDetailMu.Lock()
+		cached := *payload
+		cached.Positioning = append([]BucketPositioningPoint(nil), payload.Positioning...)
+		cached.MarketsTop = append([]BucketMarketTop(nil), payload.MarketsTop...)
+		s.bucketDetailCache[cacheKey] = cachedBucketDetail{val: cached, exp: time.Now().Add(5 * time.Minute)}
+		s.bucketDetailMu.Unlock()
+		return payload, nil
+	}
+
+	result, err := s.computeBucketDetail(ctx, venueCode, kind, id, period, rangeCode)
+	if err != nil {
+		return nil, err
+	}
+	s.bucketDetailMu.Lock()
+	cached := *result
+	cached.Positioning = append([]BucketPositioningPoint(nil), result.Positioning...)
+	cached.MarketsTop = append([]BucketMarketTop(nil), result.MarketsTop...)
+	s.bucketDetailCache[cacheKey] = cachedBucketDetail{val: cached, exp: time.Now().Add(5 * time.Minute)}
+	s.bucketDetailMu.Unlock()
+
+	if payload == nil || !s.isBucketReadModelFresh(payload.RefreshedAt) {
+		s.triggerBucketRefresh(ctx, venueID)
+	}
+	return result, nil
+}
+
+func (s *Service) computeBucketDetail(ctx context.Context, venueCode, kind, id, period, rangeCode string) (*BucketDetail, error) {
+	venue := strings.ToLower(strings.TrimSpace(venueCode))
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if kind != "pnl" && kind != "account" {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid kind")
+	}
+	id = strings.TrimSpace(id)
+	if !ValidBucketID(kind, id) {
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket id")
+	}
+	period = strings.ToUpper(strings.TrimSpace(period))
+	if period == "" {
+		period = Period30D
+	}
+	switch period {
+	case Period1D, Period7D, Period30D, PeriodALL:
+	default:
+		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
+	}
+	rangeCode = strings.ToUpper(strings.TrimSpace(rangeCode))
+	if rangeCode == "" {
+		rangeCode = "30D"
+	}
+	days, err := rangeDays(rangeCode)
+	if err != nil {
+		return nil, err
 	}
 
 	venueID, err := s.repo.VenueIDByCode(ctx, venue)
@@ -208,10 +275,6 @@ func (s *Service) BucketDetail(ctx context.Context, venueCode, kind, id, period,
 			WalletsWithTrades:    tradeCount,
 		},
 	}
-	cached := result
-	cached.Positioning = append([]BucketPositioningPoint(nil), result.Positioning...)
-	cached.MarketsTop = append([]BucketMarketTop(nil), result.MarketsTop...)
-	s.bucketDetailCache[cacheKey] = cachedBucketDetail{val: cached, exp: now.Add(5 * time.Minute)}
 	return &result, nil
 }
 
@@ -265,14 +328,122 @@ func (s *Service) BucketWallets(ctx context.Context, venueCode, kind, id, period
 
 	cacheKey := fmt.Sprintf("wallets|%s|%s|%s|%s|%s|%s|%d|%d", venue, kind, id, period, sort, dir, page, limit)
 	s.bucketWalletsMu.Lock()
-	defer s.bucketWalletsMu.Unlock()
 	if c, ok := s.bucketWalletsCache[cacheKey]; ok && time.Now().Before(c.exp) {
 		out := make([]BucketWalletRow, len(c.val))
 		for i := range c.val {
 			out[i] = c.val[i]
 			out[i].DisplayName = cloneStringPtr(c.val[i].DisplayName)
 		}
+		s.bucketWalletsMu.Unlock()
 		return out, c.total, nil
+	}
+	s.bucketWalletsMu.Unlock()
+
+	venueID, err := s.repo.VenueIDByCode(ctx, venue)
+	if err != nil {
+		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
+	}
+
+	// read model
+	rows, rtotal, rerr := s.repo.GetBucketMembers(ctx, venueID, kind, id, period, sort, dir, page, limit)
+	if rerr == nil && rtotal > 0 {
+		out := make([]BucketWalletRow, 0, len(rows))
+		for _, r := range rows {
+			bias := Sentiment(r.LongCount, r.ShortCount)
+			cohort := AccountBucketFor(r.PerpEquity)
+			out = append(out, BucketWalletRow{
+				Address:       r.Address,
+				DisplayName:   r.DisplayName,
+				PerpEquity:    r.PerpEquity,
+				PositionValue: r.PositionValue,
+				SumUpnl:       r.SumUpnl,
+				Leverage:      r.Leverage,
+				WinRate:       r.WinRate,
+				VolumeRange:   r.VolumeRange,
+				RealizedPnl:   r.RealizedPnl,
+				Bias:          bias,
+				Cohort:        cohort,
+				LongCount:     r.LongCount,
+				ShortCount:    r.ShortCount,
+			})
+		}
+		s.bucketWalletsMu.Lock()
+		cached := make([]BucketWalletRow, len(out))
+		for i := range out {
+			cached[i] = out[i]
+			cached[i].DisplayName = cloneStringPtr(out[i].DisplayName)
+		}
+		s.bucketWalletsCache[cacheKey] = cachedBucketWallets{val: cached, total: rtotal, exp: time.Now().UTC().Add(5 * time.Minute)}
+		s.bucketWalletsMu.Unlock()
+		return out, rtotal, nil
+	}
+
+	// fallback live compute
+	out, total, err := s.computeBucketWallets(ctx, venueCode, kind, id, period, sort, dir, page, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	s.bucketWalletsMu.Lock()
+	cached := make([]BucketWalletRow, len(out))
+	for i := range out {
+		cached[i] = out[i]
+		cached[i].DisplayName = cloneStringPtr(out[i].DisplayName)
+	}
+	s.bucketWalletsCache[cacheKey] = cachedBucketWallets{val: cached, total: total, exp: time.Now().UTC().Add(5 * time.Minute)}
+	s.bucketWalletsMu.Unlock()
+
+	if rerr != nil || rtotal == 0 {
+		s.triggerBucketRefresh(ctx, venueID)
+	}
+	return out, total, nil
+}
+
+func (s *Service) computeBucketWallets(ctx context.Context, venueCode, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error) {
+	venue := strings.ToLower(strings.TrimSpace(venueCode))
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if kind != "pnl" && kind != "account" {
+		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid kind")
+	}
+	id = strings.TrimSpace(id)
+	if !ValidBucketID(kind, id) {
+		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket id")
+	}
+	period = strings.ToUpper(strings.TrimSpace(period))
+	if period == "" {
+		period = Period30D
+	}
+	switch period {
+	case Period1D, Period7D, Period30D, PeriodALL:
+	default:
+		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
+	}
+	sort = strings.ToLower(strings.TrimSpace(sort))
+	if sort == "" {
+		sort = "equity"
+	}
+	switch sort {
+	case "equity", "win_rate", "volume", "pnl", "bias":
+	default:
+		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort")
+	}
+	dir = strings.ToLower(strings.TrimSpace(dir))
+	if dir == "" {
+		dir = "desc"
+	}
+	if dir != "asc" && dir != "desc" {
+		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir")
+	}
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		return nil, 0, domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
 	}
 
 	venueID, err := s.repo.VenueIDByCode(ctx, venue)
@@ -352,16 +523,117 @@ func (s *Service) BucketWallets(ctx context.Context, venueCode, kind, id, period
 		out[i].PositionValue = res[i].pv
 		out[i].SumUpnl = res[i].upnl
 	}
-	cached := make([]BucketWalletRow, len(out))
-	for i := range out {
-		cached[i] = out[i]
-		cached[i].DisplayName = cloneStringPtr(out[i].DisplayName)
-	}
-	s.bucketWalletsCache[cacheKey] = cachedBucketWallets{val: cached, total: total, exp: time.Now().UTC().Add(5 * time.Minute)}
 	return out, total, nil
 }
 
 func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error) {
+	venue := strings.ToLower(strings.TrimSpace(venueCode))
+	if venue == "" {
+		venue = DefaultVenue
+	}
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	if kind != "pnl" && kind != "account" {
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid kind")
+	}
+	id = strings.TrimSpace(id)
+	if !ValidBucketID(kind, id) {
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket id")
+	}
+	period = strings.ToUpper(strings.TrimSpace(period))
+	if period == "" {
+		period = Period30D
+	}
+	switch period {
+	case Period1D, Period7D, Period30D, PeriodALL:
+	default:
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid period")
+	}
+	rangeCode = strings.ToUpper(strings.TrimSpace(rangeCode))
+	if rangeCode == "" {
+		rangeCode = "30D"
+	}
+	days, err := rangeDays(rangeCode)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	_ = days
+	sort = strings.ToLower(strings.TrimSpace(sort))
+	if sort == "" {
+		sort = "notional"
+	}
+	switch sort {
+	case "notional", "upnl", "traders":
+	default:
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort")
+	}
+	dir = strings.ToLower(strings.TrimSpace(dir))
+	if dir == "" {
+		dir = "desc"
+	}
+	if dir != "asc" && dir != "desc" {
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir")
+	}
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
+	}
+
+	cacheKey := fmt.Sprintf("markets|%s|%s|%s|%s|%s|%s|%s|%s|%d|%d", venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
+	s.bucketMarketsMu.Lock()
+	if c, ok := s.bucketMarketsCache[cacheKey]; ok && time.Now().Before(c.exp) {
+		out := make([]BucketMarketRow, len(c.val))
+		copy(out, c.val)
+		s.bucketMarketsMu.Unlock()
+		return out, c.total, c.source, nil
+	}
+	s.bucketMarketsMu.Unlock()
+
+	venueID, err := s.repo.VenueIDByCode(ctx, venue)
+	if err != nil {
+		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
+	}
+
+	// read model
+	rows, rtotal, rerr := s.repo.GetBucketMarkets(ctx, venueID, kind, id, period, rangeCode, search, sort, dir, page, limit)
+	if rerr == nil && rtotal > 0 {
+		out := make([]BucketMarketRow, len(rows))
+		copy(out, rows)
+		s.enrichBucketMarkets(ctx, venueID, out)
+		// source
+		source := "positions"
+		wallets, _ := s.repo.GetBucketMembershipWallets(ctx, venueID, kind, id, period)
+		_, _, posWallets, _ := s.repo.BucketPositionNotional(ctx, venueID, wallets)
+		if posWallets == 0 {
+			source = "trades"
+		}
+		s.bucketMarketsMu.Lock()
+		s.bucketMarketsCache[cacheKey] = cachedBucketMarkets{val: out, total: rtotal, source: source, exp: time.Now().UTC().Add(5 * time.Minute)}
+		s.bucketMarketsMu.Unlock()
+		return out, rtotal, source, nil
+	}
+
+	out, total, source, err := s.computeBucketMarkets(ctx, venueCode, kind, id, period, rangeCode, search, sort, dir, page, limit)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	s.bucketMarketsMu.Lock()
+	cached := make([]BucketMarketRow, len(out))
+	copy(cached, out)
+	s.bucketMarketsCache[cacheKey] = cachedBucketMarkets{val: cached, total: total, source: source, exp: time.Now().UTC().Add(5 * time.Minute)}
+	s.bucketMarketsMu.Unlock()
+
+	if rerr != nil || rtotal == 0 {
+		s.triggerBucketRefresh(ctx, venueID)
+	}
+	return out, total, source, nil
+}
+
+func (s *Service) computeBucketMarkets(ctx context.Context, venueCode, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error) {
 	venue := strings.ToLower(strings.TrimSpace(venueCode))
 	if venue == "" {
 		venue = DefaultVenue
@@ -417,15 +689,6 @@ func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period
 		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
 	}
 
-	cacheKey := fmt.Sprintf("markets|%s|%s|%s|%s|%s|%s|%s|%s|%d|%d", venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
-	s.bucketMarketsMu.Lock()
-	defer s.bucketMarketsMu.Unlock()
-	if c, ok := s.bucketMarketsCache[cacheKey]; ok && time.Now().Before(c.exp) {
-		out := make([]BucketMarketRow, len(c.val))
-		copy(out, c.val)
-		return out, c.total, c.source, nil
-	}
-
 	venueID, err := s.repo.VenueIDByCode(ctx, venue)
 	if err != nil {
 		return nil, 0, "", domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
@@ -445,8 +708,14 @@ func (s *Service) BucketMarkets(ctx context.Context, venueCode, kind, id, period
 	out := make([]BucketMarketRow, len(rows))
 	copy(out, rows)
 	s.enrichBucketMarkets(ctx, venueID, out)
-	s.bucketMarketsCache[cacheKey] = cachedBucketMarkets{val: out, total: total, source: source, exp: time.Now().UTC().Add(5 * time.Minute)}
 	return out, total, source, nil
+}
+
+func (s *Service) triggerBucketRefresh(ctx context.Context, venueID uuid.UUID) {
+	if s.bucketProjector == nil {
+		return
+	}
+	go s.bucketProjector.Refresh(context.Background(), venueID)
 }
 
 func rangeDays(rangeCode string) (int, error) {
@@ -515,4 +784,14 @@ func periodRangeStart(period string, now time.Time) time.Time {
 		return now.Add(-365 * 24 * time.Hour)
 	}
 	return now.Add(-30 * 24 * time.Hour)
+}
+
+// isBucketReadModelFresh reports whether a read-model row is fresh.
+func isBucketReadModelFresh(refreshedAt time.Time) bool {
+	return time.Since(refreshedAt) < 240*time.Second
+}
+
+// method alias
+func (s *Service) isBucketReadModelFresh(refreshedAt time.Time) bool {
+	return isBucketReadModelFresh(refreshedAt)
 }

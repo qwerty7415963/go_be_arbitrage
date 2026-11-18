@@ -43,9 +43,9 @@ type GroupOwner interface {
 
 // Service serves the scanner reads (search/detail, DB) + the LIVE wallet
 // detail tabs (positions/activity/balances/fills/orders/transfers/performance,
-// LIVE-CONTRACT v1.2 §1.1-§1.7, no sync dependency). Search/detail are public
+// LIVE-CONTRACT v1.2 Â§1.1-Â§1.7, no sync dependency). Search/detail are public
 // (parity with the legacy scanner); the group filter and trader-groups stay
-// auth-gated. WS-E: syncing/stale machinery removed; detail data_status ∈
+// auth-gated. WS-E: syncing/stale machinery removed; detail data_status âˆˆ
 // {ready,error} ONLY.
 // AssetLogoResolver is the seam for resolving asset logo metadata.
 type AssetLogoResolver interface {
@@ -77,6 +77,7 @@ type Service struct {
 	bucketWalletsCache map[string]cachedBucketWallets
 	bucketMarketsMu    sync.Mutex
 	bucketMarketsCache map[string]cachedBucketMarkets
+	bucketProjector    *BucketProjector
 }
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte, appSettings ...appSettingsProvider) *Service {
@@ -92,7 +93,7 @@ func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte, appSet
 	return s
 }
 
-// WithOnDemand attaches the venue on-demand client + cache (LIVE §1.1-§1.7).
+// WithOnDemand attaches the venue on-demand client + cache (LIVE Â§1.1-Â§1.7).
 // Nil client disables HL reads (service returns graceful-degradation payloads).
 func (s *Service) WithOnDemand(c OnDemandClient, cache *OnDemandCache) *Service {
 	s.onDemand = c
@@ -114,6 +115,12 @@ func (s *Service) WithAssetLogoResolver(r AssetLogoResolver) *Service {
 	return s
 }
 
+// WithBucketProjector attaches the bucket projector.
+func (s *Service) WithBucketProjector(p *BucketProjector) *Service {
+	s.bucketProjector = p
+	return s
+}
+
 // SearchResult is one page: rows + opaque cursor for the next page (keyset
 // path) or page/total/totalPages for the numbered path (CONTRACT.md
 // 2026-10-06). Both paths always carry Total/TotalPages; the keyset path
@@ -130,9 +137,9 @@ type SearchResult struct {
 }
 
 // Search validates, resolves venue/group, then serves either the legacy
-// keyset path (Page absent, spec §14) or the numbered offset path (Page
+// keyset path (Page absent, spec Â§14) or the numbered offset path (Page
 // present: offset = (page-1)*limit, Cursor ignored). Both read
-// period_metrics only (never upstream, spec §14).
+// period_metrics only (never upstream, spec Â§14).
 func (s *Service) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
 	req.Normalize()
 	if err := req.Validate(); err != nil {
@@ -272,17 +279,17 @@ func metricString(sortBy string, m *PeriodMetrics) *string {
 	return nil
 }
 
-// Detail returns the LIVE trader overview (LIVE-CONTRACT v1.2 §1.7, was DB).
+// Detail returns the LIVE trader overview (LIVE-CONTRACT v1.2 Â§1.7, was DB).
 // Registry header is a light DB read (404 unknown wallet/venue). Metrics are
 // computed live from the same fills universe as activity/performance
 // (1D/7D/30D from fills via ReconstructTrades + computeLiveMetrics; ALL from
-// portfolio allTime + leaderboard refs passthrough, live-read — same as
+// portfolio allTime + leaderboard refs passthrough, live-read â€” same as
 // Performance via fetchLivePerformance reuse). No reads of
-// trader_period_metrics / trader_positions / trader_trades (conformance §7);
-// scanner search still reads period_metrics (unchanged). data_status ∈
+// trader_period_metrics / trader_positions / trader_trades (conformance Â§7);
+// scanner search still reads period_metrics (unchanged). data_status âˆˆ
 // {ready,error} ONLY (never syncing/stale); as_of = fetch time (null on
 // error without cache). TTL 12s + single-flight per (wallet,venue,period);
-// HL error ⇒ stale with error else metrics null (never 500).
+// HL error â‡’ stale with error else metrics null (never 500).
 func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string) (*Detail, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
@@ -363,7 +370,7 @@ func liveSnapshotToPeriodMetrics(snap *LivePerformanceSnapshot, venueID uuid.UUI
 }
 
 // Detail is the GET /api/v1/traders/{wallet} payload (LIVE-CONTRACT v1.2
-// §1.7). Registry + Period shape kept; DataStatus ∈ {ready,error} ONLY with
+// Â§1.7). Registry + Period shape kept; DataStatus âˆˆ {ready,error} ONLY with
 // AsOf = live fetch time (null on error without cache). Metrics is the live
 // overview (nil only on error without cache or ALL equity-only).
 type Detail struct {
@@ -374,7 +381,7 @@ type Detail struct {
 	AsOf       *time.Time     `json:"as_of"`
 }
 
-// PositionDTO is one open position row (snake_case per DETAIL-PLAN §4.1).
+// PositionDTO is one open position row (snake_case per DETAIL-PLAN Â§4.1).
 type PositionDTO struct {
 	Coin             string     `json:"coin"`
 	Side             string     `json:"side"`
@@ -401,7 +408,7 @@ type PositionSummaryDTO struct {
 	AsOf            *time.Time `json:"as_of"`
 }
 
-// PositionSnapshotDTO is the GET /traders/{wallet}/positions payload (§4.1).
+// PositionSnapshotDTO is the GET /traders/{wallet}/positions payload (Â§4.1).
 type PositionSnapshotDTO struct {
 	Summary    *PositionSummaryDTO `json:"summary"`
 	Positions  []PositionDTO       `json:"positions"`
@@ -410,10 +417,10 @@ type PositionSnapshotDTO struct {
 }
 
 // ActivityTradeDTO is one live closed trade with server-computed net_pnl
-// (LIVE-CONTRACT v1.2 §1.2). DurationSec = closed-open seconds;
+// (LIVE-CONTRACT v1.2 Â§1.2). DurationSec = closed-open seconds;
 // entry_price/exit_price are avg open/close legs (never NULL for live rows;
 // pre-000030 DB rows kept NULL for backward compat). funding is signed
-// (negative = paid), informational only: net_pnl = pnl − fees (UNCHANGED),
+// (negative = paid), informational only: net_pnl = pnl âˆ’ fees (UNCHANGED),
 // win/loss/counts still on net_pnl.
 type ActivityTradeDTO struct {
 	Market      string    `json:"market"`
@@ -432,7 +439,7 @@ type ActivityTradeDTO struct {
 }
 
 // ActivityCounts are totals across the whole retained window (independent of
-// pagination, result and side filters) so the chips are stable (§1.2).
+// pagination, result and side filters) so the chips are stable (Â§1.2).
 // Win = net>0, loss = net<0 (breakeven in total only); long/short by side.
 type ActivityCounts struct {
 	Win   int `json:"win"`
@@ -443,9 +450,9 @@ type ActivityCounts struct {
 }
 
 // ActivityPage is the GET /traders/{wallet}/activity payload
-// (LIVE-CONTRACT v1.2 §1.2: LIVE, was DB). Rows from the trailing 30d fills
+// (LIVE-CONTRACT v1.2 Â§1.2: LIVE, was DB). Rows from the trailing 30d fills
 // window (in-memory ReconstructTrades + funding attribution). counts over the
-// fetched 30d universe (stable across pagination/filters). data_status ∈
+// fetched 30d universe (stable across pagination/filters). data_status âˆˆ
 // {ready,error} ONLY (never syncing/stale); as_of = fetch time; partial=true
 // when the venue truncated the window (10k-fill cap, timeouts). Rows never
 // null.
@@ -459,7 +466,7 @@ type ActivityPage struct {
 	Partial    bool               `json:"partial"`
 }
 
-// ActivityQuery carries the §1.2 query params (defaults applied by the handler
+// ActivityQuery carries the Â§1.2 query params (defaults applied by the handler
 // or Normalize: sort=closed_at, dir=desc, result=all, side=all).
 type ActivityQuery struct {
 	Limit  int
@@ -540,16 +547,16 @@ func DecodeActivityCursor(secret []byte, fp, raw string) (closedAt time.Time, ma
 	return ct.UTC(), c.M, ot.UTC(), nil
 }
 
-// Positions returns the LIVE open-position snapshot (LIVE-CONTRACT v1.2 §1.1).
+// Positions returns the LIVE open-position snapshot (LIVE-CONTRACT v1.2 Â§1.1).
 // Source: live clearinghouseState per request behind the interactive client
 // (own pacer floor ~200ms, concurrency ~4, ctx timeout) + TTL 12s cache +
 // single-flight. No DB reads (zero queries to trader_positions;
-// conformance §7). Unknown wallet → 404.
-// sort ∈ {coin,size,entry_price,mark_price,position_value,unrealized_pnl,
-// return_on_equity,leverage} default coin; dir ∈ {asc,desc} default asc.
+// conformance Â§7). Unknown wallet â†’ 404.
+// sort âˆˆ {coin,size,entry_price,mark_price,position_value,unrealized_pnl,
+// return_on_equity,leverage} default coin; dir âˆˆ {asc,desc} default asc.
 // Null numerics sort last regardless of dir; tiebreak coin ASC.
-// data_status ∈ {ready,error} ONLY (never syncing/stale); as_of = fetch time
-// (never null on success). HL error ⇒ last cached with error, else empty
+// data_status âˆˆ {ready,error} ONLY (never syncing/stale); as_of = fetch time
+// (never null on success). HL error â‡’ last cached with error, else empty
 // rows (never null).
 func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir string) (*PositionSnapshotDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
@@ -674,24 +681,24 @@ func validPositionSort(sort string) bool {
 }
 
 // WS-E: deriveActivityStatus (syncing/stale machinery) removed. Detail
-// data_status ∈ {ready,error} ONLY (LIVE-CONTRACT v1.2 §1.1/§1.2/§1.7).
+// data_status âˆˆ {ready,error} ONLY (LIVE-CONTRACT v1.2 Â§1.1/Â§1.2/Â§1.7).
 
-// Activity returns LIVE closed trades (LIVE-CONTRACT v1.2 §1.2, was DB).
-// Source: live userFillsByTime over the trailing 30d → in-memory
-// ReconstructTrades (reuse) → rows with entry_price/exit_price (avg),
+// Activity returns LIVE closed trades (LIVE-CONTRACT v1.2 Â§1.2, was DB).
+// Source: live userFillsByTime over the trailing 30d â†’ in-memory
+// ReconstructTrades (reuse) â†’ rows with entry_price/exit_price (avg),
 // duration_sec, volume, pnl, fees, funding (signed, negative = paid),
-// net_pnl = pnl − fees (UNCHANGED), fills. Funding attribution: sum
-// userFunding payments with openTime ≤ time ≤ closeTime per coin,
+// net_pnl = pnl âˆ’ fees (UNCHANGED), fills. Funding attribution: sum
+// userFunding payments with openTime â‰¤ time â‰¤ closeTime per coin,
 // informational only; win/loss/counts still on net_pnl.
 // counts over the fetched 30d window (stable across pagination/filters).
 // Cursor: same HMAC keyset scheme, computed in-memory (reuse helpers).
-// data_status ∈ {ready,error} ONLY; plus as_of + partial (true when the venue
+// data_status âˆˆ {ready,error} ONLY; plus as_of + partial (true when the venue
 // truncated the window, e.g. 10k-fill cap, or on timeout fallback). Rows never
-// null. No DB reads (zero queries to trader_trades; conformance §7).
-// limit 1..100 default 20; sort ∈ {closed_at,opened_at,market,volume,pnl,
-// net_pnl,duration,entry_price,exit_price} default closed_at; dir ∈ {asc,desc}
-// default desc; result ∈ {all,win,loss} default all; side ∈ {all,long,short}
-// default all. Unknown wallet → 404.
+// null. No DB reads (zero queries to trader_trades; conformance Â§7).
+// limit 1..100 default 20; sort âˆˆ {closed_at,opened_at,market,volume,pnl,
+// net_pnl,duration,entry_price,exit_price} default closed_at; dir âˆˆ {asc,desc}
+// default desc; result âˆˆ {all,win,loss} default all; side âˆˆ {all,long,short}
+// default all. Unknown wallet â†’ 404.
 func (s *Service) Activity(ctx context.Context, venueCode, rawAddr string, q ActivityQuery) (*ActivityPage, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {

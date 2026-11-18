@@ -99,15 +99,18 @@ test-bench: ## Run benchmarks
 # Build & Run
 # ═══════════════════════════════════════════════════════════════
 
-.PHONY: build run dev clean
+.PHONY: build run stop dev clean
 
 build: ## Build binary
 	@echo "Building binary..."
 	@go build -o bin/arbitrage-be ./cmd/server
 	@echo "✓ Built: bin/arbitrage-be"
 
-run: ## Run the application
-	@go run ./cmd/server
+run: ## Run the application (supervised, auto-restart, logs to logs/)
+	@powershell -NoProfile -ExecutionPolicy Bypass -File "$(CURDIR)/scripts/be-supervised.ps1" -Port 8080
+
+stop: ## Stop the supervised BE instance
+	@powershell -NoProfile -ExecutionPolicy Bypass -File "$(CURDIR)/scripts/be-supervised.ps1" -Stop -Port 8080
 
 run-supervised: ## Run supervised (single instance, auto-restart, PORT=8080)
 	@powershell -NoProfile -ExecutionPolicy Bypass -File scripts/be-supervised.ps1 -Port $(or $(PORT),8080)

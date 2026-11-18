@@ -1820,3 +1820,23 @@ Table: trader_overview_snapshots (venue_id, period, pnl_metric, computed_at, pay
 | ID | Case | Expected |
 |----|------|----------|
 | OV25-E-01 | TestE2E_TraderOverview | overview shape unchanged |
+
+### 19.32 Precomputed read model for bucket detail (contract v2.6)
+
+#### Repository
+| ID | Case | Expected |
+|----|------|----------|
+| BRM-R-01 | TestRepo_BucketReadModel_Roundtrip | upsert + get round-trip |
+| BRM-R-02 | TestBucketProjector_Idempotent | projector idempotent |
+| BRM-R-03 | TestBucketProjector_StaleFallback | staleness fallback |
+
+#### Service
+| ID | Case | Expected |
+|----|------|----------|
+| BRM-S-01 | TestBucketDetail_ReadModelHit | read model hit returns payload |
+| BRM-S-02 | TestBucketDetail_StaleFallback | stale read model falls back to live |
+
+#### E2E
+| ID | Case | Expected |
+|----|------|----------|
+| BRM-E-01 | TestE2E_BucketDetail | bucket detail shape unchanged |

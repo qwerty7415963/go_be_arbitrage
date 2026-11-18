@@ -1,6 +1,10 @@
 package trader
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // TraderOverview is the trader overview aggregate.
 type TraderOverview struct {
@@ -77,6 +81,7 @@ type BucketDetail struct {
 	Positioning    []BucketPositioningPoint `json:"positioning"`
 	MarketsTop     []BucketMarketTop        `json:"markets_top"`
 	Coverage       BucketDetailCoverage     `json:"coverage"`
+	RefreshedAt    time.Time                `json:"-"`
 }
 
 type BucketPnlSplit struct {
@@ -141,4 +146,14 @@ type BucketMarketRow struct {
 	AssetID       uuid.UUID `json:"asset_id"`
 	AssetCategory string    `json:"asset_category"`
 	LogoURL       string    `json:"logo_url"`
+}
+
+// BucketProjectorState is projector watermark/status.
+type BucketProjectorState struct {
+	VenueID             uuid.UUID
+	LastSourceWatermark time.Time
+	LastRefreshedAt     time.Time
+	RefreshDurationMs   int
+	RefreshStatus       string
+	LastError           *string
 }
