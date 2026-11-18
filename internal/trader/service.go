@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -595,50 +594,12 @@ func (s *Service) Positions(ctx context.Context, venueCode, rawAddr, sort, dir s
 				dexes = d
 			}
 		}
-		snap, err := fetchPositionsForDexes(ctx, s.onDemand, addr, dexes)
+		snap, err := BuildLivePositionsSnapshot(ctx, s.onDemand, addr, dexes)
 		if err != nil {
 			return nil, err
 		}
 		if snap.AsOf.IsZero() {
 			snap.AsOf = now
-		}
-		// Attach TP/SL from frontendOpenOrders (contract v2.2). Non-fatal.
-		if tf, ok := s.onDemand.(tpslFetcher); ok && tf != nil {
-			allOrders := make([]hyperliquid.OpenOrder, 0)
-			jobs := make([]string, 0, 1+len(dexes))
-			jobs = append(jobs, "")
-			jobs = append(jobs, dexes...)
-			var mu sync.Mutex
-			var wg sync.WaitGroup
-			sem := make(chan struct{}, 4)
-			for _, d := range jobs {
-				wg.Add(1)
-				go func(d string) {
-					defer wg.Done()
-					select {
-					case sem <- struct{}{}:
-					case <-ctx.Done():
-						return
-					}
-					defer func() { <-sem }()
-					var raw []hyperliquid.OpenOrder
-					var err error
-					if d == "" {
-						raw, err = tf.FetchFrontendOpenOrders(ctx, addr)
-					} else {
-						raw, err = tf.FetchFrontendOpenOrders(ctx, addr, d)
-					}
-					if err != nil {
-						slog.Warn("frontendOpenOrders fetch failed", "dex", d, "err", err)
-						return
-					}
-					mu.Lock()
-					allOrders = append(allOrders, raw...)
-					mu.Unlock()
-				}(d)
-			}
-			wg.Wait()
-			snap.Positions = attachTPSL(snap.Positions, allOrders)
 		}
 		return snap, nil
 	})

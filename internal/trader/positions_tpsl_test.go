@@ -1,6 +1,8 @@
 package trader
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
@@ -245,6 +247,67 @@ func TestParseTrigger_Basic(t *testing.T) {
 	}
 	if _, ok := parseTrigger("abc"); ok {
 		t.Error("want false")
+	}
+}
+
+type buildFake struct {
+	state  *hyperliquid.ClearinghouseState
+	orders []hyperliquid.OpenOrder
+	dexes  []string
+}
+
+func (f *buildFake) FetchClearinghouseState(_ context.Context, _ string, _ ...string) (*hyperliquid.ClearinghouseState, error) {
+	return f.state, nil
+}
+func (f *buildFake) FetchPerpDexs(_ context.Context) ([]string, error) { return f.dexes, nil }
+func (f *buildFake) FetchSpotState(_ context.Context, _ string) (*hyperliquid.SpotState, error) {
+	return &hyperliquid.SpotState{}, nil
+}
+func (f *buildFake) FetchUserFills(_ context.Context, _ string) ([]hyperliquid.Fill, error) {
+	return nil, nil
+}
+func (f *buildFake) FetchOpenOrders(_ context.Context, _ string, _ ...string) ([]hyperliquid.OpenOrder, error) {
+	return nil, nil
+}
+func (f *buildFake) FetchHistoricalOrders(_ context.Context, _ string) ([]hyperliquid.HistoricalOrder, error) {
+	return nil, nil
+}
+func (f *buildFake) FetchLedgerUpdates(_ context.Context, _ string, _ int64) ([]hyperliquid.LedgerUpdate, error) {
+	return nil, nil
+}
+func (f *buildFake) FetchFillsWindow(_ context.Context, _ string, _, _ int64) ([]hyperliquid.Fill, bool, error) {
+	return nil, false, nil
+}
+func (f *buildFake) FetchUserFunding(_ context.Context, _ string, _, _ int64) ([]hyperliquid.FundingUpdate, error) {
+	return nil, nil
+}
+func (f *buildFake) FetchPortfolio(_ context.Context, _ string) (map[string]hyperliquid.PortfolioSeries, error) {
+	return nil, nil
+}
+func (f *buildFake) FetchFrontendOpenOrders(_ context.Context, _ string, _ ...string) ([]hyperliquid.OpenOrder, error) {
+	return f.orders, nil
+}
+
+func TestBuildLivePositionsSnapshot_AttachesTPSL(t *testing.T) {
+	var st hyperliquid.ClearinghouseState
+	if err := json.Unmarshal([]byte(`{"marginSummary":{"accountValue":"1000"},"assetPositions":[{"type":"oneWay","position":{"coin":"BTC","szi":"1","entryPx":"100","positionValue":"100"}}]}`), &st); err != nil {
+		t.Fatal(err)
+	}
+	fake := &buildFake{
+		state: &st,
+		orders: []hyperliquid.OpenOrder{
+			{Coin: "BTC", Side: "A", ReduceOnly: true, OrderType: "Take Profit Market", TriggerPx: "110"},
+		},
+	}
+	snap, err := BuildLivePositionsSnapshot(context.Background(), fake, "0xabc", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Positions) != 1 {
+		t.Fatalf("positions: %d", len(snap.Positions))
+	}
+	if len(snap.Positions[0].TpPxs) != 1 || snap.Positions[0].TpPxs[0] != 110 {
+		t.Errorf("TpPxs: %v", snap.Positions[0].TpPxs)
 	}
 }
 

@@ -3,6 +3,7 @@ package trader
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -72,10 +73,13 @@ type WalletSnapshot struct {
 // UpstreamSubscriptions counts the 4-feed subscribe set (observability +
 // conformance: 10+ subscribers ⇒ exactly 1 upstream watcher).
 type UpstreamStats struct {
-	Watchers           int
-	UpstreamSubscribes int64
-	Resyncs            int64
-	ObserverDropped    int64
+	Watchers               int
+	UpstreamSubscribes     int64
+	Resyncs                int64
+	ObserverDropped        int64
+	PositionRefreshes      int64
+	PositionRefreshDropped int64
+	PositionRefreshErrors  int64
 }
 
 // UpstreamDialer subscribes the 4 per-wallet feeds. Production dials
@@ -92,6 +96,9 @@ type nilUpstream struct{}
 
 func (nilUpstream) Subscribe(context.Context, string) error { return nil }
 func (nilUpstream) Unsubscribe(string) error                { return nil }
+
+// PositionSnapshotProvider builds a full position snapshot DTO for a wallet.
+type PositionSnapshotProvider func(ctx context.Context, wallet string) (*PositionSnapshotDTO, error)
 
 // WalletWatcher is one per-watched-address upstream subscription set,
 // refcounted by browser subscribers. Positions have no WS stream → served by
@@ -110,6 +117,12 @@ type WalletWatcher struct {
 	// (conformance: exactly 1 per watcher lifetime regardless of subs).
 	upstreamSubscribeCalls int
 	stopCh                 chan struct{}
+
+	// Position refresh machinery (contract v2.3).
+	positionTimer      *time.Timer
+	positionPending    bool
+	positionRefreshing bool
+	lastPositionDTO    *PositionSnapshotDTO
 }
 
 // WatcherManager owns one WalletWatcher per watched address (refcounted) +
@@ -126,6 +139,14 @@ type WatcherManager struct {
 	// stats for conformance (10+ subs → 1 upstream watcher).
 	upstreamSubscribes int64
 	resyncs            int64
+
+	// Position snapshot provider (contract v2.3).
+	positionProvider PositionSnapshotProvider
+
+	// position refresh counters.
+	positionRefreshes      int64
+	positionRefreshDropped int64
+	positionRefreshErrors  int64
 
 	// observer fan-out (buffered, non-blocking).
 	observerMu   sync.Mutex
@@ -154,6 +175,17 @@ func NewWatcherManager(hub *ActivityHub, live OnDemandClient, upstream UpstreamD
 		observerCh: make(chan WalletEvent, 1024),
 	}
 	go m.runObserver()
+	return m
+}
+
+// WithPositionProvider attaches the position snapshot provider.
+func (m *WatcherManager) WithPositionProvider(p PositionSnapshotProvider) *WatcherManager {
+	if m == nil {
+		return m
+	}
+	m.mu.Lock()
+	m.positionProvider = p
+	m.mu.Unlock()
 	return m
 }
 
@@ -225,6 +257,10 @@ func (m *WatcherManager) Release(addr string) {
 		w.retained--
 	}
 	teardown := w.browserRefs == 0 && w.retained == 0
+	if teardown && w.positionTimer != nil {
+		w.positionTimer.Stop()
+		w.positionTimer = nil
+	}
 	w.mu.Unlock()
 	if teardown {
 		delete(m.watchers, addr)
@@ -263,7 +299,7 @@ func (m *WatcherManager) WatcherCount() int {
 func (m *WatcherManager) Stats() UpstreamStats {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return UpstreamStats{Watchers: len(m.watchers), UpstreamSubscribes: m.upstreamSubscribes, Resyncs: m.resyncs, ObserverDropped: m.observerDrop}
+	return UpstreamStats{Watchers: len(m.watchers), UpstreamSubscribes: m.upstreamSubscribes, Resyncs: m.resyncs, ObserverDropped: m.observerDrop, PositionRefreshes: m.positionRefreshes, PositionRefreshDropped: m.positionRefreshDropped, PositionRefreshErrors: m.positionRefreshErrors}
 }
 
 // WatchSet delegates to the hub (currently-watched addresses).
@@ -320,6 +356,10 @@ func (m *WatcherManager) Unsubscribe(c *ActivityClient) {
 		w.browserRefs--
 	}
 	teardown := w.browserRefs == 0 && w.retained == 0
+	if teardown && w.positionTimer != nil {
+		w.positionTimer.Stop()
+		w.positionTimer = nil
+	}
 	w.mu.Unlock()
 	if teardown {
 		delete(m.watchers, wallet)
@@ -358,7 +398,7 @@ func (m *WatcherManager) bootstrap(wallet string, w *WalletWatcher) {
 		w.mu.Lock()
 		w.snapshot = *snap
 		w.mu.Unlock()
-		m.emit(wallet, EvtPositionUpdated, map[string]any{"as_of": snap.AsOf}, ConnResync)
+		m.emitPositionSnapshot(wallet, w, snap, ConnResync)
 		m.setState(w, ConnReconcile, "", nil)
 		// RECONCILE: diff stub (snapshot is the bootstrap; no prior state to
 		// reconcile against on first subscribe). Emit state for FE badge.
@@ -379,7 +419,7 @@ func (m *WatcherManager) bootstrap(wallet string, w *WalletWatcher) {
 				w.mu.Lock()
 				w.snapshot = *snap
 				w.mu.Unlock()
-				m.emit(wallet, EvtPositionUpdated, map[string]any{"as_of": snap.AsOf}, ConnResync)
+				m.emitPositionSnapshot(wallet, w, snap, ConnResync)
 				m.setState(w, ConnReconcile, "", nil)
 				m.emit(wallet, EvtStateUpdated, map[string]any{"as_of": snap.AsOf}, ConnReconcile)
 				m.setState(w, ConnLive, "", nil)
@@ -523,6 +563,7 @@ func (m *WatcherManager) OnFill(wallet string, fill FillDTO) {
 		st := w.state
 		w.mu.Unlock()
 		m.emit(wallet, EvtFillCreated, fill, st)
+		m.schedulePositionRefresh(wallet)
 		return
 	}
 	w.snapshot.Fills = append([]FillDTO{fill}, w.snapshot.Fills...)
@@ -532,6 +573,7 @@ func (m *WatcherManager) OnFill(wallet string, fill FillDTO) {
 	w.mu.Unlock()
 	m.emit(wallet, EvtFillCreated, fill, ConnLive)
 	m.emit(wallet, EvtStateUpdated, map[string]any{"fills": len(w.snapshot.Fills)}, ConnLive)
+	m.schedulePositionRefresh(wallet)
 }
 
 // OnFunding ingests one upstream funding payment.
@@ -593,9 +635,11 @@ func (m *WatcherManager) OnOrder(wallet string, o OrderDTO) {
 	w.mu.Unlock()
 	if !exists {
 		m.emit(wallet, EvtOrderCreated, toOrderCreatedPayload(o), st)
+		m.schedulePositionRefresh(wallet)
 		return
 	}
 	m.emit(wallet, EvtOrderUpdated, o, st)
+	m.schedulePositionRefresh(wallet)
 }
 
 // Reconnect drives DISCONNECTED → RECONNECT → RESYNC → RECONCILE → LIVE for
@@ -621,11 +665,128 @@ func (m *WatcherManager) Reconnect(wallet string) {
 		w.mu.Lock()
 		w.snapshot = *snap
 		w.mu.Unlock()
-		m.emit(wallet, EvtPositionUpdated, map[string]any{"as_of": snap.AsOf}, ConnResync)
+		m.emitPositionSnapshot(wallet, w, snap, ConnResync)
 		m.setState(w, ConnReconcile, "", nil)
 		m.emit(wallet, EvtStateUpdated, map[string]any{"as_of": snap.AsOf}, ConnReconcile)
 		m.setState(w, ConnLive, "", nil)
 	default:
 		m.setState(w, ConnReconnect, "gate_full_retry", nil)
 	}
+}
+
+// emitPositionSnapshot emits full position DTO via provider if available, else
+// falls back to the legacy {as_of} payload.
+func (m *WatcherManager) emitPositionSnapshot(wallet string, w *WalletWatcher, snap *WalletSnapshot, state ConnectionState) {
+	if m.positionProvider != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		dto, err := m.positionProvider(ctx, wallet)
+		cancel()
+		if err == nil {
+			if w != nil {
+				w.mu.Lock()
+				w.lastPositionDTO = dto
+				w.mu.Unlock()
+			}
+			m.emit(wallet, EvtPositionUpdated, dto, state)
+			return
+		}
+		m.mu.Lock()
+		m.positionRefreshErrors++
+		m.mu.Unlock()
+		slog.Warn("position refresh failed", "wallet", wallet, "err", err)
+	}
+	m.emit(wallet, EvtPositionUpdated, map[string]any{"as_of": snap.AsOf}, state)
+}
+
+// schedulePositionRefresh debounces position refreshes per wallet (2s).
+func (m *WatcherManager) schedulePositionRefresh(wallet string) {
+	wallet = strings.ToLower(strings.TrimSpace(wallet))
+	m.mu.Lock()
+	w, ok := m.watchers[wallet]
+	if !ok || m.positionProvider == nil {
+		m.mu.Unlock()
+		return
+	}
+	w.mu.Lock()
+	if w.positionTimer != nil {
+		w.positionTimer.Reset(2 * time.Second)
+	} else {
+		w.positionTimer = time.AfterFunc(2*time.Second, func() {
+			m.runPositionRefresh(wallet)
+		})
+	}
+	w.mu.Unlock()
+	m.mu.Unlock()
+}
+
+// runPositionRefresh performs one debounced position refresh.
+func (m *WatcherManager) runPositionRefresh(wallet string) {
+	wallet = strings.ToLower(strings.TrimSpace(wallet))
+	m.mu.Lock()
+	w, ok := m.watchers[wallet]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	w.mu.Lock()
+	if w.positionRefreshing {
+		w.positionPending = true
+		w.mu.Unlock()
+		m.mu.Unlock()
+		return
+	}
+	w.positionRefreshing = true
+	w.mu.Unlock()
+	m.mu.Unlock()
+
+	defer func() {
+		m.mu.Lock()
+		w2, ok := m.watchers[wallet]
+		var pending bool
+		if ok {
+			w2.mu.Lock()
+			w2.positionRefreshing = false
+			pending = w2.positionPending
+			w2.positionPending = false
+			w2.mu.Unlock()
+		}
+		m.mu.Unlock()
+		if pending {
+			m.schedulePositionRefresh(wallet)
+		}
+	}()
+
+	// Non-blocking gate acquire.
+	select {
+	case m.gate <- struct{}{}:
+	default:
+		m.mu.Lock()
+		w.mu.Lock()
+		w.positionPending = true
+		m.positionRefreshDropped++
+		w.mu.Unlock()
+		m.mu.Unlock()
+		return
+	}
+	defer func() { <-m.gate }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	dto, err := m.positionProvider(ctx, wallet)
+	if err != nil {
+		m.mu.Lock()
+		m.positionRefreshErrors++
+		m.mu.Unlock()
+		slog.Warn("position refresh failed", "wallet", wallet, "err", err)
+		return
+	}
+	m.mu.Lock()
+	w.mu.Lock()
+	w.lastPositionDTO = dto
+	w.mu.Unlock()
+	m.mu.Unlock()
+	m.emit(wallet, EvtPositionUpdated, dto, ConnLive)
+	m.mu.Lock()
+	m.positionRefreshes++
+	m.mu.Unlock()
 }

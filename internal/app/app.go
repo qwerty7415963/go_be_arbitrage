@@ -255,6 +255,26 @@ func New(cfg *config.Config) (*App, error) {
 		userStreamSink := &trader.HyperliquidUserStreamSink{}
 		userStream := hyperliquid.NewUserStream("wss://api.hyperliquid.xyz/ws", userStreamSink)
 		watcherManager = trader.NewWatcherManager(activityHub, hlLive, userStream, 4)
+		watcherManager = watcherManager.WithPositionProvider(func(ctx context.Context, wallet string) (*trader.PositionSnapshotDTO, error) {
+			var dexes []string
+			if appSettingsService != nil {
+				if d, err := appSettingsService.GetPerpDexes(ctx); err == nil {
+					dexes = d
+				}
+			} else if hlLive != nil {
+				if d, err := hlLive.FetchPerpDexs(ctx); err == nil {
+					dexes = d
+				}
+			}
+			if hlLive == nil {
+				return nil, fmt.Errorf("upstream unavailable")
+			}
+			snap, err := trader.BuildLivePositionsSnapshot(ctx, hlLive, wallet, dexes)
+			if err != nil {
+				return nil, err
+			}
+			return trader.SnapshotToPositionDTO(snap, "coin", "asc", trader.DataReady), nil
+		})
 		userStreamSink.Mgr = watcherManager
 		activityWS.WithWatcher(watcherManager)
 		discoverySvc = trader.NewDiscoveryService(traderRepo,

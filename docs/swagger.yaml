@@ -7855,10 +7855,11 @@ paths:
       description: 'Realtime wallet events for one watched wallet (LIVE-CONTRACT v1.2
         §2 + SIDEBAR-3EVENTS D2). Query wallet=0x... (lowercased server-side). Transport
         is GET /traders/ws?wallet= (unchanged); payloads use the wallet.* envelope
-        for incremental updates (no full refetch): wallet.position.updated (REST bootstrap/resync
-        only), wallet.fill.created (data always carries dir + closed_pnl), wallet.funding.created,
-        wallet.order.created (first-seen oid, OrderDTO + status open) then wallet.order.updated
-        for later updates, wallet.activity.created, wallet.state.updated, wallet.connection.updated
+        for incremental updates (no full refetch): wallet.position.updated (full PositionSnapshot
+        on bootstrap/resync and after fills/orders, debounced ~2s), wallet.fill.created
+        (data always carries dir + closed_pnl), wallet.funding.created, wallet.order.created
+        (first-seen oid, OrderDTO + status open) then wallet.order.updated for later
+        updates, wallet.activity.created, wallet.state.updated, wallet.connection.updated
         (DISCONNECTED→RECONNECT→RESYNC→RECONCILE→LIVE). Server sends {type:subscribed}
         on connect, then wallet.* frames; legacy {type:activity} frames from the global
         harvest feed are still forwarded (sidebar ignores them). Client {type:ping}

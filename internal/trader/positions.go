@@ -3,12 +3,15 @@ package trader
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 )
@@ -572,4 +575,57 @@ func attachTPSL(positions []Position, orders []hyperliquid.OpenOrder) []Position
 		}
 	}
 	return out
+}
+
+// BuildLivePositionsSnapshot fetches positions across dexes and attaches TP/SL
+// from frontendOpenOrders (per-dex, non-fatal). Returns error only when all
+// position dexes fail.
+func BuildLivePositionsSnapshot(ctx context.Context, client OnDemandClient, wallet string, dexes []string) (*PositionSnapshot, error) {
+	snap, err := fetchPositionsForDexes(ctx, client, wallet, dexes)
+	if err != nil {
+		return nil, err
+	}
+	if tf, ok := client.(tpslFetcher); ok && tf != nil {
+		allOrders := make([]hyperliquid.OpenOrder, 0)
+		jobs := make([]string, 0, 1+len(dexes))
+		jobs = append(jobs, "")
+		jobs = append(jobs, dexes...)
+		var mu sync.Mutex
+		g, gctx := errgroup.WithContext(ctx)
+		sem := make(chan struct{}, 4)
+		for _, d := range jobs {
+			d := d
+			g.Go(func() error {
+				select {
+				case sem <- struct{}{}:
+				case <-gctx.Done():
+					return nil
+				}
+				defer func() { <-sem }()
+				var raw []hyperliquid.OpenOrder
+				var ferr error
+				if d == "" {
+					raw, ferr = tf.FetchFrontendOpenOrders(gctx, wallet)
+				} else {
+					raw, ferr = tf.FetchFrontendOpenOrders(gctx, wallet, d)
+				}
+				if ferr != nil {
+					slog.Warn("frontendOpenOrders fetch failed", "dex", d, "err", ferr)
+					return nil
+				}
+				mu.Lock()
+				allOrders = append(allOrders, raw...)
+				mu.Unlock()
+				return nil
+			})
+		}
+		_ = g.Wait()
+		snap.Positions = attachTPSL(snap.Positions, allOrders)
+	}
+	return snap, nil
+}
+
+// SnapshotToPositionDTO wraps snapshotToDTO for external callers (watcher).
+func SnapshotToPositionDTO(snap *PositionSnapshot, sort, dir string, status DataStatus) *PositionSnapshotDTO {
+	return snapshotToDTO(snap, sort, dir, status)
 }

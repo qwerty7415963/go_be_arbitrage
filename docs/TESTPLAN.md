@@ -1750,3 +1750,24 @@ Endpoint: GET /api/v1/traders/{wallet}/positions?venue=hyperliquid&sort=coin&dir
 | ID | Case | Expected |
 |----|------|----------|
 | SRCH-EMPTY-03 | TestE2E_Search_ZeroResultsEmptyArray: POST /api/v1/traders/search roi_min 999999 | 200, data is [], meta.total 0 |
+
+### 19.29 Event-driven position push (contract v2.3)
+
+#### Unit (internal/trader/watcher_position_test.go)
+| ID | Case | Expected |
+|----|------|----------|
+| POS-WS-01 | TestWatcher_PositionRefresh_Debounce | provider called once after 2s for burst |
+| POS-WS-02 | TestWatcher_PositionRefresh_GateFullSkip | dropped counter, no emit |
+| POS-WS-03 | TestWatcher_PositionRefresh_ErrorKeepsLast | no emit, last retained |
+| POS-WS-04 | TestWatcher_PositionUpdated_BootstrapFullSnapshot | full DTO on bootstrap |
+| POS-WS-05 | TestWatcher_Teardown_StopsPositionTimer | no refresh after teardown |
+
+#### Unit (internal/trader/positions_tpsl_test.go)
+| ID | Case | Expected |
+|----|------|----------|
+| POS-WS-06 | TestBuildLivePositionsSnapshot_AttachesTPSL | TP/SL attached |
+
+#### E2E (e2e_trader_test.go, //go:build e2e)
+| ID | Case | Expected |
+|----|------|----------|
+| POS-WS-07 | TestE2E_Positions_WS_Push | client receives full snapshot after OnFill |

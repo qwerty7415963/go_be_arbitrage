@@ -882,6 +882,69 @@ func TestE2E_Trader_Positions_TPSL(t *testing.T) {
 	}
 }
 
+// TestE2E_Positions_WS_Push: subscribe -> OnFill -> client receives full snapshot.
+func TestE2E_Positions_WS_Push(t *testing.T) {
+	s := setupTraderSuite(t)
+	_ = s
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	hub := trader.NewActivityHub()
+	h := trader.NewActivityWSHandler(hub)
+	mgr := trader.NewWatcherManager(hub, nil, nil, 4)
+	mgr = mgr.WithPositionProvider(func(ctx context.Context, wallet string) (*trader.PositionSnapshotDTO, error) {
+		return &trader.PositionSnapshotDTO{Positions: []trader.PositionDTO{}, DataStatus: trader.DataReady}, nil
+	})
+	h.WithWatcher(mgr)
+	r.GET("/api/v1/traders/ws", h.ServeWS)
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	wallet := traderRandAddr(t)
+	conn, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/api/v1/traders/ws?wallet="+wallet, nil)
+	if err != nil {
+		if resp != nil {
+			t.Fatalf("dial: %v status=%d", err, resp.StatusCode)
+		}
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// subscribed
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	var msg map[string]any
+	if err := conn.ReadJSON(&msg); err != nil {
+		t.Fatalf("read subscribed: %v", err)
+	}
+
+	mgr.OnFill(wallet, trader.FillDTO{Coin: "BTC", Side: "BUY", Size: 1, Price: 1, Time: time.Now().UTC(), Tid: 1})
+
+	time.Sleep(2500 * time.Millisecond)
+
+	found := false
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		var m map[string]any
+		if err := conn.ReadJSON(&m); err != nil {
+			break
+		}
+		if m["type"] == "wallet.position.updated" {
+			raw, _ := json.Marshal(m["data"])
+			var dto map[string]any
+			if json.Unmarshal(raw, &dto) == nil {
+				if _, ok := dto["positions"]; ok {
+					found = true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("client did not receive full position snapshot after OnFill")
+	}
+}
+
 // TestE2E_Search_ZeroResultsEmptyArray: impossible filter yields empty array not null.
 func TestE2E_Search_ZeroResultsEmptyArray(t *testing.T) {
 	s := setupTraderSuite(t)
