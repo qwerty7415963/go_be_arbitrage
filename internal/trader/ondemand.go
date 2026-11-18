@@ -60,6 +60,7 @@ type cacheItem struct {
 
 // LiveCacheTTL is the contract §3 default (10-15s window, middle).
 const LiveCacheTTL = 60 * time.Second
+const SyncCacheTTL = 300 * time.Second
 
 func NewOnDemandCache(ttl time.Duration) *OnDemandCache {
 	if ttl <= 0 {
@@ -240,11 +241,12 @@ type TransferDTO struct {
 
 // PerformanceDTO is GET /traders/{wallet}/performance (§1.7 + v1.7 series).
 type PerformanceDTO struct {
-	Period  string                    `json:"period"`
-	Mode    string                    `json:"mode"`
-	Metrics *PerformanceMetricsDTO    `json:"metrics"`
-	Equity  []EquityPointDTO          `json:"equity"`
-	Series  map[string]RangeSeriesDTO `json:"series"`
+	Period        string                    `json:"period"`
+	Mode          string                    `json:"mode"`
+	Metrics       *PerformanceMetricsDTO    `json:"metrics"`
+	Equity        []EquityPointDTO          `json:"equity"`
+	Series        map[string]RangeSeriesDTO `json:"series"`
+	MetricsSource string                    `json:"metrics_source"`
 }
 
 // SeriesPointDTO is one timestamped portfolio sample.

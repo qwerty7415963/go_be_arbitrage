@@ -50,7 +50,7 @@ func TestRepo_LiveUniverse_SharedFetch(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-start
-		detail, detailErr = svc.Detail(ctx, testVenueCode, addr, Period30D)
+		detail, detailErr = svc.Detail(ctx, testVenueCode, addr, Period30D, false)
 	}()
 	go func() {
 		defer wg.Done()
@@ -60,7 +60,7 @@ func TestRepo_LiveUniverse_SharedFetch(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-start
-		perf, perfErr = svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false)
+		perf, perfErr = svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false, false)
 	}()
 	close(start)
 	wg.Wait()
@@ -147,7 +147,7 @@ func TestRepo_PerformanceSeries_ModeCacheSeparation(t *testing.T) {
 	svc := NewService(repo, nil, []byte("series-integration-secret-32b!"))
 	svc.WithOnDemand(fake, NewOnDemandCache(LiveCacheTTL))
 
-	perps, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false)
+	perps, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false, false)
 	if err != nil {
 		t.Fatalf("perps: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestRepo_PerformanceSeries_ModeCacheSeparation(t *testing.T) {
 		t.Fatalf("perps portfolio calls = %d, want 1", got)
 	}
 
-	combined, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModeCombined, false)
+	combined, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModeCombined, false, false)
 	if err != nil {
 		t.Fatalf("combined: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestRepo_PerformanceSeries_ModeCacheSeparation(t *testing.T) {
 		t.Fatalf("mode switch must refetch once: calls=%d", got)
 	}
 
-	again, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false)
+	again, err := svc.Performance(ctx, testVenueCode, addr, Period30D, PerformanceModePerps, false, false)
 	if err != nil {
 		t.Fatalf("perps again: %v", err)
 	}
@@ -186,3 +186,5 @@ func TestRepo_PerformanceSeries_ModeCacheSeparation(t *testing.T) {
 		t.Fatalf("same-mode TTL hit must not refetch: calls=%d", got)
 	}
 }
+
+

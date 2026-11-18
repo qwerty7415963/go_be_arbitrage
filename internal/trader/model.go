@@ -83,6 +83,7 @@ type RegistryEntry struct {
 	LeaderboardSeenAt *time.Time      `json:"leaderboard_seen_at"`
 	DisplayName       *string         `json:"display_name"`
 	Status            string          `json:"status"`
+	UpdatedAt         time.Time       `json:"-"`
 }
 
 // SyncState is one row of trader_sync_state: incremental cursors + retries.
@@ -154,6 +155,7 @@ type PeriodMetrics struct {
 	DataStatus         DataStatus `json:"data_status"`
 	IsPartial          bool       `json:"is_partial"`
 	CalculationVersion int        `json:"calculation_version"`
+	UpdatedAt          time.Time  `json:"-"`
 }
 
 // LeaderboardRef is one row of trader_leaderboard_ref: latest upstream window

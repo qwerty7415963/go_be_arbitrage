@@ -64,6 +64,7 @@ type Service struct {
 	// surface data_status=error via degradation (never 500).
 	onDemand          OnDemandClient
 	cache             *OnDemandCache
+	syncCache         *OnDemandCache
 	appSettings       appSettingsProvider
 	assetLogoResolver AssetLogoResolver
 
@@ -83,6 +84,7 @@ type Service struct {
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte, appSettings ...appSettingsProvider) *Service {
 	s := &Service{repo: repo, groups: groups, secret: cursorSecret,
 		cache:              NewOnDemandCache(LiveCacheTTL),
+		syncCache:          NewOnDemandCache(SyncCacheTTL),
 		overviewCache:      map[string]cachedOverview{},
 		bucketDetailCache:  map[string]cachedBucketDetail{},
 		bucketWalletsCache: map[string]cachedBucketWallets{},
@@ -290,7 +292,7 @@ func metricString(sortBy string, m *PeriodMetrics) *string {
 // {ready,error} ONLY (never syncing/stale); as_of = fetch time (null on
 // error without cache). TTL 12s + single-flight per (wallet,venue,period);
 // HL error â‡’ stale with error else metrics null (never 500).
-func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string) (*Detail, error) {
+func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string, sync bool) (*Detail, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
 		return nil, err
@@ -316,30 +318,78 @@ func (s *Service) Detail(ctx context.Context, venueCode, rawAddr, period string)
 	if err != nil {
 		return nil, err
 	}
-	// LIVE: no EnsureSyncState, no GetPeriodMetrics (WS-E teardown).
-	key := "detail-live|" + venue + "|" + addr + "|" + period
-	now := time.Now().UTC()
-	val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
-		return fetchLivePerformance(ctx, s, venueID, addr, venue, period, PerformanceModePerps, false, now)
+	if !sync {
+		// LIVE: no EnsureSyncState, no GetPeriodMetrics (WS-E teardown).
+		key := "detail-live|" + venue + "|" + addr + "|" + period
+		now := time.Now().UTC()
+		val, _, _, fetchErr := s.cache.GetOrFetch(key, func() (any, error) {
+			return fetchLivePerformance(ctx, s, venueID, addr, venue, period, PerformanceModePerps, false, now)
+		})
+		if fetchErr != nil {
+			if stale, _, found := s.cache.get(key); found {
+				if snap, ok := stale.(*LivePerformanceSnapshot); ok && snap != nil {
+					asOf := snap.AsOf.UTC()
+					m := liveSnapshotToPeriodMetrics(snap, venueID, venue, addr, period, reg.DisplayName, DataError)
+					return &Detail{Registry: reg, Metrics: m, Period: period, DataStatus: DataError, AsOf: &asOf, MetricsSource: "live"}, nil
+				}
+			}
+			return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil, MetricsSource: "live"}, nil
+		}
+		snap, ok := val.(*LivePerformanceSnapshot)
+		if !ok || snap == nil {
+			return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil, MetricsSource: "live"}, nil
+		}
+		asOf := snap.AsOf.UTC()
+		m := liveSnapshotToPeriodMetrics(snap, venueID, venue, addr, period, reg.DisplayName, DataReady)
+		// ALL equity-only (LB missing, portfolio ok): metrics null, still ready.
+		return &Detail{Registry: reg, Metrics: m, Period: period, DataStatus: DataReady, AsOf: &asOf, MetricsSource: "live"}, nil
+	}
+	// SYNCED read model.
+	key := "detail-sync|" + venue + "|" + addr + "|" + period
+	val, _, _, fetchErr := s.syncCache.GetOrFetch(key, func() (any, error) {
+		m, err := s.repo.GetPeriodMetrics(ctx, venueID, addr, period)
+		if err != nil {
+			return nil, err
+		}
+		var dataStatus DataStatus = DataReady
+		var asOf time.Time = time.Now().UTC()
+		if m != nil {
+			dataStatus = m.DataStatus
+			if dataStatus == "" {
+				dataStatus = DataReady
+			}
+			asOf = m.AsOf.UTC()
+		} else {
+			dataStatus = DataError
+		}
+		syncedAt := reg.UpdatedAt
+		if m != nil && m.UpdatedAt.After(syncedAt) {
+			syncedAt = m.UpdatedAt
+		}
+		if syncedAt.IsZero() {
+			syncedAt = time.Now().UTC()
+		}
+		sa := syncedAt.UTC()
+		aa := asOf.UTC()
+		return &Detail{Registry: reg, Metrics: m, Period: period, DataStatus: dataStatus, AsOf: &aa, MetricsSource: "synced", SyncedAt: &sa}, nil
 	})
 	if fetchErr != nil {
-		if stale, _, found := s.cache.get(key); found {
-			if snap, ok := stale.(*LivePerformanceSnapshot); ok && snap != nil {
-				asOf := snap.AsOf.UTC()
-				m := liveSnapshotToPeriodMetrics(snap, venueID, venue, addr, period, reg.DisplayName, DataError)
-				return &Detail{Registry: reg, Metrics: m, Period: period, DataStatus: DataError, AsOf: &asOf}, nil
+		if stale, _, found := s.syncCache.get(key); found {
+			if d, ok := stale.(*Detail); ok && d != nil {
+				cpy := *d
+				cpy.DataStatus = DataError
+				cpy.MetricsSource = "synced"
+				return &cpy, nil
 			}
 		}
-		return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil}, nil
+		return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil, MetricsSource: "synced"}, nil
 	}
-	snap, ok := val.(*LivePerformanceSnapshot)
-	if !ok || snap == nil {
-		return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil}, nil
+	d, ok := val.(*Detail)
+	if !ok || d == nil {
+		return &Detail{Registry: reg, Metrics: nil, Period: period, DataStatus: DataError, AsOf: nil, MetricsSource: "synced"}, nil
 	}
-	asOf := snap.AsOf.UTC()
-	m := liveSnapshotToPeriodMetrics(snap, venueID, venue, addr, period, reg.DisplayName, DataReady)
-	// ALL equity-only (LB missing, portfolio ok): metrics null, still ready.
-	return &Detail{Registry: reg, Metrics: m, Period: period, DataStatus: DataReady, AsOf: &asOf}, nil
+	d.MetricsSource = "synced"
+	return d, nil
 }
 
 // liveSnapshotToPeriodMetrics converts a live performance snapshot into the
@@ -374,11 +424,13 @@ func liveSnapshotToPeriodMetrics(snap *LivePerformanceSnapshot, venueID uuid.UUI
 // AsOf = live fetch time (null on error without cache). Metrics is the live
 // overview (nil only on error without cache or ALL equity-only).
 type Detail struct {
-	Registry   *RegistryEntry `json:"registry"`
-	Metrics    *PeriodMetrics `json:"metrics"`
-	Period     string         `json:"period"`
-	DataStatus DataStatus     `json:"data_status"`
-	AsOf       *time.Time     `json:"as_of"`
+	Registry      *RegistryEntry `json:"registry"`
+	Metrics       *PeriodMetrics `json:"metrics"`
+	Period        string         `json:"period"`
+	DataStatus    DataStatus     `json:"data_status"`
+	AsOf          *time.Time     `json:"as_of"`
+	MetricsSource string         `json:"metrics_source"`
+	SyncedAt      *time.Time     `json:"synced_at"`
 }
 
 // PositionDTO is one open position row (snake_case per DETAIL-PLAN Â§4.1).

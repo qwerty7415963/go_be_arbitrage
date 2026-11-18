@@ -1840,3 +1840,26 @@ Table: trader_overview_snapshots (venue_id, period, pnl_metric, computed_at, pay
 | ID | Case | Expected |
 |----|------|----------|
 | BRM-E-01 | TestE2E_BucketDetail | bucket detail shape unchanged |
+
+### 19.33 Wallet detail read model (contract v3.0)
+
+#### Handler
+| ID | Case | Expected |
+|----|------|----------|
+| WDR-H-01 | TestHandler_Detail_SyncedReadModel | default sync read model, metrics_source synced |
+| WDR-H-02 | TestHandler_Detail_LiveOptIn | ?live=1 returns metrics_source live |
+| WDR-H-03 | TestHandler_Performance_SyncedSeries | synced series shape |
+| WDR-H-04 | TestHandler_ETag | ETag + Cache-Control headers |
+
+#### WebSocket
+| ID | Case | Expected |
+|----|------|----------|
+| WDR-W-01 | TestWS_SubscribeChannels | channel subscription filtering |
+| WDR-W-02 | TestWS_BootstrapPerChannel | bootstrap per channel |
+| WDR-W-03 | TestWS_BackpressureDropped | wallet.dropped on backpressure |
+| WDR-W-04 | TestWS_ReconnectRebootstrap | rebootstrap on reconnect |
+
+#### E2E
+| ID | Case | Expected |
+|----|------|----------|
+| WDR-E-01 | TestE2E_WalletDetail_SyncedShape | shape unchanged, metrics_source present |

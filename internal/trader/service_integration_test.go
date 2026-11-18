@@ -306,7 +306,7 @@ func TestService_Detail(t *testing.T) {
 	svc, repo, _, venueID, _, addrs := searchFixture(t)
 	ctx := context.Background()
 
-	d, err := svc.Detail(ctx, testVenueCode, addrs[0], "30D")
+	d, err := svc.Detail(ctx, testVenueCode, addrs[0], "30D", false)
 	if err != nil {
 		t.Fatalf("detail: %v", err)
 	}
@@ -321,13 +321,13 @@ func TestService_Detail(t *testing.T) {
 		t.Errorf("live detail without upstream must be error, got %v", d.DataStatus)
 	}
 
-	if _, err := svc.Detail(ctx, testVenueCode, testAddr(), "30D"); err == nil {
+	if _, err := svc.Detail(ctx, testVenueCode, testAddr(), "30D", false); err == nil {
 		t.Error("unknown wallet must 404")
 	}
-	if _, err := svc.Detail(ctx, testVenueCode, "zzz", "30D"); err == nil {
+	if _, err := svc.Detail(ctx, testVenueCode, "zzz", "30D", false); err == nil {
 		t.Error("bad address must 400")
 	}
-	if _, err := svc.Detail(ctx, testVenueCode, addrs[0], "90D"); err == nil {
+	if _, err := svc.Detail(ctx, testVenueCode, addrs[0], "90D", false); err == nil {
 		t.Error("bad period must 400")
 	}
 
@@ -339,7 +339,7 @@ func TestService_Detail(t *testing.T) {
 		_, _ = repo.pool.Exec(ctx,
 			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, fresh)
 	})
-	d2, err := svc.Detail(ctx, testVenueCode, fresh, "")
+	d2, err := svc.Detail(ctx, testVenueCode, fresh, "", false)
 	if err != nil {
 		t.Fatalf("fresh detail: %v", err)
 	}
@@ -731,3 +731,4 @@ func num(v any) float64 {
 	}
 	return 0
 }
+

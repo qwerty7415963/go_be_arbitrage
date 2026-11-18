@@ -1667,10 +1667,14 @@ definitions:
         $ref: '#/definitions/trader.DataStatus'
       metrics:
         $ref: '#/definitions/trader.PeriodMetrics'
+      metrics_source:
+        type: string
       period:
         type: string
       registry:
         $ref: '#/definitions/trader.RegistryEntry'
+      synced_at:
+        type: string
     type: object
   trader.DiscoverySource:
     enum:
@@ -1887,6 +1891,8 @@ definitions:
         type: array
       metrics:
         $ref: '#/definitions/trader.PerformanceMetricsDTO'
+      metrics_source:
+        type: string
       mode:
         type: string
       period:
@@ -7956,6 +7962,10 @@ paths:
         in: query
         name: wallet
         required: true
+        type: string
+      - description: 'Comma-separated channels: positions,orders,activity,trades'
+        in: query
+        name: channels
         type: string
       produces:
       - application/json

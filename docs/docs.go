@@ -8390,6 +8390,12 @@ const docTemplate = `{
                         "name": "wallet",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated channels: positions,orders,activity,trades",
+                        "name": "channels",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -12770,11 +12776,17 @@ const docTemplate = `{
                 "metrics": {
                     "$ref": "#/definitions/trader.PeriodMetrics"
                 },
+                "metrics_source": {
+                    "type": "string"
+                },
                 "period": {
                     "type": "string"
                 },
                 "registry": {
                     "$ref": "#/definitions/trader.RegistryEntry"
+                },
+                "synced_at": {
+                    "type": "string"
                 }
             }
         },
@@ -13100,6 +13112,9 @@ const docTemplate = `{
                 },
                 "metrics": {
                     "$ref": "#/definitions/trader.PerformanceMetricsDTO"
+                },
+                "metrics_source": {
+                    "type": "string"
                 },
                 "mode": {
                     "type": "string"

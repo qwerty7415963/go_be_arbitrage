@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/hyperliquid"
 )
@@ -816,7 +817,8 @@ func boolField(delta map[string]json.RawMessage, keys ...string) (*bool, bool) {
 // No reads of trader_period_metrics / trader_equity_daily (conformance §7); LB
 // refs are read live. TTL 12s + single-flight per (wallet,venue,period,mode);
 // HL error ⇒ stale with error else metrics stub + equity/series empty.
-func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
+func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period, 
+mode string, seriesOnly, sync bool) (*PerformanceDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
 		return nil, err
@@ -844,6 +846,9 @@ func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period, m
 	}
 	if _, err := s.repo.GetRegistry(ctx, venueID, addr); err != nil {
 		return nil, err
+	}
+	if sync {
+		return s.performanceSynced(ctx, venueID, addr, venue, period, mode, seriesOnly)
 	}
 	key := performanceCacheKey(venue, addr, period, mode)
 	if seriesOnly {
@@ -936,3 +941,149 @@ func periodLookback(period string) time.Duration {
 		return 30 * 24 * time.Hour
 	}
 }
+
+// performanceSynced builds the wallet performance read model from synced tables.
+func (s *Service) performanceSynced(ctx context.Context, venueID uuid.UUID, addr, venue, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
+	key := "performance-sync|" + venue + "|" + addr + "|" + period + "|" + mode
+	if seriesOnly {
+		key += "|series"
+	}
+	now := time.Now().UTC()
+	val, _, _, fetchErr := s.syncCache.GetOrFetch(key, func() (any, error) {
+		reg, err := s.repo.GetRegistry(ctx, venueID, addr)
+		if err != nil {
+			return nil, err
+		}
+		pm, _ := s.repo.GetPeriodMetrics(ctx, venueID, addr, period)
+
+		// Equity rows (all available).
+		from := now.AddDate(-1, 0, 0)
+		eqRows, _ := s.repo.ListEquityDailyRows(ctx, venueID, addr, from, now)
+		equity := make([]EquityPointDTO, 0, len(eqRows))
+		for _, r := range eqRows {
+			equity = append(equity, EquityPointDTO{
+				Date:        r.Date.UTC().Format("2006-01-02"),
+				EndEquity:   r.EndEquity,
+				DailyReturn: r.DailyReturn,
+			})
+		}
+		if equity == nil {
+			equity = []EquityPointDTO{}
+		}
+
+		// Series per range.
+		series := make(map[string]RangeSeriesDTO, len(performanceRangeKeys))
+		for _, rng := range performanceRangeKeys {
+			dur := 365 * 24 * time.Hour
+			switch rng {
+			case "24H":
+				dur = 24 * time.Hour
+			case "7D":
+				dur = 7 * 24 * time.Hour
+			case "30D":
+				dur = 30 * 24 * time.Hour
+			}
+			cutoff := now.Add(-dur)
+			av := make([]SeriesPointDTO, 0)
+			for _, r := range eqRows {
+				if r.Date.UTC().Before(cutoff) {
+					continue
+				}
+				if r.EndEquity != nil {
+					av = append(av, SeriesPointDTO{Time: r.Date.UTC(), Value: *r.EndEquity})
+				}
+			}
+			// PnL from daily stats realized_pnl.
+			pnlPts := make([]SeriesPointDTO, 0)
+			statsFrom := cutoff
+			if rows, err := s.repo.ListDailyStats(ctx, venueID, addr, statsFrom, now); err == nil {
+				for _, st := range rows {
+					if st.RealizedPnL != nil {
+						pnlPts = append(pnlPts, SeriesPointDTO{Time: st.StatDate.UTC(), Value: *st.RealizedPnL})
+					}
+				}
+			}
+			series[rng] = RangeSeriesDTO{AccountValue: av, PnL: pnlPts}
+		}
+		series = ensureSeries(series)
+
+		if seriesOnly {
+			return &PerformanceDTO{
+				Period:        period,
+				Mode:          mode,
+				Metrics:       nil,
+				Equity:        []EquityPointDTO{},
+				Series:        series,
+				MetricsSource: "synced",
+			}, nil
+		}
+
+		var dataStatus DataStatus = DataReady
+		var asOf time.Time = now
+		var perfMetrics *PerformanceMetricsDTO
+		if pm != nil {
+			dataStatus = pm.DataStatus
+			if dataStatus == "" {
+				dataStatus = DataReady
+			}
+			asOf = pm.AsOf.UTC()
+			perfMetrics = &PerformanceMetricsDTO{
+				ROI:            pm.ROI,
+				PnL:            pm.PnL,
+				WinRate:        pm.WinRate,
+				Volume:         pm.Volume,
+				TradeCount:     pm.TradeCount,
+				ProfitFactor:   pm.ProfitFactor,
+				MaxDrawdownPct: pm.MaxDrawdownPct,
+				LongWins:       pm.LongWins,
+				LongCount:      pm.LongCount,
+				ShortWins:      pm.ShortWins,
+				ShortCount:     pm.ShortCount,
+				DataStatus:     dataStatus,
+				IsPartial:      pm.IsPartial,
+				MetricsAsOf:    &asOf,
+			}
+		} else {
+			dataStatus = DataError
+			perfMetrics = &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true, MetricsAsOf: &asOf}
+		}
+
+		syncedAt := reg.UpdatedAt
+		if pm != nil && pm.UpdatedAt.After(syncedAt) {
+			syncedAt = pm.UpdatedAt
+		}
+		_ = syncedAt
+
+		return &PerformanceDTO{
+			Period:        period,
+			Mode:          mode,
+			Metrics:       perfMetrics,
+			Equity:        equity,
+			Series:        series,
+			MetricsSource: "synced",
+		}, nil
+	})
+	if fetchErr != nil {
+		if stale, _, found := s.syncCache.get(key); found {
+			if dto, ok := stale.(*PerformanceDTO); ok && dto != nil {
+				cpy := *dto
+				cpy.MetricsSource = "synced"
+				return &cpy, nil
+			}
+		}
+		if seriesOnly {
+			return &PerformanceDTO{Period: period, Mode: mode, Metrics: nil, Equity: []EquityPointDTO{}, Series: ensureSeries(nil), MetricsSource: "synced"}, nil
+		}
+		return &PerformanceDTO{Period: period, Mode: mode, Metrics: &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true}, Equity: []EquityPointDTO{}, Series: ensureSeries(nil), MetricsSource: "synced"}, nil
+	}
+	dto, ok := val.(*PerformanceDTO)
+	if !ok || dto == nil {
+		if seriesOnly {
+			return &PerformanceDTO{Period: period, Mode: mode, Metrics: nil, Equity: []EquityPointDTO{}, Series: ensureSeries(nil), MetricsSource: "synced"}, nil
+		}
+		return &PerformanceDTO{Period: period, Mode: mode, Metrics: &PerformanceMetricsDTO{DataStatus: DataError, IsPartial: true}, Equity: []EquityPointDTO{}, Series: ensureSeries(nil), MetricsSource: "synced"}, nil
+	}
+	dto.MetricsSource = "synced"
+	return dto, nil
+}
+

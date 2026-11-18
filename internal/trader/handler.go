@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -17,14 +18,14 @@ import (
 // *Service implements it).
 type ServiceInterface interface {
 	Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
-	Detail(ctx context.Context, venueCode, addr, period string) (*Detail, error)
+	Detail(ctx context.Context, venueCode, addr, period string, sync bool) (*Detail, error)
 	Positions(ctx context.Context, venueCode, addr, sort, dir string) (*PositionSnapshotDTO, error)
 	Activity(ctx context.Context, venueCode, addr string, q ActivityQuery) (*ActivityPage, error)
 	Balances(ctx context.Context, venueCode, addr string) (*BalancesDTO, error)
 	Fills(ctx context.Context, venueCode, addr string, limit int, cursor string) (*FillsPage, error)
 	Orders(ctx context.Context, venueCode, addr, status string, limit int) (*OrdersDTO, error)
 	Transfers(ctx context.Context, venueCode, addr string, days, limit int, cursor string) (*TransfersPage, error)
-	Performance(ctx context.Context, venueCode, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
+	Performance(ctx context.Context, venueCode, addr, period, mode string, seriesOnly, sync bool) (*PerformanceDTO, error)
 	Overview(ctx context.Context, venueCode, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
 	OverviewSeries(ctx context.Context, venueCode, period, pnlMetric string, seriesDays int) (*OverviewSeries, error)
 	BucketDetail(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
@@ -159,10 +160,17 @@ func (h *Handler) Search(c *gin.Context) {
 func (h *Handler) Detail(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	period := c.DefaultQuery("period", Period30D)
-	d, err := h.svc.Detail(c.Request.Context(), venue, c.Param("wallet"), period)
+	syncFlag := parseSyncParam(c)
+	d, err := h.svc.Detail(c.Request.Context(), venue, c.Param("wallet"), period, syncFlag)
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
+	}
+	c.Header("Cache-Control", "public, max-age=15, stale-while-revalidate=45")
+	if d.AsOf != nil {
+		c.Header("ETag", `"`+d.AsOf.UTC().Format(time.RFC3339Nano)+`"`)
+	} else {
+		c.Header("ETag", `"`+d.MetricsSource+`"`)
 	}
 	api.RespondSuccess(c, d)
 }
@@ -386,11 +394,17 @@ func (h *Handler) Performance(c *gin.Context) {
 			return
 		}
 	}
-	d, err := h.svc.Performance(c.Request.Context(), venue, c.Param("wallet"), period, mode, seriesOnly)
+	d, err := h.svc.Performance(c.Request.Context(), venue, c.Param("wallet"), period, mode, seriesOnly, parseSyncParam(c))
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
 	}
+	c.Header("Cache-Control", "public, max-age=15, stale-while-revalidate=45")
+	etag := d.MetricsSource
+	if d.Metrics != nil && d.Metrics.MetricsAsOf != nil {
+		etag = d.Metrics.MetricsAsOf.UTC().Format(time.RFC3339Nano)
+	}
+	c.Header("ETag", `"`+etag+`"`)
 	api.RespondSuccess(c, d)
 }
 
@@ -535,4 +549,18 @@ func (h *Handler) SyncPositions(c *gin.Context) {
 		Failed:    failed,
 		Errors:    errs,
 	}})
+}
+
+func parseSyncParam(c *gin.Context) bool {
+	syncFlag := true
+	if raw := c.Query("sync"); raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err == nil {
+			syncFlag = v
+		}
+	}
+	if c.Query("live") == "1" {
+		syncFlag = false
+	}
+	return syncFlag
 }

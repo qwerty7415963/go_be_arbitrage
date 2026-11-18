@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -123,6 +124,10 @@ type WalletWatcher struct {
 	positionPending    bool
 	positionRefreshing bool
 	lastPositionDTO    *PositionSnapshotDTO
+
+	// Channel subscription (contract v3.0).
+	channels   map[string]bool
+	droppedSeq int64
 }
 
 // WatcherManager owns one WalletWatcher per watched address (refcounted) +
@@ -142,6 +147,9 @@ type WatcherManager struct {
 
 	// Position snapshot provider (contract v2.3).
 	positionProvider PositionSnapshotProvider
+
+	// Service for server-side bootstrap (trades) (contract v3.0).
+	service *Service
 
 	// position refresh counters.
 	positionRefreshes      int64
@@ -185,6 +193,17 @@ func (m *WatcherManager) WithPositionProvider(p PositionSnapshotProvider) *Watch
 	}
 	m.mu.Lock()
 	m.positionProvider = p
+	m.mu.Unlock()
+	return m
+}
+
+// WithService attaches the trader service for server-side bootstrap (trades).
+func (m *WatcherManager) WithService(s *Service) *WatcherManager {
+	if m == nil {
+		return m
+	}
+	m.mu.Lock()
+	m.service = s
 	m.mu.Unlock()
 	return m
 }
@@ -308,23 +327,69 @@ func (m *WatcherManager) WatchSet() []string { return m.hub.WatchSet() }
 // IsWatched delegates to the hub.
 func (m *WatcherManager) IsWatched(addr string) bool { return m.hub.IsWatched(addr) }
 
+func defaultWatcherChannels() map[string]bool {
+	return map[string]bool{"positions": true, "orders": true, "activity": true, "trades": true}
+}
+
+func normalizeChannels(chs []string) map[string]bool {
+	if len(chs) == 0 {
+		return defaultWatcherChannels()
+	}
+	out := map[string]bool{"positions": false, "orders": false, "activity": false, "trades": false}
+	for _, ch := range chs {
+		ch = strings.ToLower(strings.TrimSpace(ch))
+		if _, ok := out[ch]; ok {
+			out[ch] = true
+		}
+	}
+	any := false
+	for _, v := range out {
+		if v {
+			any = true
+			break
+		}
+	}
+	if !any {
+		return defaultWatcherChannels()
+	}
+	return out
+}
+
 // Subscribe registers one browser client for wallet (lowercased). First
 // subscriber creates the upstream watcher (4-feed subscribe + REST bootstrap
 // RESYNC → RECONCILE → LIVE); further subscribers share it.
 func (m *WatcherManager) Subscribe(wallet string) *ActivityClient {
+	return m.SubscribeWithChannels(wallet, nil)
+}
+
+// SubscribeWithChannels registers a browser client with an initial channel set.
+func (m *WatcherManager) SubscribeWithChannels(wallet string, channels []string) *ActivityClient {
 	wallet = strings.ToLower(strings.TrimSpace(wallet))
-	c := m.hub.Subscribe(wallet)
+	c := m.hub.Subscribe(wallet, 256)
 	m.mu.Lock()
 	w, ok := m.watchers[wallet]
 	if !ok {
-		w = &WalletWatcher{addr: wallet, state: ConnDisconnected, stopCh: make(chan struct{})}
+		w = &WalletWatcher{addr: wallet, state: ConnDisconnected, stopCh: make(chan struct{}), channels: normalizeChannels(channels)}
 		w.snapshot.Orders = map[int64]OrderDTO{}
 		m.watchers[wallet] = w
+	} else {
+		if channels != nil {
+			w.mu.Lock()
+			w.channels = normalizeChannels(channels)
+			w.mu.Unlock()
+		}
+		if w.channels == nil {
+			w.mu.Lock()
+			w.channels = defaultWatcherChannels()
+			w.mu.Unlock()
+		}
 	}
 	w.mu.Lock()
+	if w.channels == nil {
+		w.channels = defaultWatcherChannels()
+	}
 	w.browserRefs++
 	needBootstrap := w.browserRefs == 1 && w.retained == 0 && !w.bootstrapped
-	// bootstrap on first creation of watcher
 	if !w.bootstrapped {
 		needBootstrap = true
 		w.bootstrapped = true
@@ -335,6 +400,72 @@ func (m *WatcherManager) Subscribe(wallet string) *ActivityClient {
 		m.bootstrap(wallet, w)
 	}
 	return c
+}
+
+// SetClientChannels updates channel subscription for a watcher by wallet.
+func (m *WatcherManager) SetClientChannels(wallet string, channels []string) {
+	wallet = strings.ToLower(strings.TrimSpace(wallet))
+	m.mu.Lock()
+	w, ok := m.watchers[wallet]
+	m.mu.Unlock()
+	if !ok {
+		return
+	}
+	w.mu.Lock()
+	w.channels = normalizeChannels(channels)
+	w.mu.Unlock()
+}
+
+// BootstrapChannels emits wallet.bootstrap.<channel> for the given channels.
+func (m *WatcherManager) BootstrapChannels(wallet string, channels []string) {
+	wallet = strings.ToLower(strings.TrimSpace(wallet))
+	m.mu.Lock()
+	w, ok := m.watchers[wallet]
+	m.mu.Unlock()
+	if !ok {
+		return
+	}
+	if w.channels == nil {
+		w.mu.Lock()
+		w.channels = normalizeChannels(channels)
+		w.mu.Unlock()
+	}
+	// ensure requested channels enabled
+	if channels != nil {
+		m.SetClientChannels(wallet, channels)
+		// re-fetch watcher
+		m.mu.Lock()
+		w, _ = m.watchers[wallet]
+		m.mu.Unlock()
+	}
+	if w == nil {
+		return
+	}
+	m.mu.Lock()
+	snap := w.snapshot
+	m.mu.Unlock()
+	m.emitBootstrapChannels(wallet, w, &snap)
+}
+
+// ChannelsEnabled reports channel subscription for wallet.
+func (m *WatcherManager) ChannelsEnabled(wallet string) map[string]bool {
+	wallet = strings.ToLower(strings.TrimSpace(wallet))
+	m.mu.Lock()
+	w, ok := m.watchers[wallet]
+	m.mu.Unlock()
+	if !ok {
+		return defaultWatcherChannels()
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.channels == nil {
+		return defaultWatcherChannels()
+	}
+	out := make(map[string]bool, len(w.channels))
+	for k, v := range w.channels {
+		out[k] = v
+	}
+	return out
 }
 
 // Unsubscribe removes one browser client; last unsubscribe tears down the
@@ -399,6 +530,7 @@ func (m *WatcherManager) bootstrap(wallet string, w *WalletWatcher) {
 		w.snapshot = *snap
 		w.mu.Unlock()
 		m.emitPositionSnapshot(wallet, w, snap, ConnResync)
+		m.emitBootstrapChannels(wallet, w, snap)
 		m.setState(w, ConnReconcile, "", nil)
 		// RECONCILE: diff stub (snapshot is the bootstrap; no prior state to
 		// reconcile against on first subscribe). Emit state for FE badge.
@@ -420,6 +552,7 @@ func (m *WatcherManager) bootstrap(wallet string, w *WalletWatcher) {
 				w.snapshot = *snap
 				w.mu.Unlock()
 				m.emitPositionSnapshot(wallet, w, snap, ConnResync)
+				m.emitBootstrapChannels(wallet, w, snap)
 				m.setState(w, ConnReconcile, "", nil)
 				m.emit(wallet, EvtStateUpdated, map[string]any{"as_of": snap.AsOf}, ConnReconcile)
 				m.setState(w, ConnLive, "", nil)
@@ -516,6 +649,14 @@ func (m *WatcherManager) resyncSnapshot(wallet string) *WalletSnapshot {
 // (non-blocking; drops on full buffers like the hub).
 func (m *WatcherManager) emit(wallet, evtType string, data any, state ConnectionState) {
 	wallet = strings.ToLower(strings.TrimSpace(wallet))
+	ch := channelForEvt(evtType)
+	// Filter by channel subscription.
+	m.mu.Lock()
+	w, _ := m.watchers[wallet]
+	m.mu.Unlock()
+	if w != nil && ch != "" && !w.channelEnabled(ch) {
+		return
+	}
 	ev := WalletEvent{Type: evtType, Wallet: wallet, Data: data, At: time.Now().UTC(), State: state}
 	msg, err := json.Marshal(ev)
 	if err != nil {
@@ -526,6 +667,22 @@ func (m *WatcherManager) emit(wallet, evtType string, data any, state Connection
 		select {
 		case c.send <- msg:
 		default:
+			// backpressure: emit dropped marker
+			m.mu.Lock()
+			if w2, ok := m.watchers[wallet]; ok {
+				w2.droppedSeq++
+				seq := w2.droppedSeq
+				m.mu.Unlock()
+				dropped := map[string]any{"type": "wallet.dropped", "data": map[string]any{"channel": ch, "seq": seq}}
+				if b, err := json.Marshal(dropped); err == nil {
+					select {
+					case c.send <- b:
+					default:
+					}
+				}
+			} else {
+				m.mu.Unlock()
+			}
 		}
 	}
 	m.hub.mu.RUnlock()
@@ -666,6 +823,7 @@ func (m *WatcherManager) Reconnect(wallet string) {
 		w.snapshot = *snap
 		w.mu.Unlock()
 		m.emitPositionSnapshot(wallet, w, snap, ConnResync)
+		m.emitBootstrapChannels(wallet, w, snap)
 		m.setState(w, ConnReconcile, "", nil)
 		m.emit(wallet, EvtStateUpdated, map[string]any{"as_of": snap.AsOf}, ConnReconcile)
 		m.setState(w, ConnLive, "", nil)
@@ -790,3 +948,102 @@ func (m *WatcherManager) runPositionRefresh(wallet string) {
 	m.positionRefreshes++
 	m.mu.Unlock()
 }
+
+// channelEnabled reports whether a channel is subscribed for this watcher.
+func (w *WalletWatcher) channelEnabled(ch string) bool {
+	if w == nil {
+		return true
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.channels == nil {
+		return true
+	}
+	v, ok := w.channels[ch]
+	if !ok {
+		return true
+	}
+	return v
+}
+
+func (m *WatcherManager) emitBootstrapChannels(wallet string, w *WalletWatcher, snap *WalletSnapshot) {
+	if w == nil {
+		return
+	}
+	// positions
+	if w.channelEnabled("positions") {
+		var pos *PositionSnapshotDTO
+		w.mu.Lock()
+		if w.lastPositionDTO != nil {
+			pos = w.lastPositionDTO
+		}
+		w.mu.Unlock()
+		if pos == nil && m.positionProvider != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if p, err := m.positionProvider(ctx, wallet); err == nil {
+				pos = p
+				w.mu.Lock()
+				w.lastPositionDTO = p
+				w.mu.Unlock()
+			}
+			cancel()
+		}
+		if pos == nil {
+			pos = &PositionSnapshotDTO{Positions: []PositionDTO{}, DataStatus: DataReady}
+		}
+		m.emit(wallet, "wallet.bootstrap.positions", pos, w.state)
+	}
+	// orders
+	if w.channelEnabled("orders") {
+		orders := make([]OrderDTO, 0)
+		if snap != nil {
+			for _, o := range snap.Orders {
+				orders = append(orders, o)
+			}
+		}
+		sort.Slice(orders, func(i, j int) bool { return orders[i].Oid < orders[j].Oid })
+		m.emit(wallet, "wallet.bootstrap.orders", orders, w.state)
+	}
+	// activity
+	if w.channelEnabled("activity") {
+		fills := []FillDTO{}
+		if snap != nil {
+			fills = append(fills, snap.Fills...)
+			if len(fills) > 200 {
+				fills = fills[:200]
+			}
+		}
+		if fills == nil {
+			fills = []FillDTO{}
+		}
+		m.emit(wallet, "wallet.bootstrap.activity", fills, w.state)
+	}
+	// trades
+	if w.channelEnabled("trades") {
+		page := &ActivityPage{Rows: []ActivityTradeDTO{}, HasMore: false, Counts: ActivityCounts{}, DataStatus: DataError}
+		if m.service != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if p, err := m.service.Activity(ctx, DefaultVenue, wallet, ActivityQuery{Limit: 20, Sort: "closed_at", Dir: "desc"}); err == nil && p != nil {
+				page = p
+			}
+			cancel()
+		}
+		m.emit(wallet, "wallet.bootstrap.trades", page, w.state)
+	}
+}
+
+func channelForEvt(evt string) string {
+	switch evt {
+	case EvtPositionUpdated, "wallet.bootstrap.positions":
+		return "positions"
+	case EvtOrderCreated, EvtOrderUpdated, "wallet.bootstrap.orders":
+		return "orders"
+	case EvtFillCreated, EvtFundingCreated, EvtActivityCreated, "wallet.bootstrap.activity":
+		return "activity"
+	case "wallet.bootstrap.trades":
+		return "trades"
+	}
+	return ""
+}
+
+

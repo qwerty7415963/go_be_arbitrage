@@ -83,7 +83,7 @@ func TestMapPortfolioSeries_SortsAndSkipsInvalid(t *testing.T) {
 func TestPerformance_InvalidMode(t *testing.T) {
 	s := NewService(nil, nil, []byte("series-test-secret-32-bytes!!!"))
 	_, err := s.Performance(context.Background(), "hyperliquid",
-		"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Period30D, "bogus", false)
+		"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Period30D, "bogus", false, false)
 	if err == nil {
 		t.Fatal("invalid mode must error")
 	}
@@ -116,3 +116,5 @@ func TestEnsureSeries_FillsAllRangesNonNil(t *testing.T) {
 		}
 	}
 }
+
+

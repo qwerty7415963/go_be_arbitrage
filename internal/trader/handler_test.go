@@ -16,14 +16,14 @@ import (
 
 type mockService struct {
 	searchFn         func(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error)
-	detailFn         func(ctx context.Context, venue, addr, period string) (*Detail, error)
+	detailFn         func(ctx context.Context, venue, addr, period string, sync bool) (*Detail, error)
 	positionsFn      func(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error)
 	activityFn       func(ctx context.Context, venue, addr string, q ActivityQuery) (*ActivityPage, error)
 	balancesFn       func(ctx context.Context, venue, addr string) (*BalancesDTO, error)
 	fillsFn          func(ctx context.Context, venue, addr string, limit int, cursor string) (*FillsPage, error)
 	ordersFn         func(ctx context.Context, venue, addr, status string, limit int) (*OrdersDTO, error)
 	transfersFn      func(ctx context.Context, venue, addr string, days, limit int, cursor string) (*TransfersPage, error)
-	performanceFn    func(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error)
+	performanceFn    func(ctx context.Context, venue, addr, period, mode string, seriesOnly, sync bool) (*PerformanceDTO, error)
 	overviewFn       func(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error)
 	overviewSeriesFn func(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*OverviewSeries, error)
 	bucketDetailFn   func(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
@@ -35,8 +35,11 @@ func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchR
 	return m.searchFn(ctx, userID, req)
 }
 
-func (m *mockService) Detail(ctx context.Context, venue, addr, period string) (*Detail, error) {
-	return m.detailFn(ctx, venue, addr, period)
+func (m *mockService) Detail(ctx context.Context, venue, addr, period string, sync bool) (*Detail, error) {
+	if m.detailFn == nil {
+		return nil, nil
+	}
+	return m.detailFn(ctx, venue, addr, period, sync)
 }
 
 func (m *mockService) Positions(ctx context.Context, venue, addr, sort, dir string) (*PositionSnapshotDTO, error) {
@@ -81,11 +84,12 @@ func (m *mockService) Transfers(ctx context.Context, venue, addr string, days, l
 	return m.transfersFn(ctx, venue, addr, days, limit, cursor)
 }
 
-func (m *mockService) Performance(ctx context.Context, venue, addr, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
+func (m *mockService) Performance(ctx context.Context, venue, addr, period, mode string,
+	seriesOnly, sync bool) (*PerformanceDTO, error) {
 	if m.performanceFn == nil {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
-	return m.performanceFn(ctx, venue, addr, period, mode, seriesOnly)
+	return m.performanceFn(ctx, venue, addr, period, mode, seriesOnly, sync)
 }
 
 func (m *mockService) Overview(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error) {
@@ -330,7 +334,7 @@ func TestHandler_Search_EmptyRowsIsArray(t *testing.T) {
 
 // TRD-H: detail 404 mapping + bad address 400.
 func TestHandler_Detail_Errors(t *testing.T) {
-	h := NewHandler(&mockService{detailFn: func(_ context.Context, _, _, _ string) (*Detail, error) {
+	h := NewHandler(&mockService{detailFn: func(_ context.Context, _, _, _ string, _ bool) (*Detail, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "nope")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET",
@@ -339,7 +343,7 @@ func TestHandler_Detail_Errors(t *testing.T) {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
 
-	h2 := NewHandler(&mockService{detailFn: func(_ context.Context, _, _, _ string) (*Detail, error) {
+	h2 := NewHandler(&mockService{detailFn: func(_ context.Context, _, _, _ string, _ bool) (*Detail, error) {
 		return nil, domain.NewError(domain.ErrCodeValidation, "invalid wallet address")
 	}})
 	w2 := doReq(t, testRouter(h2, ""), "GET", "/api/v1/traders/not-an-address", "")
@@ -352,7 +356,7 @@ func TestHandler_Detail_Errors(t *testing.T) {
 // mode + four non-null series ranges.
 func TestHandler_Performance_SeriesShape(t *testing.T) {
 	var gotMode string
-	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, _ bool) (*PerformanceDTO, error) {
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, _, _ bool) (*PerformanceDTO, error) {
 		gotMode = mode
 		return &PerformanceDTO{
 			Period:  period,
@@ -403,7 +407,7 @@ func TestHandler_Performance_SeriesShape(t *testing.T) {
 
 // PS-H-03: invalid mode surfaces as 400 INVALID_FILTER.
 func TestHandler_Performance_InvalidMode(t *testing.T) {
-	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, _, mode string, _ bool) (*PerformanceDTO, error) {
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, _, mode string, _, _ bool) (*PerformanceDTO, error) {
 		if mode != PerformanceModePerps && mode != PerformanceModeCombined {
 			return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid mode: want perps|combined")
 		}
@@ -417,7 +421,7 @@ func TestHandler_Performance_InvalidMode(t *testing.T) {
 
 // PS-H-04: unknown wallet maps to 404.
 func TestHandler_Performance_UnknownWallet(t *testing.T) {
-	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, _, _ string, _ bool) (*PerformanceDTO, error) {
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, _, _ string, _, _ bool) (*PerformanceDTO, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "unknown wallet")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/performance", "")
@@ -429,7 +433,7 @@ func TestHandler_Performance_UnknownWallet(t *testing.T) {
 // PS-H-05: series_only=true returns 200 with metrics=null, equity=[], series present.
 func TestHandler_Performance_SeriesOnlyTrue(t *testing.T) {
 	var gotSeriesOnly bool
-	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, seriesOnly, _ bool) (*PerformanceDTO, error) {
 		gotSeriesOnly = seriesOnly
 		return &PerformanceDTO{
 			Period:  period,
@@ -469,7 +473,7 @@ func TestHandler_Performance_SeriesOnlyTrue(t *testing.T) {
 // PS-H-06: series_only=false (default) keeps metrics present.
 func TestHandler_Performance_SeriesOnlyFalseDefault(t *testing.T) {
 	var gotSeriesOnly bool
-	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, seriesOnly bool) (*PerformanceDTO, error) {
+	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, period, mode string, seriesOnly, _ bool) (*PerformanceDTO, error) {
 		gotSeriesOnly = seriesOnly
 		return &PerformanceDTO{
 			Period:  period,

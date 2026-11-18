@@ -3,6 +3,7 @@ package trader
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,7 +57,8 @@ func (h *ActivityWSHandler) Watcher() *WatcherManager { return h.watcher }
 // @Description  Realtime wallet events for one watched wallet (LIVE-CONTRACT v1.2 §2 + SIDEBAR-3EVENTS D2). Query wallet=0x... (lowercased server-side). Transport is GET /traders/ws?wallet= (unchanged); payloads use the wallet.* envelope for incremental updates (no full refetch): wallet.position.updated (full PositionSnapshot on bootstrap/resync and after fills/orders, debounced ~2s), wallet.fill.created (data always carries dir + closed_pnl), wallet.funding.created, wallet.order.created (first-seen oid, OrderDTO + status open) then wallet.order.updated for later updates, wallet.activity.created, wallet.state.updated, wallet.connection.updated (DISCONNECTED→RECONNECT→RESYNC→RECONCILE→LIVE). Server sends {type:subscribed} on connect, then wallet.* frames; legacy {type:activity} frames from the global harvest feed are still forwarded (sidebar ignores them). Client {type:ping} gets {type:pong}. Existing backoff + hidden-suspend + ping/pong stay. No auth (public read).
 // @Tags         traders
 // @Produce      json
-// @Param        wallet  query  string  true  "Watched wallet address (0x...)"
+// @Param        wallet    query  string  true   "Watched wallet address (0x...)"
+// @Param        channels  query  string  false  "Comma-separated channels: positions,orders,activity,trades"
 // @Success      200  {string}  string  "websocket upgrade"
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "invalid wallet"
 // @Router       /api/v1/traders/ws [get]
@@ -66,6 +68,7 @@ func (h *ActivityWSHandler) ServeWS(c *gin.Context) {
 		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid wallet address"))
 		return
 	}
+	channels := parseChannelsQuery(c.Query("channels"))
 	conn, err := h.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
@@ -75,7 +78,7 @@ func (h *ActivityWSHandler) ServeWS(c *gin.Context) {
 	if h.watcher != nil {
 		// Refcounted WalletWatcher: first subscriber creates the upstream
 		// watcher (4 feeds + REST bootstrap); last unsubscribe tears it down.
-		client = h.watcher.Subscribe(wallet)
+		client = h.watcher.SubscribeWithChannels(wallet, channels)
 		onClose = func() { h.watcher.Unsubscribe(client) }
 	} else {
 		client = h.hub.Subscribe(wallet)
@@ -110,7 +113,8 @@ func (h *ActivityWSHandler) readPump(conn *websocket.Conn, client *ActivityClien
 	})
 	for {
 		var msg struct {
-			Type string `json:"type"`
+			Type     string   `json:"type"`
+			Channels []string `json:"channels"`
 		}
 		if err := conn.ReadJSON(&msg); err != nil {
 			return // close or protocol error: unsubscribe-on-close.
@@ -119,6 +123,36 @@ func (h *ActivityWSHandler) readPump(conn *websocket.Conn, client *ActivityClien
 			_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := conn.WriteJSON(map[string]string{"type": "pong"}); err != nil {
 				return
+			}
+			continue
+		}
+		if h.watcher != nil {
+			if msg.Type == "subscribe" {
+				chs := msg.Channels
+				if len(chs) == 0 {
+					chs = []string{"positions", "orders", "activity", "trades"}
+				}
+				h.watcher.SetClientChannels(client.wallet, chs)
+				h.watcher.BootstrapChannels(client.wallet, chs)
+			}
+			if msg.Type == "unsubscribe" {
+				// remove specified channels
+				cur := h.watcher.ChannelsEnabled(client.wallet)
+				if len(msg.Channels) == 0 {
+					// unsubscribe all channels
+					h.watcher.SetClientChannels(client.wallet, []string{})
+				} else {
+					for _, ch := range msg.Channels {
+						cur[ch] = false
+					}
+					out := []string{}
+					for ch, on := range cur {
+						if on {
+							out = append(out, ch)
+						}
+					}
+					h.watcher.SetClientChannels(client.wallet, out)
+				}
 			}
 		}
 	}
@@ -132,4 +166,20 @@ func (h *ActivityWSHandler) writePump(conn *websocket.Conn, client *ActivityClie
 			return
 		}
 	}
+}
+
+func parseChannelsQuery(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := []string{}
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
