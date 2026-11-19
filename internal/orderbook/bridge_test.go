@@ -205,11 +205,15 @@ func TestBridge_SnapshotThenDeltas(t *testing.T) {
 	if book == nil {
 		t.Fatal("expected book to exist")
 	}
-	if book.Sequence != 1 {
-		t.Errorf("expected sequence 1, got %d", book.Sequence)
+	book.mu.Lock()
+	seq := book.Sequence
+	nBids := len(book.Bids)
+	book.mu.Unlock()
+	if seq != 1 {
+		t.Errorf("expected sequence 1, got %d", seq)
 	}
-	if len(book.Bids) != 1 {
-		t.Errorf("expected 1 bid, got %d", len(book.Bids))
+	if nBids != 1 {
+		t.Errorf("expected 1 bid, got %d", nBids)
 	}
 
 	adapter.sendEvent(&exchange.OrderBookEvent{
@@ -221,11 +225,18 @@ func TestBridge_SnapshotThenDeltas(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	if book.Sequence != 2 {
-		t.Errorf("expected sequence 2, got %d", book.Sequence)
+	book.mu.Lock()
+	seq2 := book.Sequence
+	var qty string
+	if len(book.Bids) > 0 {
+		qty = book.Bids[0].Quantity
 	}
-	if book.Bids[0].Quantity != "15" {
-		t.Errorf("expected quantity 15, got %s", book.Bids[0].Quantity)
+	book.mu.Unlock()
+	if seq2 != 2 {
+		t.Errorf("expected sequence 2, got %d", seq2)
+	}
+	if qty != "15" {
+		t.Errorf("expected quantity 15, got %s", qty)
 	}
 }
 
@@ -264,8 +275,11 @@ func TestBridge_DuplicateDeltaIgnored(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	book := engine.GetBook(venueID, instID)
-	if book.Sequence != 12 {
-		t.Fatalf("expected sequence 12, got %d", book.Sequence)
+	book.mu.Lock()
+	seq := book.Sequence
+	book.mu.Unlock()
+	if seq != 12 {
+		t.Fatalf("expected sequence 12, got %d", seq)
 	}
 
 	adapter.sendEvent(&exchange.OrderBookEvent{
@@ -276,8 +290,11 @@ func TestBridge_DuplicateDeltaIgnored(t *testing.T) {
 	})
 	time.Sleep(50 * time.Millisecond)
 
-	if book.Sequence != 12 {
-		t.Errorf("expected sequence unchanged at 12, got %d", book.Sequence)
+	book.mu.Lock()
+	seq2 := book.Sequence
+	book.mu.Unlock()
+	if seq2 != 12 {
+		t.Errorf("expected sequence unchanged at 12, got %d", seq2)
 	}
 }
 
@@ -319,11 +336,15 @@ func TestBridge_GapTriggersResync(t *testing.T) {
 	}
 
 	book := engine.GetBook(venueID, instID)
-	if book.State != BookStateResyncing {
-		t.Errorf("expected RESYNCING after 3 gaps, got %s", book.State)
+	book.mu.Lock()
+	state := book.State
+	rc := book.ResyncCount
+	book.mu.Unlock()
+	if state != BookStateResyncing {
+		t.Errorf("expected RESYNCING after 3 gaps, got %s", state)
 	}
-	if book.ResyncCount != 1 {
-		t.Errorf("expected resync count 1, got %d", book.ResyncCount)
+	if rc != 1 {
+		t.Errorf("expected resync count 1, got %d", rc)
 	}
 }
 
@@ -357,8 +378,11 @@ func TestBridge_DisconnectMarksBook(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	book := engine.GetBook(venueID, instID)
-	if book.State != BookStateDisconnected {
-		t.Errorf("expected DISCONNECTED, got %s", book.State)
+	book.mu.Lock()
+	state := book.State
+	book.mu.Unlock()
+	if state != BookStateDisconnected {
+		t.Errorf("expected DISCONNECTED, got %s", state)
 	}
 }
 

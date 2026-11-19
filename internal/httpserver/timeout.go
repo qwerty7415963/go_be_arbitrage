@@ -33,29 +33,48 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 		c.Writer = tw
 
 		done := make(chan struct{})
+		timeoutDone := make(chan struct{})
 		go func() {
+			defer close(timeoutDone)
 			defer func() {
 				if r := recover(); r != nil {
 					tw.mu.Lock()
 					tw.err = fmt.Errorf("panic: %v", r)
 					tw.mu.Unlock()
 				}
-				close(done)
 			}()
-			c.Next()
+			select {
+			case <-ctx.Done():
+				tw.mu.Lock()
+				wrote := tw.wroteHeader
+				tw.timedOut = true
+				tw.mu.Unlock()
+				if !wrote {
+					original.Header().Set("Content-Type", "application/json")
+					original.WriteHeader(http.StatusGatewayTimeout)
+					_, _ = original.Write([]byte(`{"success":false,"error":{"code":"GATEWAY_TIMEOUT","message":"request timed out"}}`))
+				}
+			case <-done:
+			}
 		}()
 
-		select {
-		case <-done:
-			tw.mu.Lock()
-			code := tw.code
-			if code == 0 {
-				code = http.StatusOK
-			}
-			hdr := tw.h
-			body := append([]byte(nil), tw.buf.Bytes()...)
-			tw.mu.Unlock()
+		c.Next()
+		close(done)
+		cancel()
+		<-timeoutDone
 
+		tw.mu.Lock()
+		code := tw.code
+		if code == 0 {
+			code = http.StatusOK
+		}
+		hdr := tw.h
+		body := append([]byte(nil), tw.buf.Bytes()...)
+		wrote := tw.wroteHeader
+		timedOut := tw.timedOut
+		tw.mu.Unlock()
+
+		if !wrote && !timedOut {
 			for k, vals := range hdr {
 				for _, v := range vals {
 					original.Header().Add(k, v)
@@ -64,16 +83,6 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 			original.WriteHeader(code)
 			if len(body) > 0 {
 				_, _ = original.Write(body)
-			}
-		case <-ctx.Done():
-			tw.mu.Lock()
-			tw.timedOut = true
-			wrote := tw.wroteHeader
-			tw.mu.Unlock()
-			if !wrote {
-				original.Header().Set("Content-Type", "application/json")
-				original.WriteHeader(http.StatusGatewayTimeout)
-				_, _ = original.Write([]byte(`{"success":false,"error":{"code":"GATEWAY_TIMEOUT","message":"request timed out"}}`))
 			}
 		}
 	}

@@ -77,16 +77,16 @@ func (r *InstrumentRegistry) Lookup(venueSymbol string) (uuid.UUID, uuid.UUID, b
 
 // symbolHandler manages a single symbol's WS feed and orderbook
 type symbolHandler struct {
-	symbol    string
-	venueID   uuid.UUID
-	instID    uuid.UUID
-	adapter   WSAdapter
-	engine    *Engine
-	config    BridgeConfig
-	cancel    context.CancelFunc
-	gapCount  int
-	lastSeq   int64
-	mu        sync.Mutex
+	symbol   string
+	venueID  uuid.UUID
+	instID   uuid.UUID
+	adapter  WSAdapter
+	engine   *Engine
+	config   BridgeConfig
+	cancel   context.CancelFunc
+	gapCount int
+	lastSeq  int64
+	mu       sync.Mutex
 }
 
 // NewBridge creates a new orderbook bridge
@@ -258,7 +258,10 @@ func (h *symbolHandler) handleDisconnect() {
 // requestResync triggers a resync
 func (h *symbolHandler) requestResync(book *OrderBook) {
 	h.engine.RequestResync(book)
-	log.Printf("bridge: resync requested for %s (resync_count=%d)", h.symbol, book.ResyncCount)
+	book.mu.Lock()
+	rc := book.ResyncCount
+	book.mu.Unlock()
+	log.Printf("bridge: resync requested for %s (resync_count=%d)", h.symbol, rc)
 }
 
 // convertSnapshot converts an exchange event to an orderbook snapshot

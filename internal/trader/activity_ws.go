@@ -120,9 +120,11 @@ func (h *ActivityWSHandler) readPump(conn *websocket.Conn, client *ActivityClien
 			return // close or protocol error: unsubscribe-on-close.
 		}
 		if msg.Type == "ping" {
-			_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := conn.WriteJSON(map[string]string{"type": "pong"}); err != nil {
-				return
+			if pong, err := json.Marshal(map[string]string{"type": "pong"}); err == nil {
+				select {
+				case client.send <- pong:
+				default:
+				}
 			}
 			continue
 		}
