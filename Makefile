@@ -71,12 +71,12 @@ test-unit: ## Run unit tests
 
 test-integration: ## Run integration tests (requires PostgreSQL)
 	@echo "Running integration tests..."
-	@go test -tags=integration -race -count=1 ./...
+	@go test -tags=integration -race -count=1 -p 1 ./...
 	@echo "✓ Integration tests passed"
 
 test-e2e: ## Run E2E tests
 	@echo "Running E2E tests..."
-	@go test -tags=e2e -race -count=1 ./...
+	@go test -tags=e2e -race -count=1 -p 1 ./...
 	@echo "✓ E2E tests passed"
 
 test-race: ## Run tests with race detector

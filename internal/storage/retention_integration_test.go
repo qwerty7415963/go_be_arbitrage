@@ -86,6 +86,10 @@ func TestRetention_DeadTraders(t *testing.T) {
 	t.Cleanup(func() {
 		for _, a := range []string{dead, traded, grouped, fresh} {
 			_, _ = pool.Exec(context.Background(),
+				`DELETE FROM trader_daily_stats WHERE venue_id = $1 AND wallet_address = $2`, venueID, a)
+			_, _ = pool.Exec(context.Background(),
+				`DELETE FROM trader_equity_daily WHERE venue_id = $1 AND wallet_address = $2`, venueID, a)
+			_, _ = pool.Exec(context.Background(),
 				`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, a)
 		}
 	})
@@ -173,6 +177,10 @@ func TestRetention_TraderDailyEquity(t *testing.T) {
 		t.Fatalf("registry: %v", err)
 	}
 	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM trader_daily_stats WHERE venue_id = $1 AND wallet_address = $2`, venueID, addr)
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM trader_equity_daily WHERE venue_id = $1 AND wallet_address = $2`, venueID, addr)
 		_, _ = pool.Exec(context.Background(),
 			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, venueID, addr)
 	})

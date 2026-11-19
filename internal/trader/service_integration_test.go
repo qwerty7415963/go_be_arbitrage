@@ -601,8 +601,17 @@ func TestService_Search_CountUsesIndex(t *testing.T) {
 		_, _ = pool.Exec(context.Background(),
 			`DELETE FROM trader_registry WHERE venue_id = $1`, venueID)
 	})
-	if _, err := pool.Exec(ctx, `ANALYZE trader_period_metrics`); err != nil {
-		t.Fatalf("analyze: %v", err)
+	if _, err := pool.Exec(ctx, `VACUUM ANALYZE trader_period_metrics`); err != nil {
+		t.Fatalf("vacuum: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `VACUUM ANALYZE trader_registry`); err != nil {
+		t.Fatalf("vacuum: %v", err)
+	}
+
+	// Force the planner to consider index paths so the assertion verifies an
+	// index is usable (rather than a cost-based seq scan on low selectivity).
+	if _, err := pool.Exec(ctx, `SET enable_seqscan = off`); err != nil {
+		t.Fatalf("set: %v", err)
 	}
 
 	req := &SearchRequest{Venue: venueCode, Period: Period30D, SortBy: "pnl",

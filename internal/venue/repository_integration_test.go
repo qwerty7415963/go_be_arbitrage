@@ -39,10 +39,10 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("failed to ping database: %v", err)
 	}
 
-	// Clean up tables before test
-	pool.Exec(ctx, "DELETE FROM venue_instruments")
-	pool.Exec(ctx, "DELETE FROM instruments")
-	pool.Exec(ctx, "DELETE FROM venues")
+	// Clean up tables before test (preserve seeded venues/instruments)
+	pool.Exec(ctx, "DELETE FROM venue_instruments WHERE venue_id IN (SELECT id FROM venues WHERE code NOT IN ('binance','extended','variational','hyperliquid'))")
+	pool.Exec(ctx, "DELETE FROM instruments WHERE canonical_symbol NOT IN ('BTCUSDT','ETHUSDT')")
+	pool.Exec(ctx, "DELETE FROM venues WHERE code NOT IN ('binance','extended','variational','hyperliquid')")
 
 	return pool
 }
