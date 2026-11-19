@@ -16,6 +16,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var testVenueAccountID uuid.UUID
+var testInstrumentID uuid.UUID
+
 func setupTestDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 	t.Helper()
 
@@ -51,6 +54,8 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 	pool.Exec(ctx, "DELETE FROM orders")
 	pool.Exec(ctx, "DELETE FROM execution_legs")
 	pool.Exec(ctx, "DELETE FROM executions")
+	pool.Exec(ctx, "DELETE FROM venue_accounts WHERE venue_id IN (SELECT id FROM venues WHERE code LIKE 'e2e-exec-venue-%')")
+	pool.Exec(ctx, "DELETE FROM instruments WHERE canonical_symbol LIKE 'BTC-USDT-%'")
 
 	var tenantID uuid.UUID
 	err = pool.QueryRow(ctx, "SELECT id FROM tenants LIMIT 1").Scan(&tenantID)
@@ -74,12 +79,25 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		t.Fatalf("failed to create strategy instance: %v", err)
 	}
 
+	execVenueID := uuid.New()
+	venueCode := fmt.Sprintf("e2e-exec-venue-%s", uuid.New().String()[:8])
+	if _, err := pool.Exec(ctx, "INSERT INTO venues (id, code, name, venue_type, status) VALUES ($1, $2, 'E2E Exec Venue', 'CEX', 'ACTIVE')", execVenueID, venueCode); err != nil {
+		t.Fatalf("failed to create venue: %v", err)
+	}
+	vaID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO venue_accounts (id, tenant_id, venue_id, account_name, status) VALUES ($1, $2, $3, 'test-account', 'ACTIVE')", vaID, tenantID, execVenueID); err != nil {
+		t.Fatalf("failed to create venue account: %v", err)
+	}
+	testVenueAccountID = vaID
+
+	instrID := uuid.New()
+	if _, err := pool.Exec(ctx, "INSERT INTO instruments (id, canonical_symbol, base_asset, quote_asset, instrument_type, contract_type, discovery_status, trading_enabled, price_tick, quantity_step) VALUES ($1, $2, 'BTC', 'USDT', 'PERP', 'LINEAR', 'REVIEWED', true, '0.1', '0.001')", instrID, fmt.Sprintf("BTC-USDT-%s", uuid.New().String()[:8])); err != nil {
+		t.Fatalf("failed to create instrument: %v", err)
+	}
+	testInstrumentID = instrID
+
 	return pool, tenantID, strategyInstanceID
 }
-
-
-
-
 
 func TestHandler_List_WhenNoAuth_ReturnsForbidden(t *testing.T) {
 	handler := &Handler{service: nil}
@@ -242,9 +260,11 @@ func TestHandler_Create_WhenValid_Returns201(t *testing.T) {
 			StrategyID: strategyInstanceID,
 			Legs: []IntentLeg{
 				{
-					Side:     SideBuy,
-					Quantity: 0.1,
-					Price:    50000,
+					VenueAccountID: testVenueAccountID,
+					InstrumentID:   testInstrumentID,
+					Side:           SideBuy,
+					Quantity:       0.1,
+					Price:          50000,
 				},
 			},
 		},
@@ -347,9 +367,11 @@ func TestHandler_GetByID_WhenValid_Returns200(t *testing.T) {
 			StrategyID: strategyInstanceID,
 			Legs: []IntentLeg{
 				{
-					Side:     SideBuy,
-					Quantity: 0.1,
-					Price:    50000,
+					VenueAccountID: testVenueAccountID,
+					InstrumentID:   testInstrumentID,
+					Side:           SideBuy,
+					Quantity:       0.1,
+					Price:          50000,
 				},
 			},
 		},
@@ -452,9 +474,11 @@ func TestHandler_Submit_WhenValid_Returns200(t *testing.T) {
 			StrategyID: strategyInstanceID,
 			Legs: []IntentLeg{
 				{
-					Side:     SideBuy,
-					Quantity: 0.1,
-					Price:    50000,
+					VenueAccountID: testVenueAccountID,
+					InstrumentID:   testInstrumentID,
+					Side:           SideBuy,
+					Quantity:       0.1,
+					Price:          50000,
 				},
 			},
 		},
@@ -518,9 +542,11 @@ func TestHandler_Cancel_WhenValid_Returns200(t *testing.T) {
 			StrategyID: strategyInstanceID,
 			Legs: []IntentLeg{
 				{
-					Side:     SideBuy,
-					Quantity: 0.1,
-					Price:    50000,
+					VenueAccountID: testVenueAccountID,
+					InstrumentID:   testInstrumentID,
+					Side:           SideBuy,
+					Quantity:       0.1,
+					Price:          50000,
 				},
 			},
 		},
@@ -584,9 +610,11 @@ func TestHandler_ListLegs_WhenValid_Returns200(t *testing.T) {
 			StrategyID: strategyInstanceID,
 			Legs: []IntentLeg{
 				{
-					Side:     SideBuy,
-					Quantity: 0.1,
-					Price:    50000,
+					VenueAccountID: testVenueAccountID,
+					InstrumentID:   testInstrumentID,
+					Side:           SideBuy,
+					Quantity:       0.1,
+					Price:          50000,
 				},
 			},
 		},
@@ -656,9 +684,11 @@ func TestHandler_ListFills_WhenValid_Returns200(t *testing.T) {
 			StrategyID: strategyInstanceID,
 			Legs: []IntentLeg{
 				{
-					Side:     SideBuy,
-					Quantity: 0.1,
-					Price:    50000,
+					VenueAccountID: testVenueAccountID,
+					InstrumentID:   testInstrumentID,
+					Side:           SideBuy,
+					Quantity:       0.1,
+					Price:          50000,
 				},
 			},
 		},

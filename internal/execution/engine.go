@@ -9,9 +9,9 @@ import (
 )
 
 type Engine struct {
-	repo     *Repository
-	policy   *PolicySelector
-	running  map[uuid.UUID]context.CancelFunc
+	repo    *Repository
+	policy  *PolicySelector
+	running map[uuid.UUID]context.CancelFunc
 }
 
 func NewEngine(repo *Repository) *Engine {
@@ -106,6 +106,13 @@ func (e *Engine) executePaper(ctx context.Context, exec *Execution) error {
 			return err
 		}
 		if err := e.repo.UpdateOrderStatus(ctx, order.ID, OrderStatusSubmitting); err != nil {
+			return err
+		}
+
+		if err := TransitionOrder(order, OrderStatusOpen); err != nil {
+			return err
+		}
+		if err := e.repo.UpdateOrderStatus(ctx, order.ID, OrderStatusOpen); err != nil {
 			return err
 		}
 

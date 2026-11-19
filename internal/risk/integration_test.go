@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func setupTestDB(t *testing.T) *pgxpool.Pool {
+func setupIntegrationDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
 	dbHost := os.Getenv("ARBITRAGE_DB_HOST")
@@ -74,7 +74,7 @@ func TestIntegrationRepository_CreatePolicy(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool := setupTestDB(t)
+	pool := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -111,7 +111,7 @@ func TestIntegrationRepository_ListPolicies(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool := setupTestDB(t)
+	pool := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -149,7 +149,7 @@ func TestIntegrationRepository_UpdatePolicy(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool := setupTestDB(t)
+	pool := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -191,7 +191,7 @@ func TestIntegrationRepository_DeletePolicy(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool := setupTestDB(t)
+	pool := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -228,7 +228,7 @@ func TestIntegrationRepository_CreateCheck(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool := setupTestDB(t)
+	pool := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -254,7 +254,7 @@ func TestIntegrationService_CreateAndListPolicies(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool := setupTestDB(t)
+	pool := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -292,7 +292,7 @@ func TestIntegrationService_KillSwitch(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool := setupTestDB(t)
+	pool := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)

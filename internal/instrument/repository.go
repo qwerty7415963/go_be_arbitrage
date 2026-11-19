@@ -121,7 +121,7 @@ func (r *Repository) List(ctx context.Context) ([]*Instrument, error) {
 	}
 	defer rows.Close()
 
-	var instruments []*Instrument
+	instruments := []*Instrument{}
 	for rows.Next() {
 		inst := &Instrument{}
 		var contractSize, minQty, minNotional, marginAsset, settlementAsset *string
@@ -161,7 +161,7 @@ func (r *Repository) ListTradable(ctx context.Context) ([]*Instrument, error) {
 	}
 	defer rows.Close()
 
-	var instruments []*Instrument
+	instruments := []*Instrument{}
 	for rows.Next() {
 		inst := &Instrument{}
 		var contractSize, minQty, minNotional, marginAsset, settlementAsset *string

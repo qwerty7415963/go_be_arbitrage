@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
 )
 
 func setupTestDB(t *testing.T) *pgxpool.Pool {
@@ -39,9 +41,25 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("failed to ping database: %v", err)
 	}
 
-	// Clean up tables before test
-	pool.Exec(ctx, "DELETE FROM venue_instruments")
-	pool.Exec(ctx, "DELETE FROM instruments")
+	// Clean up dependent tables before test
+	if _, err := pool.Exec(ctx, "DELETE FROM fills"); err != nil {
+		t.Fatalf("cleanup fills: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM orders"); err != nil {
+		t.Fatalf("cleanup orders: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM execution_legs"); err != nil {
+		t.Fatalf("cleanup execution_legs: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM executions"); err != nil {
+		t.Fatalf("cleanup executions: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM venue_instruments"); err != nil {
+		t.Fatalf("cleanup venue_instruments: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM instruments"); err != nil {
+		t.Fatalf("cleanup instruments: %v", err)
+	}
 
 	return pool
 }
@@ -116,6 +134,7 @@ func TestInstrumentRepository_UniqueCanonicalSymbol(t *testing.T) {
 		BaseAsset:       "ETH",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.01",
 		QuantityStep:    "0.01",
 		DiscoveryStatus: DiscoveryStatusDiscovered,
@@ -128,6 +147,7 @@ func TestInstrumentRepository_UniqueCanonicalSymbol(t *testing.T) {
 		BaseAsset:       "ETH",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.01",
 		QuantityStep:    "0.01",
 		DiscoveryStatus: DiscoveryStatusDiscovered,
@@ -166,6 +186,7 @@ func TestInstrumentRepository_ListTradable(t *testing.T) {
 		BaseAsset:       "BTC",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.1",
 		QuantityStep:    "0.001",
 		DiscoveryStatus: DiscoveryStatusReviewed,
@@ -178,14 +199,19 @@ func TestInstrumentRepository_ListTradable(t *testing.T) {
 		BaseAsset:       "ETH",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.01",
 		QuantityStep:    "0.01",
 		DiscoveryStatus: DiscoveryStatusReviewed,
 		TradingEnabled:  false, // Not tradable
 	}
 
-	repo.Create(ctx, inst1)
-	repo.Create(ctx, inst2)
+	if err := repo.Create(ctx, inst1); err != nil {
+		t.Fatalf("create inst1: %v", err)
+	}
+	if err := repo.Create(ctx, inst2); err != nil {
+		t.Fatalf("create inst2: %v", err)
+	}
 
 	tradable, err := repo.ListTradable(ctx)
 	if err != nil {
@@ -227,13 +253,16 @@ func TestInstrumentRepository_EnableTrading(t *testing.T) {
 		BaseAsset:       "SOL",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.01",
 		QuantityStep:    "0.01",
 		DiscoveryStatus: DiscoveryStatusReviewed,
 		TradingEnabled:  false,
 	}
 
-	repo.Create(ctx, inst)
+	if err := repo.Create(ctx, inst); err != nil {
+		t.Fatalf("failed to create instrument: %v", err)
+	}
 
 	// Enable trading
 	err := repo.EnableTrading(ctx, inst.ID, true)
@@ -242,7 +271,10 @@ func TestInstrumentRepository_EnableTrading(t *testing.T) {
 	}
 
 	// Verify
-	found, _ := repo.GetByID(ctx, inst.ID)
+	found, err := repo.GetByID(ctx, inst.ID)
+	if err != nil {
+		t.Fatalf("failed to get instrument: %v", err)
+	}
 	if !found.TradingEnabled {
 		t.Error("expected trading_enabled to be true")
 	}
@@ -250,7 +282,10 @@ func TestInstrumentRepository_EnableTrading(t *testing.T) {
 	// Disable trading
 	repo.EnableTrading(ctx, inst.ID, false)
 
-	found, _ = repo.GetByID(ctx, inst.ID)
+	found, err = repo.GetByID(ctx, inst.ID)
+	if err != nil {
+		t.Fatalf("failed to get instrument: %v", err)
+	}
 	if found.TradingEnabled {
 		t.Error("expected trading_enabled to be false")
 	}
@@ -271,13 +306,13 @@ func TestVenueInstrumentRepository_CreateAndQuery(t *testing.T) {
 	ctx := context.Background()
 
 	// First create a venue and instrument
-	venueRepo := NewRepository(pool)
-	v := &Venue{
+	venueRepo := venue.NewRepository(pool)
+	v := &venue.Venue{
 		ID:        uuid.New(),
 		Code:      "venue-for-mapping",
 		Name:      "Venue for Mapping",
-		VenueType: VenueTypeCEX,
-		Status:    VenueStatusActive,
+		VenueType: venue.VenueTypeCEX,
+		Status:    venue.VenueStatusActive,
 	}
 	venueRepo.Create(ctx, v)
 
@@ -287,6 +322,7 @@ func TestVenueInstrumentRepository_CreateAndQuery(t *testing.T) {
 		BaseAsset:       "BTC",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.1",
 		QuantityStep:    "0.001",
 		DiscoveryStatus: DiscoveryStatusDiscovered,
@@ -344,17 +380,18 @@ func TestVenueInstrumentRepository_UniqueVenueSymbol(t *testing.T) {
 	defer pool.Close()
 
 	repo := NewRepository(pool)
+	venueRepo := venue.NewRepository(pool)
 	ctx := context.Background()
 
 	// Create venue
-	v := &Venue{
+	v := &venue.Venue{
 		ID:        uuid.New(),
 		Code:      "unique-mapping-venue",
 		Name:      "Unique Mapping Venue",
-		VenueType: VenueTypeCEX,
-		Status:    VenueStatusActive,
+		VenueType: venue.VenueTypeCEX,
+		Status:    venue.VenueStatusActive,
 	}
-	repo.Create(ctx, v)
+	venueRepo.Create(ctx, v)
 
 	// Create two instruments
 	inst1 := &Instrument{
@@ -363,6 +400,7 @@ func TestVenueInstrumentRepository_UniqueVenueSymbol(t *testing.T) {
 		BaseAsset:       "BTC",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.1",
 		QuantityStep:    "0.001",
 		DiscoveryStatus: DiscoveryStatusDiscovered,
@@ -374,6 +412,7 @@ func TestVenueInstrumentRepository_UniqueVenueSymbol(t *testing.T) {
 		BaseAsset:       "ETH",
 		QuoteAsset:      "USDT",
 		InstrumentType:  InstrumentTypePerp,
+		ContractType:    ContractTypeLinear,
 		PriceTick:       "0.01",
 		QuantityStep:    "0.01",
 		DiscoveryStatus: DiscoveryStatusDiscovered,
@@ -417,5 +456,5 @@ func TestVenueInstrumentRepository_UniqueVenueSymbol(t *testing.T) {
 	pool.Exec(ctx, "DELETE FROM venue_instruments WHERE id = $1", vi1.ID)
 	repo.Delete(ctx, inst1.ID)
 	repo.Delete(ctx, inst2.ID)
-	repo.Delete(ctx, v.ID)
+	venueRepo.Delete(ctx, v.ID)
 }

@@ -60,7 +60,7 @@ func TestIntegration(t *testing.T) {
 
 	cfg := config.DatabaseConfig{
 		Host:            dbHost,
-		Port:            5432,
+		Port:            5433,
 		User:            "test",
 		Password:        "test",
 		Name:            "arbitrage_test",

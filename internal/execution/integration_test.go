@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func setupTestDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
+func setupIntegrationDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 	t.Helper()
 
 	dbHost := os.Getenv("ARBITRAGE_DB_HOST")
@@ -110,7 +110,7 @@ func TestIntegrationRepository_CreateExecution(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, tenantID, strategyInstanceID := setupTestDB(t)
+	pool, tenantID, strategyInstanceID := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -145,7 +145,7 @@ func TestIntegrationRepository_CreateLeg(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, tenantID, strategyInstanceID := setupTestDB(t)
+	pool, tenantID, strategyInstanceID := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -198,7 +198,7 @@ func TestIntegrationRepository_CreateOrder(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, _, _ := setupTestDB(t)
+	pool, _, _ := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -208,15 +208,15 @@ func TestIntegrationRepository_CreateOrder(t *testing.T) {
 	instrumentID, _ := uuid.Parse(os.Getenv("TEST_INSTRUMENT_ID"))
 
 	order := &Order{
-		ID:              uuid.New(),
-		VenueAccountID:  venueAccountID,
-		InstrumentID:    instrumentID,
-		ClientOrderID:   fmt.Sprintf("test-order-%s", uuid.New().String()[:8]),
-		Side:            SideBuy,
-		OrderType:       "LIMIT",
-		Status:          OrderStatusCreated,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		ID:             uuid.New(),
+		VenueAccountID: venueAccountID,
+		InstrumentID:   instrumentID,
+		ClientOrderID:  fmt.Sprintf("test-order-%s", uuid.New().String()[:8]),
+		Side:           SideBuy,
+		OrderType:      "LIMIT",
+		Status:         OrderStatusCreated,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
 	if err := repo.CreateOrder(ctx, order); err != nil {
@@ -238,7 +238,7 @@ func TestIntegrationRepository_CreateFill(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, _, _ := setupTestDB(t)
+	pool, _, _ := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -248,15 +248,15 @@ func TestIntegrationRepository_CreateFill(t *testing.T) {
 	instrumentID, _ := uuid.Parse(os.Getenv("TEST_INSTRUMENT_ID"))
 
 	order := &Order{
-		ID:              uuid.New(),
-		VenueAccountID:  venueAccountID,
-		InstrumentID:    instrumentID,
-		ClientOrderID:   fmt.Sprintf("fill-order-%s", uuid.New().String()[:8]),
-		Side:            SideBuy,
-		OrderType:       "LIMIT",
-		Status:          OrderStatusFilled,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		ID:             uuid.New(),
+		VenueAccountID: venueAccountID,
+		InstrumentID:   instrumentID,
+		ClientOrderID:  fmt.Sprintf("fill-order-%s", uuid.New().String()[:8]),
+		Side:           SideBuy,
+		OrderType:      "LIMIT",
+		Status:         OrderStatusFilled,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 	if err := repo.CreateOrder(ctx, order); err != nil {
 		t.Fatalf("failed to create order: %v", err)
@@ -290,7 +290,7 @@ func TestIntegrationRepository_UpdateOrderStatus(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	pool, _, _ := setupTestDB(t)
+	pool, _, _ := setupIntegrationDB(t)
 	defer pool.Close()
 
 	repo := NewRepository(pool)
@@ -300,15 +300,15 @@ func TestIntegrationRepository_UpdateOrderStatus(t *testing.T) {
 	instrumentID, _ := uuid.Parse(os.Getenv("TEST_INSTRUMENT_ID"))
 
 	order := &Order{
-		ID:              uuid.New(),
-		VenueAccountID:  venueAccountID,
-		InstrumentID:    instrumentID,
-		ClientOrderID:   fmt.Sprintf("update-order-%s", uuid.New().String()[:8]),
-		Side:            SideBuy,
-		OrderType:       "LIMIT",
-		Status:          OrderStatusCreated,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		ID:             uuid.New(),
+		VenueAccountID: venueAccountID,
+		InstrumentID:   instrumentID,
+		ClientOrderID:  fmt.Sprintf("update-order-%s", uuid.New().String()[:8]),
+		Side:           SideBuy,
+		OrderType:      "LIMIT",
+		Status:         OrderStatusCreated,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 	if err := repo.CreateOrder(ctx, order); err != nil {
 		t.Fatalf("failed to create order: %v", err)

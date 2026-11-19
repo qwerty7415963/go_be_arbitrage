@@ -54,9 +54,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 	}
 
 	// Clean up
-	pool.Exec(ctx, "DELETE FROM venue_instruments")
-	pool.Exec(ctx, "DELETE FROM instruments")
-	pool.Exec(ctx, "DELETE FROM venues")
+	pool.Exec(ctx, "TRUNCATE venue_instruments, instruments, venues CASCADE")
 
 	// Setup handlers
 	venueRepo := venue.NewRepository(pool)
@@ -71,6 +69,8 @@ func setupTestSuite(t *testing.T) *TestSuite {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
+
+	router.GET("/health", func(c *gin.Context) { c.JSON(200, gin.H{"status": "healthy"}) })
 
 	v1 := router.Group("/api/v1")
 	{
@@ -118,9 +118,11 @@ func TestE2E_RegisterVenue_ThenDiscoverInstrument(t *testing.T) {
 
 	// Step 1: Create venue
 	venueBody := map[string]string{
-		"code":       "e2e-test-venue",
-		"name":       "E2E Test Venue",
-		"venue_type": "CEX",
+		"code":          "e2e-test-venue",
+		"name":          "E2E Test Venue",
+		"venue_type":    "CEX",
+		"exchange_name": "E2E Exchange",
+		"rest_base_url": "https://e2e.example.com",
 	}
 	jsonBody, _ := json.Marshal(venueBody)
 
@@ -678,7 +680,7 @@ func TestE2E_Auth_FullFlow(t *testing.T) {
 	// Step 1: Register
 	data := e2eRegister(t, suite.router, email, password)
 	accessToken := data["access_token"].(string)
-	refreshToken := data["refresh_token"].(string)
+	_ = accessToken
 	userData := data["user"].(map[string]interface{})
 
 	if userData["email"] != email {
@@ -712,7 +714,7 @@ func TestE2E_Auth_FullFlow(t *testing.T) {
 	newRefreshToken := newRefreshData["refresh_token"].(string)
 
 	// Step 4: Old refresh token should be dead
-	oldRefreshBody := map[string]string{"refresh_token": refreshToken}
+	oldRefreshBody := map[string]string{"refresh_token": loginRefresh}
 	oldRefreshJSON, _ := json.Marshal(oldRefreshBody)
 	oldRefreshReq, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(oldRefreshJSON))
 	oldRefreshReq.Header.Set("Content-Type", "application/json")

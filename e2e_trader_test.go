@@ -100,6 +100,19 @@ func setupTraderSuite(t *testing.T) *traderSuite {
 		t.Fatalf("venue: %v", err)
 	}
 
+	if _, err := pool.Exec(ctx, "DELETE FROM trader_period_metrics WHERE venue_id = $1", s.venueID); err != nil {
+		t.Fatalf("cleanup metrics: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM trader_daily_stats WHERE venue_id = $1", s.venueID); err != nil {
+		t.Fatalf("cleanup daily: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM trader_equity_daily WHERE venue_id = $1", s.venueID); err != nil {
+		t.Fatalf("cleanup equity: %v", err)
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM trader_registry WHERE venue_id = $1", s.venueID); err != nil {
+		t.Fatalf("cleanup registry: %v", err)
+	}
+
 	repo := trader.NewRepository(pool)
 	pnls := []float64{5000, 15000, 25000}
 	for i := 0; i < 3; i++ {
@@ -124,6 +137,9 @@ func setupTraderSuite(t *testing.T) *traderSuite {
 			_, _ = pool.Exec(context.Background(),
 				`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, a)
 		}
+		pool.Exec(context.Background(), "DELETE FROM trader_period_metrics WHERE venue_id = $1", s.venueID)
+		pool.Exec(context.Background(), "DELETE FROM trader_daily_stats WHERE venue_id = $1", s.venueID)
+		pool.Exec(context.Background(), "DELETE FROM trader_equity_daily WHERE venue_id = $1", s.venueID)
 	})
 
 	secret := []byte("e2e-cursor-secret-32-bytes!!!!!")

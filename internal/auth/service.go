@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/mail"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -38,6 +39,9 @@ func NewService(cfg *config.AuthConfig, repo *Repository) *Service {
 }
 
 func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		return nil, domain.NewError(domain.ErrCodeValidation, "invalid email format")
+	}
 	if len(req.Password) < 8 {
 		return nil, domain.NewError(domain.ErrCodeValidation, "password must be at least 8 characters")
 	}
