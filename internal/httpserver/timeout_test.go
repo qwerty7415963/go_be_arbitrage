@@ -45,6 +45,13 @@ func TestTimeout_FastHandler_Returns200(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
 	}
+	body := w.Body.String()
+	if body == "" {
+		t.Fatal("body is empty, want buffered handler response")
+	}
+	if !strings.Contains(body, `"ok":true`) {
+		t.Fatalf("body = %q, want it to contain %q", body, `"ok":true`)
+	}
 }
 
 func TestTimeout_WSPath_Skipped(t *testing.T) {

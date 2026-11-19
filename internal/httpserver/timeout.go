@@ -48,6 +48,7 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 				tw.mu.Lock()
 				wrote := tw.wroteHeader
 				tw.timedOut = true
+				tw.wroteTimeoutResponse = !wrote
 				tw.mu.Unlock()
 				if !wrote {
 					original.Header().Set("Content-Type", "application/json")
@@ -72,9 +73,10 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 		body := append([]byte(nil), tw.buf.Bytes()...)
 		wrote := tw.wroteHeader
 		timedOut := tw.timedOut
+		wroteTimeoutResponse := tw.wroteTimeoutResponse
 		tw.mu.Unlock()
 
-		if !wrote && !timedOut {
+		if !timedOut || (wrote && !wroteTimeoutResponse) {
 			for k, vals := range hdr {
 				for _, v := range vals {
 					original.Header().Add(k, v)
@@ -90,13 +92,14 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 
 type timeoutWriter struct {
 	gin.ResponseWriter
-	mu          sync.Mutex
-	h           http.Header
-	buf         bytes.Buffer
-	code        int
-	wroteHeader bool
-	timedOut    bool
-	err         error
+	mu                   sync.Mutex
+	h                    http.Header
+	buf                  bytes.Buffer
+	code                 int
+	wroteHeader          bool
+	timedOut             bool
+	wroteTimeoutResponse bool
+	err                  error
 }
 
 func (tw *timeoutWriter) Header() http.Header { return tw.h }

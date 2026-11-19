@@ -53,8 +53,10 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		t.Fatalf("failed to ping database: %v", err)
 	}
 
-	// Clean up
-	pool.Exec(ctx, "TRUNCATE venue_instruments, instruments, venues CASCADE")
+	// Clean up only rows created by this E2E suite; never touch shared dev data.
+	pool.Exec(ctx, "DELETE FROM venue_instruments WHERE venue_id IN (SELECT id FROM venues WHERE code = 'e2e-test-venue')")
+	pool.Exec(ctx, "DELETE FROM instruments WHERE canonical_symbol LIKE '%E2E%'")
+	pool.Exec(ctx, "DELETE FROM venues WHERE code = 'e2e-test-venue'")
 
 	// Setup handlers
 	venueRepo := venue.NewRepository(pool)
@@ -102,9 +104,10 @@ func setupTestSuite(t *testing.T) *TestSuite {
 }
 
 func (s *TestSuite) cleanup() {
-	s.db.Exec(context.Background(), "DELETE FROM venue_instruments")
-	s.db.Exec(context.Background(), "DELETE FROM instruments")
-	s.db.Exec(context.Background(), "DELETE FROM venues")
+	ctx := context.Background()
+	s.db.Exec(ctx, "DELETE FROM venue_instruments WHERE venue_id IN (SELECT id FROM venues WHERE code = 'e2e-test-venue')")
+	s.db.Exec(ctx, "DELETE FROM instruments WHERE canonical_symbol LIKE '%E2E%'")
+	s.db.Exec(ctx, "DELETE FROM venues WHERE code = 'e2e-test-venue'")
 	s.db.Close()
 }
 
