@@ -7630,6 +7630,327 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/traders/markets/{market}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Market detail (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Market (coin)",
+                        "name": "market",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "From date (YYYY-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "To date (YYYY-MM-DD)",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/trader.MarketDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/markets/{market}/trades": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Market trades (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Market (coin)",
+                        "name": "market",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "From date (YYYY-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "To date (YYYY-MM-DD)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "LONG",
+                            "SHORT",
+                            "all"
+                        ],
+                        "type": "string",
+                        "default": "all",
+                        "description": "Side",
+                        "name": "side",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/trader.MarketTradeRow"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/api.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/traders/markets/{market}/wallets": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "traders"
+                ],
+                "summary": "Market wallets (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Market (coin)",
+                        "name": "market",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "hyperliquid",
+                        "description": "Venue code",
+                        "name": "venue",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "From date (YYYY-MM-DD)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "To date (YYYY-MM-DD)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Min win rate 0..100",
+                        "name": "win_rate_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Min trades",
+                        "name": "trades_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Last trade after date",
+                        "name": "last_trade_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated group UUIDs",
+                        "name": "groups",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "volume",
+                        "description": "Sort",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "desc",
+                        "description": "Direction",
+                        "name": "dir",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/trader.MarketWalletRow"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/api.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/traders/overview": {
             "get": {
                 "description": "Aggregate trader overview buckets (PnL + account) with series.",
@@ -12878,6 +13199,213 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/trader.FillDTO"
                     }
+                }
+            }
+        },
+        "trader.MarketDetailCoverage": {
+            "type": "object",
+            "properties": {
+                "total_wallets_in_market": {
+                    "type": "integer"
+                },
+                "tracked_wallets_with_positions": {
+                    "type": "integer"
+                }
+            }
+        },
+        "trader.MarketDetailHeader": {
+            "type": "object",
+            "properties": {
+                "as_of": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "funding_rate": {
+                    "type": "number"
+                },
+                "index_price": {
+                    "type": "number"
+                },
+                "logo_url": {
+                    "type": "string"
+                },
+                "mark_price": {
+                    "type": "number"
+                },
+                "market": {
+                    "type": "string"
+                },
+                "market_oi": {
+                    "type": "number"
+                },
+                "next_funding_at": {
+                    "type": "string"
+                },
+                "venue": {
+                    "type": "string"
+                }
+            }
+        },
+        "trader.MarketDetailResponse": {
+            "type": "object",
+            "properties": {
+                "coverage": {
+                    "$ref": "#/definitions/trader.MarketDetailCoverage"
+                },
+                "header": {
+                    "$ref": "#/definitions/trader.MarketDetailHeader"
+                },
+                "snapshot": {
+                    "$ref": "#/definitions/trader.MarketSnapshot"
+                }
+            }
+        },
+        "trader.MarketSnapshot": {
+            "type": "object",
+            "properties": {
+                "avg_leverage_long": {
+                    "type": "number"
+                },
+                "avg_leverage_short": {
+                    "type": "number"
+                },
+                "long_short_ratio": {
+                    "type": "number"
+                },
+                "margin_used_long": {
+                    "type": "number"
+                },
+                "margin_used_short": {
+                    "type": "number"
+                },
+                "margin_used_total": {
+                    "type": "number"
+                },
+                "market_oi": {
+                    "type": "number"
+                },
+                "net_unrealized_pnl": {
+                    "type": "number"
+                },
+                "open_notional_long": {
+                    "type": "number"
+                },
+                "open_notional_short": {
+                    "type": "number"
+                },
+                "synced_at": {
+                    "type": "string"
+                },
+                "traders_long": {
+                    "type": "integer"
+                },
+                "traders_short": {
+                    "type": "integer"
+                },
+                "traders_total": {
+                    "type": "integer"
+                },
+                "unrealized_pnl_long": {
+                    "type": "number"
+                },
+                "unrealized_pnl_short": {
+                    "type": "number"
+                }
+            }
+        },
+        "trader.MarketTradeRow": {
+            "type": "object",
+            "properties": {
+                "closed_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "entry_price": {
+                    "type": "number"
+                },
+                "exit_price": {
+                    "type": "number"
+                },
+                "fees": {
+                    "type": "number"
+                },
+                "fills": {
+                    "type": "integer"
+                },
+                "pnl": {
+                    "type": "number"
+                },
+                "side": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "number"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "wallet_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "trader.MarketWalletRow": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "bias": {
+                    "type": "string"
+                },
+                "cohort": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "last_trade_at": {
+                    "type": "string"
+                },
+                "long_count": {
+                    "type": "integer"
+                },
+                "margin_used": {
+                    "type": "number"
+                },
+                "position_leverage": {
+                    "type": "number"
+                },
+                "position_notional": {
+                    "type": "number"
+                },
+                "position_side": {
+                    "type": "string"
+                },
+                "position_upnl": {
+                    "type": "number"
+                },
+                "realized_pnl": {
+                    "type": "number"
+                },
+                "short_count": {
+                    "type": "integer"
+                },
+                "trades": {
+                    "type": "integer"
+                },
+                "volume": {
+                    "type": "number"
+                },
+                "win_rate": {
+                    "type": "number"
                 }
             }
         },

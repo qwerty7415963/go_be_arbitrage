@@ -1863,3 +1863,26 @@ Table: trader_overview_snapshots (venue_id, period, pnl_metric, computed_at, pay
 | ID | Case | Expected |
 |----|------|----------|
 | WDR-E-01 | TestE2E_WalletDetail_SyncedShape | shape unchanged, metrics_source present |
+
+## 19.33 Market Detail (contract v3.1)
+
+### Handler
+| ID | Case | Expected |
+|----|------|----------|
+| MD-H-01 | TestHandler_MarketDetail_Shape | header/snapshot/coverage shape |
+| MD-H-02 | TestHandler_MarketWallets_Filters | filters forwarded |
+| MD-H-03 | TestHandler_MarketTrades_Shape | trades shape |
+| MD-H-04 | TestHandler_AdminMarketCRUD | admin CRUD |
+
+### Integration
+| ID | Case | Expected |
+|----|------|----------|
+| MD-R-01 | TestRepo_MarketDetail_Header | header OI |
+| MD-R-02 | TestRepo_MarketWallets_Aggregate | aggregate |
+| MD-R-03 | TestRepo_MarketTrades_Pagination | pagination |
+
+### E2E
+| ID | Case | Expected |
+|----|------|----------|
+| MD-E-01 | TestE2E_MarketDetail_Shape | shape |
+

@@ -245,8 +245,21 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		hot = tier == tierHot
 	}
 	if hot && s.positions != nil {
-		if snap, err := s.positions.FetchPositions(ctx, addr); err == nil && snap != nil {
-			_ = s.repo.ReplacePositions(ctx, s.venueID, addr, snap)
+		snap, err := s.positions.FetchPositions(ctx, addr)
+		if err != nil {
+			s.logf("sync %s: positions fetch failed: %v", addr, err)
+		} else if snap != nil {
+			if rerr := s.repo.ReplacePositions(ctx, s.venueID, addr, snap); rerr != nil {
+				s.logf("sync %s: positions replace failed: %v", addr, rerr)
+			} else {
+				if _, err := s.repo.pool.Exec(ctx, `
+					UPDATE trader_sync_state
+					SET last_positions_sync_at = $3
+					WHERE venue_id = $1 AND wallet_address = $2`,
+					s.venueID, addr, now.UTC()); err != nil {
+					s.logf("sync %s: last_positions_sync_at update failed: %v", addr, err)
+				}
+			}
 		}
 	}
 

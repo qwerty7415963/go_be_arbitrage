@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -29,6 +30,13 @@ type mockService struct {
 	bucketDetailFn   func(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
 	bucketWalletsFn  func(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
 	bucketMarketsFn  func(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error)
+	marketDetailFn   func(ctx context.Context, venue, market string, from, to time.Time) (*MarketDetailResponse, error)
+	marketWalletsFn  func(ctx context.Context, venue, market string, from, to time.Time, winRateMin *float64, tradesMin *int, lastTradeAfter *time.Time, groups []uuid.UUID, sort, dir string, page, limit int) (*MarketWalletsResponse, error)
+	marketTradesFn   func(ctx context.Context, venue, market string, from, to time.Time, side string, page, limit int) (*MarketTradesResponse, error)
+	listWatchedFn    func(ctx context.Context) ([]WatchedMarket, error)
+	createWatchedFn  func(ctx context.Context, venue, market string, enabled bool, sortOrder int) error
+	updateWatchedFn  func(ctx context.Context, venue, market string, enabled *bool, sortOrder *int) error
+	deleteWatchedFn  func(ctx context.Context, venue, market string) error
 }
 
 func (m *mockService) Search(ctx context.Context, userID uuid.UUID, req *SearchRequest) (*SearchResult, error) {
@@ -125,6 +133,55 @@ func (m *mockService) BucketMarkets(ctx context.Context, venue, kind, id, period
 		return nil, 0, "", domain.NewError(domain.ErrCodeNotFound, "not mocked")
 	}
 	return m.bucketMarketsFn(ctx, venue, kind, id, period, rangeCode, search, sort, dir, page, limit)
+}
+
+func (m *mockService) MarketDetail(ctx context.Context, venue, market string, from, to time.Time) (*MarketDetailResponse, error) {
+	if m.marketDetailFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.marketDetailFn(ctx, venue, market, from, to)
+}
+
+func (m *mockService) MarketWallets(ctx context.Context, venue, market string, from, to time.Time, winRateMin *float64, tradesMin *int, lastTradeAfter *time.Time, groups []uuid.UUID, sort, dir string, page, limit int) (*MarketWalletsResponse, error) {
+	if m.marketWalletsFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.marketWalletsFn(ctx, venue, market, from, to, winRateMin, tradesMin, lastTradeAfter, groups, sort, dir, page, limit)
+}
+
+func (m *mockService) MarketTrades(ctx context.Context, venue, market string, from, to time.Time, side string, page, limit int) (*MarketTradesResponse, error) {
+	if m.marketTradesFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.marketTradesFn(ctx, venue, market, from, to, side, page, limit)
+}
+
+func (m *mockService) ListWatchedMarkets(ctx context.Context) ([]WatchedMarket, error) {
+	if m.listWatchedFn == nil {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.listWatchedFn(ctx)
+}
+
+func (m *mockService) CreateWatchedMarket(ctx context.Context, venue, market string, enabled bool, sortOrder int) error {
+	if m.createWatchedFn == nil {
+		return domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.createWatchedFn(ctx, venue, market, enabled, sortOrder)
+}
+
+func (m *mockService) UpdateWatchedMarket(ctx context.Context, venue, market string, enabled *bool, sortOrder *int) error {
+	if m.updateWatchedFn == nil {
+		return domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.updateWatchedFn(ctx, venue, market, enabled, sortOrder)
+}
+
+func (m *mockService) DeleteWatchedMarket(ctx context.Context, venue, market string) error {
+	if m.deleteWatchedFn == nil {
+		return domain.NewError(domain.ErrCodeNotFound, "not mocked")
+	}
+	return m.deleteWatchedFn(ctx, venue, market)
 }
 
 func testRouter(h *Handler, userID string) *gin.Engine {

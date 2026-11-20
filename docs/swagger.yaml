@@ -1738,6 +1738,142 @@ definitions:
           $ref: '#/definitions/trader.FillDTO'
         type: array
     type: object
+  trader.MarketDetailCoverage:
+    properties:
+      total_wallets_in_market:
+        type: integer
+      tracked_wallets_with_positions:
+        type: integer
+    type: object
+  trader.MarketDetailHeader:
+    properties:
+      as_of:
+        type: string
+      category:
+        type: string
+      enabled:
+        type: boolean
+      funding_rate:
+        type: number
+      index_price:
+        type: number
+      logo_url:
+        type: string
+      mark_price:
+        type: number
+      market:
+        type: string
+      market_oi:
+        type: number
+      next_funding_at:
+        type: string
+      venue:
+        type: string
+    type: object
+  trader.MarketDetailResponse:
+    properties:
+      coverage:
+        $ref: '#/definitions/trader.MarketDetailCoverage'
+      header:
+        $ref: '#/definitions/trader.MarketDetailHeader'
+      snapshot:
+        $ref: '#/definitions/trader.MarketSnapshot'
+    type: object
+  trader.MarketSnapshot:
+    properties:
+      avg_leverage_long:
+        type: number
+      avg_leverage_short:
+        type: number
+      long_short_ratio:
+        type: number
+      margin_used_long:
+        type: number
+      margin_used_short:
+        type: number
+      margin_used_total:
+        type: number
+      market_oi:
+        type: number
+      net_unrealized_pnl:
+        type: number
+      open_notional_long:
+        type: number
+      open_notional_short:
+        type: number
+      synced_at:
+        type: string
+      traders_long:
+        type: integer
+      traders_short:
+        type: integer
+      traders_total:
+        type: integer
+      unrealized_pnl_long:
+        type: number
+      unrealized_pnl_short:
+        type: number
+    type: object
+  trader.MarketTradeRow:
+    properties:
+      closed_at:
+        type: string
+      display_name:
+        type: string
+      entry_price:
+        type: number
+      exit_price:
+        type: number
+      fees:
+        type: number
+      fills:
+        type: integer
+      pnl:
+        type: number
+      side:
+        type: string
+      size:
+        type: number
+      volume:
+        type: number
+      wallet_address:
+        type: string
+    type: object
+  trader.MarketWalletRow:
+    properties:
+      address:
+        type: string
+      bias:
+        type: string
+      cohort:
+        type: string
+      display_name:
+        type: string
+      last_trade_at:
+        type: string
+      long_count:
+        type: integer
+      margin_used:
+        type: number
+      position_leverage:
+        type: number
+      position_notional:
+        type: number
+      position_side:
+        type: string
+      position_upnl:
+        type: number
+      realized_pnl:
+        type: number
+      short_count:
+        type: integer
+      trades:
+        type: integer
+      volume:
+        type: number
+      win_rate:
+        type: number
+    type: object
   trader.OrderDTO:
     properties:
       coin:
@@ -7478,6 +7614,204 @@ paths:
                   $ref: '#/definitions/api.ErrorBody'
               type: object
       summary: Trader transfers (public, on-demand)
+      tags:
+      - traders
+  /api/v1/traders/markets/{market}:
+    get:
+      parameters:
+      - description: Market (coin)
+        in: path
+        name: market
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - description: From date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - description: To date (YYYY-MM-DD)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/trader.MarketDetailResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Market detail (public)
+      tags:
+      - traders
+  /api/v1/traders/markets/{market}/trades:
+    get:
+      parameters:
+      - description: Market (coin)
+        in: path
+        name: market
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - description: From date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - description: To date (YYYY-MM-DD)
+        in: query
+        name: to
+        type: string
+      - default: all
+        description: Side
+        enum:
+        - LONG
+        - SHORT
+        - all
+        in: query
+        name: side
+        type: string
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/trader.MarketTradeRow'
+                  type: array
+                meta:
+                  $ref: '#/definitions/api.Meta'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Market trades (public)
+      tags:
+      - traders
+  /api/v1/traders/markets/{market}/wallets:
+    get:
+      parameters:
+      - description: Market (coin)
+        in: path
+        name: market
+        required: true
+        type: string
+      - default: hyperliquid
+        description: Venue code
+        in: query
+        name: venue
+        type: string
+      - description: From date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - description: To date (YYYY-MM-DD)
+        in: query
+        name: to
+        type: string
+      - description: Min win rate 0..100
+        in: query
+        name: win_rate_min
+        type: number
+      - description: Min trades
+        in: query
+        name: trades_min
+        type: integer
+      - description: Last trade after date
+        in: query
+        name: last_trade_after
+        type: string
+      - description: Comma-separated group UUIDs
+        in: query
+        name: groups
+        type: string
+      - default: volume
+        description: Sort
+        in: query
+        name: sort
+        type: string
+      - default: desc
+        description: Direction
+        in: query
+        name: dir
+        type: string
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/trader.MarketWalletRow'
+                  type: array
+                meta:
+                  $ref: '#/definitions/api.Meta'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Market wallets (public)
       tags:
       - traders
   /api/v1/traders/overview:

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,6 +31,13 @@ type ServiceInterface interface {
 	BucketDetail(ctx context.Context, venue, kind, id, period, rangeCode string) (*BucketDetail, error)
 	BucketWallets(ctx context.Context, venue, kind, id, period, sort, dir string, page, limit int) ([]BucketWalletRow, int, error)
 	BucketMarkets(ctx context.Context, venue, kind, id, period, rangeCode, search, sort, dir string, page, limit int) ([]BucketMarketRow, int, string, error)
+	MarketDetail(ctx context.Context, venueCode, market string, from, to time.Time) (*MarketDetailResponse, error)
+	MarketWallets(ctx context.Context, venueCode, market string, from, to time.Time, winRateMin *float64, tradesMin *int, lastTradeAfter *time.Time, groups []uuid.UUID, sort, dir string, page, limit int) (*MarketWalletsResponse, error)
+	MarketTrades(ctx context.Context, venueCode, market string, from, to time.Time, side string, page, limit int) (*MarketTradesResponse, error)
+	ListWatchedMarkets(ctx context.Context) ([]WatchedMarket, error)
+	CreateWatchedMarket(ctx context.Context, venueCode, market string, enabled bool, sortOrder int) error
+	UpdateWatchedMarket(ctx context.Context, venueCode, market string, enabled *bool, sortOrder *int) error
+	DeleteWatchedMarket(ctx context.Context, venueCode, market string) error
 }
 
 var _ ServiceInterface = (*Service)(nil)
@@ -62,6 +69,10 @@ func (h *Handler) WithSync(sync *SyncService) *Handler {
 // RegisterAdminRoutes registers admin-only trader routes.
 func (h *Handler) RegisterAdminRoutes(router *gin.RouterGroup) {
 	router.POST("/sync-positions", h.SyncPositions)
+	router.GET("/markets", h.ListWatchedMarkets)
+	router.POST("/markets", h.CreateWatchedMarket)
+	router.PATCH("/markets/:market", h.UpdateWatchedMarket)
+	router.DELETE("/markets/:market", h.DeleteWatchedMarket)
 }
 
 func (h *Handler) RegisterRoutes(router *gin.RouterGroup, readMiddleware ...gin.HandlerFunc) {
@@ -80,6 +91,9 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, readMiddleware ...gin.
 	read.GET("/overview/buckets/:kind/:id", h.BucketDetail)
 	read.GET("/overview/buckets/:kind/:id/wallets", h.BucketWallets)
 	read.GET("/overview/buckets/:kind/:id/markets", h.BucketMarkets)
+	read.GET("/markets/:market", h.MarketDetail)
+	read.GET("/markets/:market/wallets", h.MarketWallets)
+	read.GET("/markets/:market/trades", h.MarketTrades)
 	read.GET("/:wallet/positions", h.Positions)
 	read.GET("/:wallet/activity", h.Activity)
 	read.GET("/:wallet/balances", h.Balances)

@@ -79,6 +79,13 @@ type Service struct {
 	bucketMarketsMu    sync.Mutex
 	bucketMarketsCache map[string]cachedBucketMarkets
 	bucketProjector    *BucketProjector
+
+	marketDetailMu     sync.Mutex
+	marketDetailCache  map[string]cachedMarketDetail
+	marketWalletsMu    sync.Mutex
+	marketWalletsCache map[string]cachedMarketWallets
+	marketTradesMu     sync.Mutex
+	marketTradesCache  map[string]cachedMarketTrades
 }
 
 func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte, appSettings ...appSettingsProvider) *Service {
@@ -88,7 +95,10 @@ func NewService(repo *Repository, groups GroupOwner, cursorSecret []byte, appSet
 		overviewCache:      map[string]cachedOverview{},
 		bucketDetailCache:  map[string]cachedBucketDetail{},
 		bucketWalletsCache: map[string]cachedBucketWallets{},
-		bucketMarketsCache: map[string]cachedBucketMarkets{}}
+		bucketMarketsCache: map[string]cachedBucketMarkets{},
+		marketDetailCache:  map[string]cachedMarketDetail{},
+		marketWalletsCache: map[string]cachedMarketWallets{},
+		marketTradesCache:  map[string]cachedMarketTrades{}}
 	if len(appSettings) > 0 {
 		s.appSettings = appSettings[0]
 	}
@@ -902,4 +912,21 @@ type cachedBucketMarkets struct {
 	total  int
 	source string
 	exp    time.Time
+}
+
+type cachedMarketDetail struct {
+	val MarketDetailResponse
+	exp time.Time
+}
+
+type cachedMarketWallets struct {
+	val   []MarketWalletRow
+	total int
+	exp   time.Time
+}
+
+type cachedMarketTrades struct {
+	val   []MarketTradeRow
+	total int
+	exp   time.Time
 }
