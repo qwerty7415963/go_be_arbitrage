@@ -168,9 +168,31 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 		return nil, err
 	}
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, fmt.Errorf("binance premiumIndex rate limited (429)")
+	}
+
 	var premiums []BinancePremiumIndex
 	if err := json.Unmarshal(body, &premiums); err != nil {
-		return nil, err
+		// Binance may return an error object instead of an array
+		var errObj struct {
+			Code int    `json:"code"`
+			Msg  string `json:"msg"`
+		}
+		if err2 := json.Unmarshal(body, &errObj); err2 == nil && errObj.Code != 0 {
+			return nil, fmt.Errorf("binance premiumIndex error: code=%d msg=%s", errObj.Code, errObj.Msg)
+		}
+		// Binance may return a single object
+		var single BinancePremiumIndex
+		if err3 := json.Unmarshal(body, &single); err3 == nil && single.Symbol != "" {
+			premiums = []BinancePremiumIndex{single}
+		} else {
+			bodyStr := string(body)
+			if len(bodyStr) > 200 {
+				bodyStr = bodyStr[:200]
+			}
+			return nil, fmt.Errorf("binance premiumIndex unmarshal: %w (body: %s)", err, bodyStr)
+		}
 	}
 
 	// Map premiums by symbol
