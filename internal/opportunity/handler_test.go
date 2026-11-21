@@ -17,7 +17,7 @@ func setupTestRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		handler.RegisterRoutes(v1)
 	}
@@ -38,26 +38,26 @@ func newTestService() *Service {
 func seedOpportunity(engine *Engine, oppType OpportunityType) *Opportunity {
 	now := time.Now()
 	opp := &Opportunity{
-		ID:              uuid.New(),
-		OpportunityType: oppType,
-		Status:          OpportunityStatusDetected,
-		InstrumentID:    uuid.New(),
-		CanonicalSymbol: "BTC-USDT",
-		DetectedAt:      now,
-		ExpiresAt:       now.Add(30 * time.Second),
-		BuyVenueID:      uuid.New(),
-		BuyVenueCode:    "binance",
-		SellVenueID:     uuid.New(),
-		SellVenueCode:   "okx",
-		GrossEdge:       "0.0015",
-		GrossEdgeBPS:    15,
-		ExpectedNetEdge: "0.0012",
+		ID:                 uuid.New(),
+		OpportunityType:    oppType,
+		Status:             OpportunityStatusDetected,
+		InstrumentID:       uuid.New(),
+		CanonicalSymbol:    "BTC-USDT",
+		DetectedAt:         now,
+		ExpiresAt:          now.Add(30 * time.Second),
+		BuyVenueID:         uuid.New(),
+		BuyVenueCode:       "binance",
+		SellVenueID:        uuid.New(),
+		SellVenueCode:      "okx",
+		GrossEdge:          "0.0015",
+		GrossEdgeBPS:       15,
+		ExpectedNetEdge:    "0.0012",
 		ExpectedNetEdgeBPS: 12,
-		Confidence:      0.85,
-		MarketQuality:   MarketQualityGood,
-		Legs:            []*OpportunityLeg{},
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		Confidence:         0.85,
+		MarketQuality:      MarketQualityGood,
+		Legs:               []*OpportunityLeg{},
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	engine.mu.Lock()
 	engine.results[opp.ID] = opp
@@ -70,7 +70,7 @@ func TestListOpportunities_WhenEmpty_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/opportunities", nil)
+	req, _ := http.NewRequest("GET", "/v1/opportunities", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -101,7 +101,7 @@ func TestListOpportunities_WhenPopulated_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/opportunities", nil)
+	req, _ := http.NewRequest("GET", "/v1/opportunities", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -127,7 +127,7 @@ func TestGetOpportunity_WhenFound_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/opportunities/"+opp.ID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/opportunities/"+opp.ID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -148,7 +148,7 @@ func TestGetOpportunity_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/opportunities/not-a-uuid", nil)
+	req, _ := http.NewRequest("GET", "/v1/opportunities/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -163,7 +163,7 @@ func TestGetOpportunity_WhenNotFound_Returns404(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	randomID := uuid.New()
-	req, _ := http.NewRequest("GET", "/api/v1/opportunities/"+randomID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/opportunities/"+randomID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -178,7 +178,7 @@ func TestListByType_WhenValidType_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/opportunities/type/PRICE_ARBITRAGE", nil)
+	req, _ := http.NewRequest("GET", "/v1/opportunities/type/PRICE_ARBITRAGE", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -203,7 +203,7 @@ func TestListByType_WhenInvalidType_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/opportunities/type/INVALID_TYPE", nil)
+	req, _ := http.NewRequest("GET", "/v1/opportunities/type/INVALID_TYPE", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -216,15 +216,15 @@ func TestTriggerScan_WhenNoState_Returns200(t *testing.T) {
 	unifiedSvc := unifiedstate.NewService(nil)
 	config := DefaultScannerConfig()
 	svc := &Service{
-		engine:  NewEngine(config),
+		engine:     NewEngine(config),
 		unifiedSvc: unifiedSvc,
-		config:  config,
-		stopCh:  make(chan struct{}),
+		config:     config,
+		stopCh:     make(chan struct{}),
 	}
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/opportunities/scan", nil)
+	req, _ := http.NewRequest("POST", "/v1/opportunities/scan", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -246,7 +246,7 @@ func TestRemoveOpportunity_WhenValidID_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("DELETE", "/api/v1/opportunities/"+opp.ID.String(), nil)
+	req, _ := http.NewRequest("DELETE", "/v1/opportunities/"+opp.ID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -265,7 +265,7 @@ func TestRemoveOpportunity_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("DELETE", "/api/v1/opportunities/not-a-uuid", nil)
+	req, _ := http.NewRequest("DELETE", "/v1/opportunities/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

@@ -15,12 +15,12 @@ import (
 
 // WSClientConfig holds configuration for a WebSocket client
 type WSClientConfig struct {
-	ReadLimit       int64
-	PingInterval    time.Duration
-	PongTimeout     time.Duration
-	MaxReconnect    int
-	InitialBackoff  time.Duration
-	MaxBackoff      time.Duration
+	ReadLimit         int64
+	PingInterval      time.Duration
+	PongTimeout       time.Duration
+	MaxReconnect      int
+	InitialBackoff    time.Duration
+	MaxBackoff        time.Duration
 	BackoffMultiplier float64
 }
 
@@ -39,14 +39,14 @@ func DefaultWSClientConfig() WSClientConfig {
 
 // WSClient manages a WebSocket connection with automatic reconnection
 type WSClient struct {
-	url        string
-	config     WSClientConfig
-	conn       *websocket.Conn
-	mu         sync.RWMutex
-	connected  bool
-	stopCh     chan struct{}
-	onMessage  func([]byte)
-	onConnect  func()
+	url          string
+	config       WSClientConfig
+	conn         *websocket.Conn
+	mu           sync.RWMutex
+	connected    bool
+	stopCh       chan struct{}
+	onMessage    func([]byte)
+	onConnect    func()
 	onDisconnect func()
 }
 

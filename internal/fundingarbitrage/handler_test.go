@@ -15,7 +15,7 @@ func setupTestRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		v1.GET("/public/venues", handler.ListPerpVenues)
 		v1.GET("/funding/arbitrage", handler.GetFundingArbitrage)
@@ -39,7 +39,7 @@ func TestHandler_GetFundingArbitrage_MissingVenues(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/funding/arbitrage", nil)
+	req, _ := http.NewRequest("GET", "/v1/funding/arbitrage", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -53,7 +53,7 @@ func TestHandler_GetFundingArbitrage_OnlyOneVenue(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/funding/arbitrage?venue_id="+uuid.New().String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/funding/arbitrage?venue_id="+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -68,7 +68,7 @@ func TestHandler_GetFundingArbitrage_InvalidSort(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	ids := uuid.New().String() + "&venue_id=" + uuid.New().String()
-	req, _ := http.NewRequest("GET", "/api/v1/funding/arbitrage?venue_id="+ids+"&sort=invalid", nil)
+	req, _ := http.NewRequest("GET", "/v1/funding/arbitrage?venue_id="+ids+"&sort=invalid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -83,7 +83,7 @@ func TestHandler_GetFundingArbitrage_InvalidLimit(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	ids := uuid.New().String() + "&venue_id=" + uuid.New().String()
-	req, _ := http.NewRequest("GET", "/api/v1/funding/arbitrage?venue_id="+ids+"&limit=999", nil)
+	req, _ := http.NewRequest("GET", "/v1/funding/arbitrage?venue_id="+ids+"&limit=999", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -98,7 +98,7 @@ func TestHandler_GetFundingArbitrage_InvalidOffset(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	ids := uuid.New().String() + "&venue_id=" + uuid.New().String()
-	req, _ := http.NewRequest("GET", "/api/v1/funding/arbitrage?venue_id="+ids+"&offset=-1", nil)
+	req, _ := http.NewRequest("GET", "/v1/funding/arbitrage?venue_id="+ids+"&offset=-1", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

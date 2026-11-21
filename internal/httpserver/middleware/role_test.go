@@ -13,7 +13,7 @@ func setupRoleTestRouter(requireRole gin.HandlerFunc) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		v1.GET("/admin-only", requireRole, func(c *gin.Context) {
 			c.JSON(200, gin.H{"message": "admin ok"})
@@ -33,14 +33,14 @@ func withContext(key, value string) gin.HandlerFunc {
 // ─── AUTH-M-04: RequireRole allowed ───────────────────────────
 
 func TestRequireRole_AdminAllowed(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/api/v1/admin-only", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin-only", nil)
 	w := httptest.NewRecorder()
 
 	// Simulate JWT middleware setting role
 	gin.SetMode(gin.TestMode)
 	wrappedRouter := gin.New()
 	wrappedRouter.Use(gin.Recovery())
-	v1 := wrappedRouter.Group("/api/v1")
+	v1 := wrappedRouter.Group("/v1")
 	v1.GET("/admin-only", withContext("role", "admin"), RequireRole("admin"), func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "admin ok"})
 	})
@@ -53,13 +53,13 @@ func TestRequireRole_AdminAllowed(t *testing.T) {
 }
 
 func TestRequireRole_UserAllowed(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/api/v1/admin-only", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin-only", nil)
 	w := httptest.NewRecorder()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/admin-only", withContext("role", "admin"), RequireRole("admin"), func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "admin ok"})
 	})
@@ -74,13 +74,13 @@ func TestRequireRole_UserAllowed(t *testing.T) {
 // ─── AUTH-M-04: RequireRole denied ────────────────────────────
 
 func TestRequireRole_UserDenied(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/api/v1/admin-only", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin-only", nil)
 	w := httptest.NewRecorder()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/admin-only", withContext("role", "user"), RequireRole("admin"), func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "admin ok"})
 	})
@@ -93,13 +93,13 @@ func TestRequireRole_UserDenied(t *testing.T) {
 }
 
 func TestRequireRole_MissingRole(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/api/v1/admin-only", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin-only", nil)
 	w := httptest.NewRecorder()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	// No context set - role missing
 	v1.GET("/admin-only", RequireRole("admin"), func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "admin ok"})
@@ -113,13 +113,13 @@ func TestRequireRole_MissingRole(t *testing.T) {
 }
 
 func TestRequireRole_NonStringRole(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/api/v1/admin-only", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin-only", nil)
 	w := httptest.NewRecorder()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/admin-only", func(c *gin.Context) {
 		c.Set("role", 12345) // not a string
 		c.Next()
@@ -137,13 +137,13 @@ func TestRequireRole_NonStringRole(t *testing.T) {
 // ─── RequireRole: multiple allowed roles ──────────────────────
 
 func TestRequireRole_MultipleRoles_Allowed(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/api/v1/admin-only", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin-only", nil)
 	w := httptest.NewRecorder()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/admin-only", withContext("role", "admin"), RequireRole("admin", "superadmin"), func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
 	})
@@ -156,13 +156,13 @@ func TestRequireRole_MultipleRoles_Allowed(t *testing.T) {
 }
 
 func TestRequireRole_MultipleRoles_Denied(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/api/v1/admin-only", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin-only", nil)
 	w := httptest.NewRecorder()
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/admin-only", withContext("role", "viewer"), RequireRole("admin", "superadmin"), func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
 	})

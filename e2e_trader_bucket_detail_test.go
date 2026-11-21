@@ -69,7 +69,7 @@ func TestE2E_BucketDetail(t *testing.T) {
 	}
 
 	// bucket detail
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/overview/buckets/pnl/profitable?venue=trader-e2e-venue", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/overview/buckets/pnl/profitable?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("bucket detail: %d %v", code, resp)
 	}
@@ -94,7 +94,7 @@ func TestE2E_BucketDetail(t *testing.T) {
 	}
 
 	// bucket wallets
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets?venue=trader-e2e-venue", "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/overview/buckets/pnl/profitable/wallets?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("bucket wallets: %d %v", code, resp)
 	}
@@ -107,7 +107,7 @@ func TestE2E_BucketDetail(t *testing.T) {
 	}
 
 	// bucket markets
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets?venue=trader-e2e-venue", "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/overview/buckets/pnl/profitable/markets?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("bucket markets: %d %v", code, resp)
 	}
@@ -117,14 +117,14 @@ func TestE2E_BucketDetail(t *testing.T) {
 	}
 
 	// account kind path
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/overview/buckets/account/small?venue=trader-e2e-venue", "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/overview/buckets/account/small?venue=trader-e2e-venue", "", "")
 	// small bucket may be empty (all wallets have high equity) -> 404 acceptable; but ensure not 500
 	if code != http.StatusOK && code != http.StatusNotFound {
 		t.Errorf("account bucket detail: %d %v", code, resp)
 	}
 
 	// invalid
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/overview/buckets/pnl/bogus?venue=trader-e2e-venue", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/overview/buckets/pnl/bogus?venue=trader-e2e-venue", "", "")
 	if code != http.StatusBadRequest {
 		t.Errorf("invalid bucket: %d", code)
 	}

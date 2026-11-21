@@ -27,7 +27,7 @@ func NewWeb3Handler(service *Web3Service) *Web3Handler {
 // @Param        body  body      WalletNonceRequest  true  "Wallet address and chain ID"
 // @Success      200   {object}  api.Response{data=WalletNonce}
 // @Failure      400   {object}  api.Response
-// @Router       /api/v1/auth/wallet/nonce [post]
+// @Router       /v1/auth/wallet/nonce [post]
 func (h *Web3Handler) GetNonce(c *gin.Context) {
 	var req WalletNonceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -64,7 +64,7 @@ func (h *Web3Handler) GetNonce(c *gin.Context) {
 // @Success      200   {object}  api.Response{data=AuthResponse}
 // @Failure      400   {object}  api.Response
 // @Failure      401   {object}  api.Response
-// @Router       /api/v1/auth/wallet/verify [post]
+// @Router       /v1/auth/wallet/verify [post]
 func (h *Web3Handler) Verify(c *gin.Context) {
 	var req WalletVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,7 +98,7 @@ func (h *Web3Handler) Verify(c *gin.Context) {
 // @Success      204   "No Content"
 // @Failure      400   {object}  api.Response
 // @Failure      401   {object}  api.Response
-// @Router       /api/v1/auth/wallet/link [post]
+// @Router       /v1/auth/wallet/link [post]
 func (h *Web3Handler) LinkWallet(c *gin.Context) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {
@@ -141,7 +141,7 @@ func (h *Web3Handler) LinkWallet(c *gin.Context) {
 // @Success      204   "No Content"
 // @Failure      400   {object}  api.Response
 // @Failure      401   {object}  api.Response
-// @Router       /api/v1/auth/wallet/{wallet_id} [delete]
+// @Router       /v1/auth/wallet/{wallet_id} [delete]
 func (h *Web3Handler) UnlinkWallet(c *gin.Context) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {
@@ -181,7 +181,7 @@ func (h *Web3Handler) UnlinkWallet(c *gin.Context) {
 // @Produce      json
 // @Success      200   {object}  api.Response{data=[]WalletResponse}
 // @Failure      401   {object}  api.Response
-// @Router       /api/v1/auth/wallet/list [get]
+// @Router       /v1/auth/wallet/list [get]
 func (h *Web3Handler) ListWallets(c *gin.Context) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {

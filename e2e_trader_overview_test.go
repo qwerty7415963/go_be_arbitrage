@@ -67,7 +67,7 @@ func TestE2E_TraderOverview(t *testing.T) {
 	}
 
 	// defaults
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/overview?venue=trader-e2e-venue", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/overview?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("overview: %d %v", code, resp)
 	}
@@ -122,23 +122,23 @@ func TestE2E_TraderOverview(t *testing.T) {
 	}
 
 	// invalid period
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/overview?venue=trader-e2e-venue&period=99D", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/overview?venue=trader-e2e-venue&period=99D", "", "")
 	if code != http.StatusBadRequest {
 		t.Errorf("invalid period: %d", code)
 	}
 	// invalid pnl_metric
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/overview?venue=trader-e2e-venue&pnl_metric=foo", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/overview?venue=trader-e2e-venue&pnl_metric=foo", "", "")
 	if code != http.StatusBadRequest {
 		t.Errorf("invalid pnl_metric: %d", code)
 	}
 	// invalid series_days
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/overview?venue=trader-e2e-venue&series_days=5", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/overview?venue=trader-e2e-venue&series_days=5", "", "")
 	if code != http.StatusBadRequest {
 		t.Errorf("invalid series_days: %d", code)
 	}
 
 	// empty venue (unknown) -> 400/500? unknown venue -> 400
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/overview?venue=nonexistent-venue", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/overview?venue=nonexistent-venue", "", "")
 	if code != http.StatusBadRequest {
 		t.Errorf("unknown venue: %d", code)
 	}

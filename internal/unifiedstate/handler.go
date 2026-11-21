@@ -38,7 +38,7 @@ var upgrader = websocket.Upgrader{
 // @Tags         unified
 // @Produce      json
 // @Success      200  {object}  api.Response{data=map[string]InstrumentState}
-// @Router       /api/v1/unified/instruments [get]
+// @Router       /v1/unified/instruments [get]
 func (h *Handler) GetInstruments(c *gin.Context) {
 	states := h.service.GetAllInstrumentStates()
 	c.JSON(http.StatusOK, api.Response{
@@ -56,7 +56,7 @@ func (h *Handler) GetInstruments(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=InstrumentState}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/unified/instruments/{id} [get]
+// @Router       /v1/unified/instruments/{id} [get]
 func (h *Handler) GetInstrument(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -99,7 +99,7 @@ func (h *Handler) GetInstrument(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=ExecutableDepth}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/unified/instruments/{id}/depth [get]
+// @Router       /v1/unified/instruments/{id}/depth [get]
 func (h *Handler) GetExecutableDepth(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -145,7 +145,7 @@ func (h *Handler) GetExecutableDepth(c *gin.Context) {
 // @Tags         unified
 // @Produce      json
 // @Success      200  {object}  api.Response{data=HealthOverview}
-// @Router       /api/v1/unified/health [get]
+// @Router       /v1/unified/health [get]
 func (h *Handler) GetHealth(c *gin.Context) {
 	overview := h.service.GetHealthOverview()
 	c.JSON(http.StatusOK, api.Response{
@@ -162,7 +162,7 @@ func (h *Handler) GetHealth(c *gin.Context) {
 // @Param        instrument_id  query      string  true  "Instrument ID"
 // @Success      101  {object}  api.Response
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/unified/ws [get]
+// @Router       /v1/unified/ws [get]
 func (h *Handler) SubscribeWS(c *gin.Context) {
 	instrumentIDStr := c.Query("instrument_id")
 	instrumentID, err := uuid.Parse(instrumentIDStr)

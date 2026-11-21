@@ -1,4 +1,4 @@
-﻿package trader
+package trader
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
 )
 
 // GetBucketDetailPayload reads the precomputed bucket detail payload.
@@ -385,4 +384,3 @@ func (r *Repository) isBucketReadModelFresh(refreshedAt time.Time) bool {
 // Ensure pgxpool import used.
 
 var _ = pgxpool.New
-

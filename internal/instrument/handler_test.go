@@ -16,7 +16,7 @@ func setupTestRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		v1.POST("/instruments", handler.Create)
 		v1.GET("/instruments", handler.List)
@@ -47,7 +47,7 @@ func TestHandler_CreateInstrument_WhenValid_Returns201(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -71,7 +71,7 @@ func TestHandler_CreateInstrument_WhenInvalidBody_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer([]byte("invalid json")))
+	req, _ := http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -100,7 +100,7 @@ func TestHandler_GetByID_WhenFound_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/instruments/"+inst.ID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/instruments/"+inst.ID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -115,7 +115,7 @@ func TestHandler_GetByID_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/instruments/not-a-uuid", nil)
+	req, _ := http.NewRequest("GET", "/v1/instruments/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -148,7 +148,7 @@ func TestHandler_ListTradable_ReturnsTradable(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/instruments/tradable", nil)
+	req, _ := http.NewRequest("GET", "/v1/instruments/tradable", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -175,7 +175,7 @@ func TestHandler_EnableTrading_WhenNotReviewed_Returns400(t *testing.T) {
 	body := EnableTradingRequest{Enabled: true}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("PUT", "/api/v1/instruments/"+inst.ID.String()+"/trading", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("PUT", "/v1/instruments/"+inst.ID.String()+"/trading", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -205,7 +205,7 @@ func TestHandler_EnableTrading_WhenReviewed_Returns200(t *testing.T) {
 	body := EnableTradingRequest{Enabled: true}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("PUT", "/api/v1/instruments/"+inst.ID.String()+"/trading", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("PUT", "/v1/instruments/"+inst.ID.String()+"/trading", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -231,7 +231,7 @@ func TestHandler_Delete_WhenValid_Returns204(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("DELETE", "/api/v1/instruments/"+inst.ID.String(), nil)
+	req, _ := http.NewRequest("DELETE", "/v1/instruments/"+inst.ID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

@@ -39,7 +39,7 @@ func TestHandler_Positions_Success(t *testing.T) {
 			AsOf:       &now,
 		}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -58,7 +58,7 @@ func TestHandler_Positions_UnknownWallet(t *testing.T) {
 	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "trader not found")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
 	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -69,7 +69,7 @@ func TestHandler_Positions_InvalidAddress(t *testing.T) {
 	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return nil, domain.NewError(domain.ErrCodeValidation, "invalid wallet address")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/not-an-address/positions", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/not-an-address/positions", "")
 	if w.Code != http.StatusBadRequest || errCode(t, w) != "COMMON-902" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -82,7 +82,7 @@ func TestHandler_Positions_NeverSynced(t *testing.T) {
 	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return &PositionSnapshotDTO{Summary: nil, Positions: []PositionDTO{}, DataStatus: DataError}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -113,7 +113,7 @@ func TestHandler_Activity_Success(t *testing.T) {
 			NextCursor: "opaque", HasMore: true,
 		}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -130,9 +130,9 @@ func TestHandler_Activity_Success(t *testing.T) {
 // ACT-H-02: limit=0 / 101 -> 400. Handler passes through; service rejects.
 func TestHandler_Activity_BadLimit(t *testing.T) {
 	for _, target := range []string{
-		"/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=0",
-		"/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=101",
-		"/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=abc",
+		"/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=0",
+		"/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=101",
+		"/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?limit=abc",
 	} {
 		h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ ActivityQuery) (*ActivityPage, error) {
 			return nil, domain.NewError(domain.ErrCodeInvalidFilter, "limit must be 1..100")
@@ -149,7 +149,7 @@ func TestHandler_Activity_BadCursor(t *testing.T) {
 	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ ActivityQuery) (*ActivityPage, error) {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid cursor signature")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?cursor=forged.cursor", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity?cursor=forged.cursor", "")
 	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -160,7 +160,7 @@ func TestHandler_Activity_UnknownWallet(t *testing.T) {
 	h := NewHandler(&mockService{activityFn: func(_ context.Context, _, _ string, _ ActivityQuery) (*ActivityPage, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "trader not found")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/activity", "")
 	if w.Code != http.StatusNotFound {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -177,7 +177,7 @@ func TestHandler_Positions_TPSL_Fields(t *testing.T) {
 			AsOf:       &now,
 		}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -199,7 +199,7 @@ func TestHandler_Positions_TPSL_EmptyArrays(t *testing.T) {
 			AsOf:       &now,
 		}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions?venue=hyperliquid", "")
 	data := decodeData(t, w.Body.Bytes())
 	rows := data["positions"].([]any)
 	r := rows[0].(map[string]any)
@@ -213,7 +213,7 @@ func TestHandler_Positions_TPSL_UnknownWallet(t *testing.T) {
 	h := NewHandler(&mockService{positionsFn: func(_ context.Context, _, _, _, _ string) (*PositionSnapshotDTO, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "trader not found")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/positions", "")
 	if w.Code != http.StatusNotFound {
 		t.Errorf("got %d", w.Code)
 	}

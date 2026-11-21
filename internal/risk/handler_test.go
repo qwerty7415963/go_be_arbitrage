@@ -106,7 +106,7 @@ func setupHandlerRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	handler.RegisterRoutes(v1, mockJWTMiddleware())
 
 	return router
@@ -119,7 +119,7 @@ func TestHandler_ListPolicies_Returns200(t *testing.T) {
 	handler := NewHandler(service)
 	router := setupHandlerRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/risk/policies", nil)
+	req, _ := http.NewRequest("GET", "/v1/risk/policies", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -148,7 +148,7 @@ func TestHandler_CreatePolicy_Returns201(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/risk/policies", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/risk/policies", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -181,7 +181,7 @@ func TestHandler_GetPolicy_Returns200(t *testing.T) {
 		"config":      DefaultRiskConfig(),
 	}
 	createJSON, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/risk/policies", bytes.NewBuffer(createJSON))
+	createReq, _ := http.NewRequest("POST", "/v1/risk/policies", bytes.NewBuffer(createJSON))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -195,7 +195,7 @@ func TestHandler_GetPolicy_Returns200(t *testing.T) {
 	policyData := createResp["data"].(map[string]interface{})
 	policyID := policyData["id"].(string)
 
-	req, _ := http.NewRequest("GET", "/api/v1/risk/policies/"+policyID, nil)
+	req, _ := http.NewRequest("GET", "/v1/risk/policies/"+policyID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -223,7 +223,7 @@ func TestHandler_UpdatePolicy_Returns200(t *testing.T) {
 		"config":      DefaultRiskConfig(),
 	}
 	createJSON, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/risk/policies", bytes.NewBuffer(createJSON))
+	createReq, _ := http.NewRequest("POST", "/v1/risk/policies", bytes.NewBuffer(createJSON))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -242,7 +242,7 @@ func TestHandler_UpdatePolicy_Returns200(t *testing.T) {
 		"name": updatedName,
 	}
 	updateJSON, _ := json.Marshal(updateBody)
-	updateReq, _ := http.NewRequest("PUT", "/api/v1/risk/policies/"+policyID, bytes.NewBuffer(updateJSON))
+	updateReq, _ := http.NewRequest("PUT", "/v1/risk/policies/"+policyID, bytes.NewBuffer(updateJSON))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateW := httptest.NewRecorder()
 	router.ServeHTTP(updateW, updateReq)
@@ -271,7 +271,7 @@ func TestHandler_DeletePolicy_Returns200(t *testing.T) {
 		"config":      DefaultRiskConfig(),
 	}
 	createJSON, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/risk/policies", bytes.NewBuffer(createJSON))
+	createReq, _ := http.NewRequest("POST", "/v1/risk/policies", bytes.NewBuffer(createJSON))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -285,7 +285,7 @@ func TestHandler_DeletePolicy_Returns200(t *testing.T) {
 	policyData := createResp["data"].(map[string]interface{})
 	policyID := policyData["id"].(string)
 
-	deleteReq, _ := http.NewRequest("DELETE", "/api/v1/risk/policies/"+policyID, nil)
+	deleteReq, _ := http.NewRequest("DELETE", "/v1/risk/policies/"+policyID, nil)
 	deleteW := httptest.NewRecorder()
 	router.ServeHTTP(deleteW, deleteReq)
 
@@ -310,7 +310,7 @@ func TestHandler_EnableKillSwitch_Returns200(t *testing.T) {
 	body := map[string]string{"reason": "test maintenance"}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/risk/kill-switch/enable", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/risk/kill-switch/enable", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -333,7 +333,7 @@ func TestHandler_DisableKillSwitch_Returns200(t *testing.T) {
 	handler := NewHandler(service)
 	router := setupHandlerRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/risk/kill-switch/disable", nil)
+	req, _ := http.NewRequest("POST", "/v1/risk/kill-switch/disable", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -355,7 +355,7 @@ func TestHandler_GetKillSwitch_Returns200(t *testing.T) {
 	handler := NewHandler(service)
 	router := setupHandlerRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/risk/kill-switch", nil)
+	req, _ := http.NewRequest("GET", "/v1/risk/kill-switch", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -393,7 +393,7 @@ func TestHandler_PreTradeCheck_Returns200(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/risk/pre-trade-check", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/risk/pre-trade-check", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -420,7 +420,7 @@ func TestHandler_CreatePolicy_InvalidBody(t *testing.T) {
 	handler := NewHandler(service)
 	router := setupHandlerRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/risk/policies", bytes.NewBuffer([]byte("invalid")))
+	req, _ := http.NewRequest("POST", "/v1/risk/policies", bytes.NewBuffer([]byte("invalid")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -437,7 +437,7 @@ func TestHandler_GetPolicy_InvalidID(t *testing.T) {
 	handler := NewHandler(service)
 	router := setupHandlerRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/risk/policies/not-a-uuid", nil)
+	req, _ := http.NewRequest("GET", "/v1/risk/policies/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -454,7 +454,7 @@ func TestHandler_GetPolicy_NotFound(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	nonExistentID := uuid.New().String()
-	req, _ := http.NewRequest("GET", "/api/v1/risk/policies/"+nonExistentID, nil)
+	req, _ := http.NewRequest("GET", "/v1/risk/policies/"+nonExistentID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -473,14 +473,14 @@ func TestHandler_NonAdminRole_Returns403(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	handler.RegisterRoutes(v1, func(c *gin.Context) {
 		c.Set("role", "viewer")
 		c.Set("tenant_id", testTenantID)
 		c.Next()
 	})
 
-	req, _ := http.NewRequest("GET", "/api/v1/risk/policies", nil)
+	req, _ := http.NewRequest("GET", "/v1/risk/policies", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

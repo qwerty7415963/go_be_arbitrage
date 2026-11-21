@@ -14,7 +14,7 @@ func setupHandlerRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		admin := v1.Group("/admin/telegram/settings")
 		admin.GET("", h.GetSettings)
@@ -29,7 +29,7 @@ func TestHandler_GetSettings(t *testing.T) {
 	h := NewHandler(svc)
 	router := setupHandlerRouter(h)
 
-	req, _ := http.NewRequest("GET", "/api/v1/admin/telegram/settings", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin/telegram/settings", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -51,19 +51,19 @@ func TestHandler_UpdateSettings_Valid(t *testing.T) {
 
 	body := map[string]int{"max_wallets_per_user": 100}
 	b, _ := json.Marshal(body)
-	req, _ := http.NewRequest("PATCH", "/api/v1/admin/telegram/settings", bytes.NewBuffer(b))
+	req, _ := http.NewRequest("PATCH", "/v1/admin/telegram/settings", bytes.NewBuffer(b))
 	req.Header.Set("Content-Type", "application/json")
 	// provide user_id in context via middleware? handler reads c.Get; set via custom middleware
 	router2 := gin.New()
 	router2.Use(gin.Recovery())
 	router2.Use(func(c *gin.Context) { c.Set("user_id", "00000000-0000-0000-0000-000000000001"); c.Next() })
-	v1 := router2.Group("/api/v1")
+	v1 := router2.Group("/v1")
 	{
 		admin := v1.Group("/admin/telegram/settings")
 		admin.PATCH("", h.UpdateSettings)
 	}
 	w := httptest.NewRecorder()
-	req2, _ := http.NewRequest("PATCH", "/api/v1/admin/telegram/settings", bytes.NewBuffer(b))
+	req2, _ := http.NewRequest("PATCH", "/v1/admin/telegram/settings", bytes.NewBuffer(b))
 	req2.Header.Set("Content-Type", "application/json")
 	router2.ServeHTTP(w, req2)
 
@@ -80,7 +80,7 @@ func TestHandler_UpdateSettings_Invalid(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(func(c *gin.Context) { c.Set("user_id", "00000000-0000-0000-0000-000000000001"); c.Next() })
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		admin := v1.Group("/admin/telegram/settings")
 		admin.PATCH("", h.UpdateSettings)
@@ -88,7 +88,7 @@ func TestHandler_UpdateSettings_Invalid(t *testing.T) {
 
 	body := map[string]int{"max_wallets_per_user": 0}
 	b, _ := json.Marshal(body)
-	req, _ := http.NewRequest("PATCH", "/api/v1/admin/telegram/settings", bytes.NewBuffer(b))
+	req, _ := http.NewRequest("PATCH", "/v1/admin/telegram/settings", bytes.NewBuffer(b))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -105,7 +105,7 @@ func setupPerpHandlerRouter(h *Handler, withUser bool) *gin.Engine {
 	if withUser {
 		router.Use(func(c *gin.Context) { c.Set("user_id", "00000000-0000-0000-0000-000000000001"); c.Next() })
 	}
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		admin := v1.Group("/admin/perp-dexes")
 		admin.GET("", h.GetPerpDexes)
@@ -120,7 +120,7 @@ func TestHandler_GetPerpDexes(t *testing.T) {
 	h := NewHandler(svc)
 	router := setupPerpHandlerRouter(h, false)
 
-	req, _ := http.NewRequest("GET", "/api/v1/admin/perp-dexes", nil)
+	req, _ := http.NewRequest("GET", "/v1/admin/perp-dexes", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -145,7 +145,7 @@ func TestHandler_UpdatePerpDexes_Valid(t *testing.T) {
 	body := map[string][]string{"dexes": {"abc"}}
 	b, _ := json.Marshal(body)
 	router := setupPerpHandlerRouter(h, true)
-	req, _ := http.NewRequest("PATCH", "/api/v1/admin/perp-dexes", bytes.NewBuffer(b))
+	req, _ := http.NewRequest("PATCH", "/v1/admin/perp-dexes", bytes.NewBuffer(b))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -164,7 +164,7 @@ func TestHandler_UpdatePerpDexes_Invalid(t *testing.T) {
 	body := map[string][]string{"dexes": {"nope"}}
 	b, _ := json.Marshal(body)
 	router := setupPerpHandlerRouter(h, true)
-	req, _ := http.NewRequest("PATCH", "/api/v1/admin/perp-dexes", bytes.NewBuffer(b))
+	req, _ := http.NewRequest("PATCH", "/v1/admin/perp-dexes", bytes.NewBuffer(b))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -182,7 +182,7 @@ func TestHandler_UpdatePerpDexes_NoUser(t *testing.T) {
 	body := map[string][]string{"dexes": {}}
 	b, _ := json.Marshal(body)
 	router := setupPerpHandlerRouter(h, false)
-	req, _ := http.NewRequest("PATCH", "/api/v1/admin/perp-dexes", bytes.NewBuffer(b))
+	req, _ := http.NewRequest("PATCH", "/v1/admin/perp-dexes", bytes.NewBuffer(b))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

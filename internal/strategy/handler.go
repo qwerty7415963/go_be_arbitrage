@@ -87,7 +87,7 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003 no/invalid token"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005 not admin"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/strategies [get]
+// @Router       /v1/strategies [get]
 func (h *Handler) List(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -120,7 +120,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/strategies [post]
+// @Router       /v1/strategies [post]
 func (h *Handler) Create(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -157,7 +157,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
-// @Router       /api/v1/strategies/{id} [get]
+// @Router       /v1/strategies/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -189,7 +189,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/strategies/{id} [put]
+// @Router       /v1/strategies/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -225,7 +225,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/strategies/{id} [delete]
+// @Router       /v1/strategies/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -254,7 +254,7 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/strategies/{id}/start [post]
+// @Router       /v1/strategies/{id}/start [post]
 func (h *Handler) Start(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -283,7 +283,7 @@ func (h *Handler) Start(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/strategies/{id}/stop [post]
+// @Router       /v1/strategies/{id}/stop [post]
 func (h *Handler) Stop(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -313,7 +313,7 @@ func (h *Handler) Stop(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/strategies/{id}/decisions [get]
+// @Router       /v1/strategies/{id}/decisions [get]
 func (h *Handler) ListDecisions(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)

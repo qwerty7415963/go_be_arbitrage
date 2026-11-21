@@ -435,7 +435,7 @@ func (r *Resolver) LogoURL(ctx context.Context, assetID uuid.UUID) string {
 	logo := r.firstLogo(ctx, assetID)
 	if logo != nil && logo.Status == LogoStatusFound {
 		if logo.StoragePath != nil && *logo.StoragePath != "" {
-			return "/api/v1/assets/logos/" + assetID.String()
+			return "/v1/assets/logos/" + assetID.String()
 		}
 		if logo.URL != nil && *logo.URL != "" {
 			return *logo.URL

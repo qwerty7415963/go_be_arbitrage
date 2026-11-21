@@ -193,7 +193,7 @@ var sortableColumns = map[string]string{
 	"last_trade":  "last_trade_at",
 }
 
-// SearchRequest is the POST /api/v1/traders/search body (spec §13 + v1.1 D7
+// SearchRequest is the POST /v1/traders/search body (spec §13 + v1.1 D7
 // + CONTRACT.md 2026-10-06 numbered pagination).
 //
 // Numbered pagination vs keyset cursor (mutually exclusive, additive):

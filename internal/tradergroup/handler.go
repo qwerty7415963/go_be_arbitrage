@@ -117,7 +117,7 @@ func normalizeMember(in MemberInput) (MemberInput, error) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      409  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups [post]
+// @Router       /v1/trader-groups [post]
 func (h *Handler) Create(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -150,7 +150,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=[]Group}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups [get]
+// @Router       /v1/trader-groups [get]
 func (h *Handler) List(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -176,7 +176,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups/{id} [get]
+// @Router       /v1/trader-groups/{id} [get]
 func (h *Handler) Get(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -209,7 +209,7 @@ func (h *Handler) Get(c *gin.Context) {
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
 // @Failure      409  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups/{id} [patch]
+// @Router       /v1/trader-groups/{id} [patch]
 func (h *Handler) Update(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -249,7 +249,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups/{id} [delete]
+// @Router       /v1/trader-groups/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -280,7 +280,7 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups/{id}/members [post]
+// @Router       /v1/trader-groups/{id}/members [post]
 func (h *Handler) AddMembers(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -325,7 +325,7 @@ func (h *Handler) AddMembers(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups/{id}/members [get]
+// @Router       /v1/trader-groups/{id}/members [get]
 func (h *Handler) ListMembers(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -360,7 +360,7 @@ func (h *Handler) ListMembers(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups/{id}/members [delete]
+// @Router       /v1/trader-groups/{id}/members [delete]
 func (h *Handler) RemoveMembers(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -415,7 +415,7 @@ func (h *Handler) RemoveMembers(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/trader-groups/{id}/members [patch]
+// @Router       /v1/trader-groups/{id}/members [patch]
 func (h *Handler) UpdateMembers(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {

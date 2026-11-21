@@ -15,7 +15,7 @@ func setupTestRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1/unified")
+	v1 := router.Group("/v1/unified")
 	{
 		v1.GET("/instruments", handler.GetInstruments)
 		v1.GET("/instruments/:id", handler.GetInstrument)
@@ -30,7 +30,7 @@ func TestHandler_GetInstruments_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/unified/instruments", nil)
+	req, _ := http.NewRequest("GET", "/v1/unified/instruments", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -54,7 +54,7 @@ func TestHandler_GetInstrument_Found(t *testing.T) {
 	instrID := uuid.New()
 	svc.GetOrCreateInstrumentState(instrID, "BTC-USDT", "BTC", "USDT")
 
-	req, _ := http.NewRequest("GET", "/api/v1/unified/instruments/"+instrID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/unified/instruments/"+instrID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -78,7 +78,7 @@ func TestHandler_GetInstrument_NotFound(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/unified/instruments/"+uuid.New().String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/unified/instruments/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -92,7 +92,7 @@ func TestHandler_GetInstrument_InvalidID(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/unified/instruments/not-a-uuid", nil)
+	req, _ := http.NewRequest("GET", "/v1/unified/instruments/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -106,7 +106,7 @@ func TestHandler_GetExecutableDepth_InvalidID(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/unified/instruments/not-a-uuid/depth", nil)
+	req, _ := http.NewRequest("GET", "/v1/unified/instruments/not-a-uuid/depth", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -120,7 +120,7 @@ func TestHandler_GetExecutableDepth_NotFound(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/unified/instruments/"+uuid.New().String()+"/depth", nil)
+	req, _ := http.NewRequest("GET", "/v1/unified/instruments/"+uuid.New().String()+"/depth", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -134,7 +134,7 @@ func TestHandler_GetHealth_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/unified/health", nil)
+	req, _ := http.NewRequest("GET", "/v1/unified/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

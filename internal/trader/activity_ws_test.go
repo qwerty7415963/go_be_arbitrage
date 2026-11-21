@@ -15,14 +15,14 @@ import (
 func wsTestServer(h *ActivityWSHandler) *httptest.Server {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/api/v1/traders/ws", h.ServeWS)
+	r.GET("/v1/traders/ws", h.ServeWS)
 	return httptest.NewServer(r)
 }
 
 func wsDial(t *testing.T, url, wallet string) *websocket.Conn {
 	t.Helper()
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	conn, resp, err := dialer.Dial("ws"+strings.TrimPrefix(url, "http")+"/api/v1/traders/ws?wallet="+wallet, nil)
+	conn, resp, err := dialer.Dial("ws"+strings.TrimPrefix(url, "http")+"/v1/traders/ws?wallet="+wallet, nil)
 	if err != nil {
 		if resp != nil {
 			t.Fatalf("dial: %v status=%d", err, resp.StatusCode)
@@ -121,7 +121,7 @@ func TestActivityWS_CloseUnsubscribes(t *testing.T) {
 			hub.SubscriberCount(wallet), hub.WatchSet())
 	}
 
-	resp, err := http.Get(srv.URL + "/api/v1/traders/ws?wallet=not-an-address")
+	resp, err := http.Get(srv.URL + "/v1/traders/ws?wallet=not-an-address")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}

@@ -16,7 +16,7 @@ func setupMarketTestRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1/market")
+	v1 := router.Group("/v1/market")
 	{
 		v1.GET("/trades", handler.GetTrades)
 		v1.GET("/ticker", handler.GetTicker)
@@ -50,7 +50,7 @@ func TestHandler_GetTrades_WhenInvalidVenueID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/trades?venue_id=not-a-uuid&instrument_id="+uuid.New().String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/market/trades?venue_id=not-a-uuid&instrument_id="+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -75,7 +75,7 @@ func TestHandler_GetTrades_WhenInvalidInstrumentID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/trades?venue_id="+uuid.New().String()+"&instrument_id=bad", nil)
+	req, _ := http.NewRequest("GET", "/v1/market/trades?venue_id="+uuid.New().String()+"&instrument_id=bad", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -97,7 +97,7 @@ func TestHandler_GetTrades_WhenMissingParams_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/trades", nil)
+	req, _ := http.NewRequest("GET", "/v1/market/trades", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -111,7 +111,7 @@ func TestHandler_GetTicker_WhenInvalidVenueID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/ticker?venue_id=invalid&instrument_id="+uuid.New().String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/market/ticker?venue_id=invalid&instrument_id="+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -133,7 +133,7 @@ func TestHandler_GetTicker_WhenInvalidInstrumentID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/ticker?venue_id="+uuid.New().String()+"&instrument_id=not-uuid", nil)
+	req, _ := http.NewRequest("GET", "/v1/market/ticker?venue_id="+uuid.New().String()+"&instrument_id=not-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -155,7 +155,7 @@ func TestHandler_GetFunding_WhenInvalidVenueID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/funding?venue_id=bad-id&instrument_id="+uuid.New().String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/market/funding?venue_id=bad-id&instrument_id="+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -177,7 +177,7 @@ func TestHandler_GetFunding_WhenInvalidInstrumentID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/funding?venue_id="+uuid.New().String()+"&instrument_id=xyz", nil)
+	req, _ := http.NewRequest("GET", "/v1/market/funding?venue_id="+uuid.New().String()+"&instrument_id=xyz", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -199,7 +199,7 @@ func TestHandler_GetSubscriptions_WhenEmpty_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/subscriptions", nil)
+	req, _ := http.NewRequest("GET", "/v1/market/subscriptions", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -224,7 +224,7 @@ func TestHandler_GetSubscriptions_WhenActive_ReturnsSubscriptions(t *testing.T) 
 
 	svc.Subscribe(nil, venueID, instrumentID, "trades", connectionID)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/subscriptions", nil)
+	req, _ := http.NewRequest("GET", "/v1/market/subscriptions", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -252,7 +252,7 @@ func TestHandler_GetTrades_WhenNoParams_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupMarketTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/market/trades?venue_id="+uuid.New().String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/market/trades?venue_id="+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

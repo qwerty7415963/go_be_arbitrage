@@ -150,7 +150,7 @@ func setupTraderSuite(t *testing.T) *traderSuite {
 	assetLogoResolver := assetlogo.NewResolver(s.assetLogoRepo, s.assetLogoStorage, assetLogoCache)
 	svc := trader.NewService(repo, tradergroup.NewRepository(pool), secret).WithAssetLogoResolver(assetLogoResolver)
 	router := gin.New()
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.Use(func(c *gin.Context) {
 		if uid := c.GetHeader("X-Test-User"); uid != "" {
 			c.Set("user_id", uid)
@@ -209,7 +209,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 	s := setupTraderSuite(t)
 	userA := s.userA.String()
 
-	code, resp := s.doJSON(t, "POST", "/api/v1/traders/search", userA,
+	code, resp := s.doJSON(t, "POST", "/v1/traders/search", userA,
 		`{"period":"30D","venue":"trader-e2e-venue","pnl_min":10000,"sort_by":"pnl","sort_direction":"desc","limit":1}`)
 	if code != http.StatusOK {
 		t.Fatalf("search: %d %v", code, resp)
@@ -225,7 +225,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 	seen := map[string]bool{rows[0].(map[string]any)["wallet_address"].(string): true}
 	cursor := meta["cursor"].(string)
 	for i := 0; i < 5; i++ {
-		code, resp = s.doJSON(t, "POST", "/api/v1/traders/search", userA,
+		code, resp = s.doJSON(t, "POST", "/v1/traders/search", userA,
 			`{"period":"30D","venue":"trader-e2e-venue","pnl_min":10000,"limit":1,"cursor":"`+cursor+`"}`)
 		if code != http.StatusOK {
 			t.Fatalf("page: %d %v", code, resp)
@@ -248,7 +248,7 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 		t.Errorf("pnl>=10000 must yield 2 wallets, got %v", seen)
 	}
 
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+s.addrs[0]+"?venue=trader-e2e-venue&period=30D", userA, "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/"+s.addrs[0]+"?venue=trader-e2e-venue&period=30D", userA, "")
 	if code != http.StatusOK {
 		t.Fatalf("detail: %d %v", code, resp)
 	}
@@ -256,36 +256,36 @@ func TestE2E_Trader_FullFlow(t *testing.T) {
 		t.Errorf("detail period: %v", resp)
 	}
 
-	code, resp = s.doJSON(t, "POST", "/api/v1/trader-groups", userA, `{"name":"Alphas"}`)
+	code, resp = s.doJSON(t, "POST", "/v1/trader-groups", userA, `{"name":"Alphas"}`)
 	if code != http.StatusCreated {
 		t.Fatalf("create group: %d %v", code, resp)
 	}
 	gid := resp["data"].(map[string]any)["id"].(string)
 
-	code, resp = s.doJSON(t, "POST", "/api/v1/trader-groups/"+gid+"/members", userA,
+	code, resp = s.doJSON(t, "POST", "/v1/trader-groups/"+gid+"/members", userA,
 		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1"}]}`)
 	if code != http.StatusOK {
 		t.Fatalf("add: %d %v", code, resp)
 	}
-	code, resp = s.doJSON(t, "GET", "/api/v1/trader-groups/"+gid+"/members", userA, "")
+	code, resp = s.doJSON(t, "GET", "/v1/trader-groups/"+gid+"/members", userA, "")
 	if code != http.StatusOK || len(rowsOf(t, resp)) != 1 {
 		t.Fatalf("members: %d %v", code, resp)
 	}
-	code, resp = s.doJSON(t, "POST", "/api/v1/traders/search", userA,
+	code, resp = s.doJSON(t, "POST", "/v1/traders/search", userA,
 		`{"period":"30D","venue":"trader-e2e-venue","group_id":"`+gid+`"}`)
 	if code != http.StatusOK || len(rowsOf(t, resp)) != 1 {
 		t.Fatalf("group search: %d %v", code, resp)
 	}
-	code, _ = s.doJSON(t, "DELETE", "/api/v1/trader-groups/"+gid+"/members", userA,
+	code, _ = s.doJSON(t, "DELETE", "/v1/trader-groups/"+gid+"/members", userA,
 		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`"}]}`)
 	if code != http.StatusOK {
 		t.Fatalf("remove: %d", code)
 	}
-	code, _ = s.doJSON(t, "DELETE", "/api/v1/trader-groups/"+gid, userA, "")
+	code, _ = s.doJSON(t, "DELETE", "/v1/trader-groups/"+gid, userA, "")
 	if code != http.StatusNoContent {
 		t.Fatalf("delete: %d", code)
 	}
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+s.addrs[0]+"?venue=trader-e2e-venue", userA, "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/"+s.addrs[0]+"?venue=trader-e2e-venue", userA, "")
 	if code != http.StatusOK {
 		t.Fatalf("registry must survive group delete: %d", code)
 	}
@@ -297,7 +297,7 @@ func TestE2E_Trader_Isolation(t *testing.T) {
 	s := setupTraderSuite(t)
 	userA, userB := s.userA.String(), s.userB.String()
 
-	code, resp := s.doJSON(t, "POST", "/api/v1/trader-groups", userA, `{"name":"Private"}`)
+	code, resp := s.doJSON(t, "POST", "/v1/trader-groups", userA, `{"name":"Private"}`)
 	if code != http.StatusCreated {
 		t.Fatalf("create: %d %v", code, resp)
 	}
@@ -307,24 +307,24 @@ func TestE2E_Trader_Isolation(t *testing.T) {
 		method, target string
 		body           string
 	}{
-		{"GET", "/api/v1/trader-groups/" + gid, ""},
-		{"PATCH", "/api/v1/trader-groups/" + gid, `{"name":"x"}`},
-		{"DELETE", "/api/v1/trader-groups/" + gid, ""},
-		{"GET", "/api/v1/trader-groups/" + gid + "/members", ""},
+		{"GET", "/v1/trader-groups/" + gid, ""},
+		{"PATCH", "/v1/trader-groups/" + gid, `{"name":"x"}`},
+		{"DELETE", "/v1/trader-groups/" + gid, ""},
+		{"GET", "/v1/trader-groups/" + gid + "/members", ""},
 	} {
 		if code, _ := s.doJSON(t, tc.method, tc.target, userB, tc.body); code != http.StatusForbidden {
 			t.Errorf("%s %s as B: want 403, got %d", tc.method, tc.target, code)
 		}
 	}
-	if code, _ := s.doJSON(t, "POST", "/api/v1/traders/search", userB,
+	if code, _ := s.doJSON(t, "POST", "/v1/traders/search", userB,
 		`{"period":"30D","venue":"trader-e2e-venue","group_id":"`+gid+`"}`); code != http.StatusForbidden {
 		t.Errorf("B group search: want 403, got %d", code)
 	}
-	if code, _ := s.doJSON(t, "POST", "/api/v1/traders/search", "",
+	if code, _ := s.doJSON(t, "POST", "/v1/traders/search", "",
 		`{"period":"30D","venue":"trader-e2e-venue","limit":2}`); code != http.StatusOK {
 		t.Errorf("anonymous search: want 200, got %d", code)
 	}
-	if code, _ := s.doJSON(t, "POST", "/api/v1/trader-groups", "",
+	if code, _ := s.doJSON(t, "POST", "/v1/trader-groups", "",
 		`{"name":"Anon"}`); code != http.StatusForbidden {
 		t.Errorf("anonymous create: want 403, got %d", code)
 	}
@@ -336,13 +336,13 @@ func TestE2E_Trader_MemberPatchAndMetrics(t *testing.T) {
 	s := setupTraderSuite(t)
 	userA := s.userA.String()
 
-	code, resp := s.doJSON(t, "POST", "/api/v1/trader-groups", userA, `{"name":"M"}`)
+	code, resp := s.doJSON(t, "POST", "/v1/trader-groups", userA, `{"name":"M"}`)
 	if code != http.StatusCreated {
 		t.Fatalf("create: %d %v", code, resp)
 	}
 	gid := resp["data"].(map[string]any)["id"].(string)
 
-	code, _ = s.doJSON(t, "POST", "/api/v1/trader-groups/"+gid+"/members", userA,
+	code, _ = s.doJSON(t, "POST", "/v1/trader-groups/"+gid+"/members", userA,
 		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1","note":"n1"},`+
 			`{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[1]+`"}]}`)
 	if code != http.StatusOK {
@@ -359,12 +359,12 @@ func TestE2E_Trader_MemberPatchAndMetrics(t *testing.T) {
 		_, _ = s.db.Exec(context.Background(),
 			`DELETE FROM trader_registry WHERE venue_id = $1 AND wallet_address = $2`, s.venueID, bare)
 	})
-	code, _ = s.doJSON(t, "POST", "/api/v1/trader-groups/"+gid+"/members", userA,
+	code, _ = s.doJSON(t, "POST", "/v1/trader-groups/"+gid+"/members", userA,
 		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+bare+`"}]}`)
 	if code != http.StatusOK {
 		t.Fatalf("add bare: %d", code)
 	}
-	code, resp = s.doJSON(t, "GET", "/api/v1/trader-groups/"+gid+"/members", userA, "")
+	code, resp = s.doJSON(t, "GET", "/v1/trader-groups/"+gid+"/members", userA, "")
 	if code != http.StatusOK {
 		t.Fatalf("members: %d %v", code, resp)
 	}
@@ -390,7 +390,7 @@ func TestE2E_Trader_MemberPatchAndMetrics(t *testing.T) {
 	}
 
 	// PATCH: rename alias + clear note on the same member (both change one row).
-	code, resp = s.doJSON(t, "PATCH", "/api/v1/trader-groups/"+gid+"/members", userA,
+	code, resp = s.doJSON(t, "PATCH", "/v1/trader-groups/"+gid+"/members", userA,
 		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1x","note":""}]}`)
 	if code != http.StatusOK {
 		t.Fatalf("patch: %d %v", code, resp)
@@ -398,7 +398,7 @@ func TestE2E_Trader_MemberPatchAndMetrics(t *testing.T) {
 	if resp["data"].(map[string]any)["updated"] != float64(1) {
 		t.Errorf("updated count (one changed row): %v", resp)
 	}
-	code, resp = s.doJSON(t, "GET", "/api/v1/trader-groups/"+gid+"/members", userA, "")
+	code, resp = s.doJSON(t, "GET", "/v1/trader-groups/"+gid+"/members", userA, "")
 	rows = rowsOf(t, resp)
 	byAddr = map[string]map[string]any{}
 	for _, r := range rows {
@@ -413,14 +413,14 @@ func TestE2E_Trader_MemberPatchAndMetrics(t *testing.T) {
 	}
 
 	// Idempotent rerun: same values → 0 changed.
-	code, resp = s.doJSON(t, "PATCH", "/api/v1/trader-groups/"+gid+"/members", userA,
+	code, resp = s.doJSON(t, "PATCH", "/v1/trader-groups/"+gid+"/members", userA,
 		`{"members":[{"venue":"trader-e2e-venue","wallet_address":"`+s.addrs[0]+`","alias":"w1x"}]}`)
 	if code != http.StatusOK || resp["data"].(map[string]any)["updated"] != float64(0) {
 		t.Errorf("no-op rerun: %d %v", code, resp)
 	}
 
 	// Period scoping: only 30D seeded → 7D metrics null.
-	code, resp = s.doJSON(t, "GET", "/api/v1/trader-groups/"+gid+"/members?period=7D", userA, "")
+	code, resp = s.doJSON(t, "GET", "/v1/trader-groups/"+gid+"/members?period=7D", userA, "")
 	if code != http.StatusOK {
 		t.Fatalf("period: %d %v", code, resp)
 	}
@@ -439,7 +439,7 @@ func TestE2E_Trader_NumberedPagination(t *testing.T) {
 	userA := s.userA.String()
 
 	search := func(page int) (int, map[string]any) {
-		return s.doJSON(t, "POST", "/api/v1/traders/search", userA,
+		return s.doJSON(t, "POST", "/v1/traders/search", userA,
 			`{"period":"30D","venue":"trader-e2e-venue","sort_by":"pnl","sort_direction":"desc","limit":2,"page":`+
 				fmt.Sprintf("%d", page)+`}`)
 	}
@@ -560,7 +560,7 @@ func TestE2E_Trader_WSdiscovery(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"?venue=trader-e2e-venue", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/"+addr+"?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("detail: %d %v", code, resp)
 	}
@@ -608,7 +608,7 @@ func TestE2E_Trader_PositionsFlow(t *testing.T) {
 		t.Fatalf("sync timestamp: %v", err)
 	}
 
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/positions?venue=trader-e2e-venue", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/"+addr+"/positions?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("positions: %d %v", code, resp)
 	}
@@ -627,7 +627,7 @@ func TestE2E_Trader_PositionsFlow(t *testing.T) {
 	}
 
 	unknown := traderRandAddr(t)
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+unknown+"/positions?venue=trader-e2e-venue", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/"+unknown+"/positions?venue=trader-e2e-venue", "", "")
 	if code != http.StatusNotFound {
 		t.Errorf("unknown wallet must 404, got %d", code)
 	}
@@ -662,7 +662,7 @@ func TestE2E_Trader_ActivityFlow(t *testing.T) {
 		t.Fatalf("day2: %v", err)
 	}
 
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&limit=2", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&limit=2", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("activity p1: %d %v", code, resp)
 	}
@@ -679,7 +679,7 @@ func TestE2E_Trader_ActivityFlow(t *testing.T) {
 		t.Fatalf("live error has_more: %v", data)
 	}
 
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&cursor=forged.cursor", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/"+addr+"/activity?venue=trader-e2e-venue&cursor=forged.cursor", "", "")
 	if code != http.StatusBadRequest {
 		t.Errorf("bad cursor must 400, got %d", code)
 	}
@@ -704,7 +704,7 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 	}
 	v := "?venue=trader-e2e-venue"
 
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/balances"+v, "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/"+addr+"/balances"+v, "", "")
 	if code != http.StatusOK {
 		t.Fatalf("balances: %d %v", code, resp)
 	}
@@ -713,19 +713,19 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 		t.Errorf("nil on-demand ⇒ perp/spot null + error status: %v", bdata)
 	}
 
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/fills"+v, "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/"+addr+"/fills"+v, "", "")
 	if code != http.StatusOK {
 		t.Fatalf("fills: %d %v", code, resp)
 	}
 	if rows := resp["data"].(map[string]any)["rows"].([]any); len(rows) != 0 {
 		t.Errorf("fills empty: %v", rows)
 	}
-	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/fills"+v+"&limit=0", "", ""); code != http.StatusBadRequest {
+	if code, _ := s.doJSON(t, "GET", "/v1/traders/"+addr+"/fills"+v+"&limit=0", "", ""); code != http.StatusBadRequest {
 		t.Errorf("fills limit=0 must 400, got %d", code)
 	}
 
 	for _, st := range []string{"open", "historical"} {
-		code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/orders"+v+"&status="+st, "", "")
+		code, resp = s.doJSON(t, "GET", "/v1/traders/"+addr+"/orders"+v+"&status="+st, "", "")
 		if code != http.StatusOK {
 			t.Fatalf("orders %s: %d %v", st, code, resp)
 		}
@@ -737,22 +737,22 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 			t.Errorf("orders %s empty: %v", st, rows)
 		}
 	}
-	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/orders"+v+"&status=bad", "", ""); code != http.StatusBadRequest {
+	if code, _ := s.doJSON(t, "GET", "/v1/traders/"+addr+"/orders"+v+"&status=bad", "", ""); code != http.StatusBadRequest {
 		t.Errorf("orders status=bad must 400, got %d", code)
 	}
 
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/transfers"+v, "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/"+addr+"/transfers"+v, "", "")
 	if code != http.StatusOK {
 		t.Fatalf("transfers: %d %v", code, resp)
 	}
 	if rows := resp["data"].(map[string]any)["rows"].([]any); len(rows) != 0 {
 		t.Errorf("transfers empty: %v", rows)
 	}
-	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/transfers"+v+"&days=0", "", ""); code != http.StatusBadRequest {
+	if code, _ := s.doJSON(t, "GET", "/v1/traders/"+addr+"/transfers"+v+"&days=0", "", ""); code != http.StatusBadRequest {
 		t.Errorf("transfers days=0 must 400, got %d", code)
 	}
 
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/performance"+v, "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/"+addr+"/performance"+v, "", "")
 	if code != http.StatusOK {
 		t.Fatalf("performance empty: %d %v", code, resp)
 	}
@@ -778,7 +778,7 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("equity: %v", err)
 	}
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/performance"+v+"&period=30D", "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/"+addr+"/performance"+v+"&period=30D", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("performance seeded: %d %v", code, resp)
 	}
@@ -792,17 +792,17 @@ func TestE2E_Trader_WalletTabsFlow(t *testing.T) {
 	if eq := pdata["equity"].([]any); len(eq) != 0 {
 		t.Errorf("live error equity must be []: %v", pdata)
 	}
-	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/performance"+v+"&period=90D", "", ""); code != http.StatusBadRequest {
+	if code, _ := s.doJSON(t, "GET", "/v1/traders/"+addr+"/performance"+v+"&period=90D", "", ""); code != http.StatusBadRequest {
 		t.Errorf("performance period=90D must 400, got %d", code)
 	}
 
 	unknown := traderRandAddr(t)
 	for _, path := range []string{"balances", "fills", "orders", "transfers", "performance"} {
-		if code, _ := s.doJSON(t, "GET", "/api/v1/traders/"+unknown+"/"+path+v, "", ""); code != http.StatusNotFound {
+		if code, _ := s.doJSON(t, "GET", "/v1/traders/"+unknown+"/"+path+v, "", ""); code != http.StatusNotFound {
 			t.Errorf("%s unknown wallet must 404, got %d", path, code)
 		}
 	}
-	if code, _ := s.doJSON(t, "GET", "/api/v1/traders/not-an-address/balances"+v, "", ""); code != http.StatusBadRequest {
+	if code, _ := s.doJSON(t, "GET", "/v1/traders/not-an-address/balances"+v, "", ""); code != http.StatusBadRequest {
 		t.Errorf("invalid address must 400, got %d", code)
 	}
 }
@@ -838,7 +838,7 @@ func TestE2E_Trader_ActivitySortFilterCounts(t *testing.T) {
 	}
 	v := "?venue=trader-e2e-venue"
 
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=10", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/"+addr+"/activity"+v+"&sort=volume&dir=asc&limit=10", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("sort volume: %d %v", code, resp)
 	}
@@ -857,7 +857,7 @@ func TestE2E_Trader_ActivitySortFilterCounts(t *testing.T) {
 		}
 	}
 
-	code, resp = s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/activity"+v+"&result=win&side=long", "", "")
+	code, resp = s.doJSON(t, "GET", "/v1/traders/"+addr+"/activity"+v+"&result=win&side=long", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("filter: %d %v", code, resp)
 	}
@@ -881,7 +881,7 @@ func TestE2E_Trader_Positions_TPSL(t *testing.T) {
 	if _, _, err := repo.UpsertRegistry(ctx, s.venueID, addr, trader.SourceLeaderboard, nil, nil); err != nil {
 		t.Fatalf("registry: %v", err)
 	}
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/"+addr+"/positions?venue=trader-e2e-venue", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/"+addr+"/positions?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("positions: %d %v", code, resp)
 	}
@@ -892,7 +892,7 @@ func TestE2E_Trader_Positions_TPSL(t *testing.T) {
 	}
 	_ = rows
 	unknown := traderRandAddr(t)
-	code, _ = s.doJSON(t, "GET", "/api/v1/traders/"+unknown+"/positions?venue=trader-e2e-venue", "", "")
+	code, _ = s.doJSON(t, "GET", "/v1/traders/"+unknown+"/positions?venue=trader-e2e-venue", "", "")
 	if code != http.StatusNotFound {
 		t.Errorf("unknown wallet must 404, got %d", code)
 	}
@@ -912,12 +912,12 @@ func TestE2E_Positions_WS_Push(t *testing.T) {
 		return &trader.PositionSnapshotDTO{Positions: []trader.PositionDTO{}, DataStatus: trader.DataReady}, nil
 	})
 	h.WithWatcher(mgr)
-	r.GET("/api/v1/traders/ws", h.ServeWS)
+	r.GET("/v1/traders/ws", h.ServeWS)
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
 	wallet := traderRandAddr(t)
-	conn, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/api/v1/traders/ws?wallet="+wallet, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/v1/traders/ws?wallet="+wallet, nil)
 	if err != nil {
 		if resp != nil {
 			t.Fatalf("dial: %v status=%d", err, resp.StatusCode)
@@ -964,7 +964,7 @@ func TestE2E_Positions_WS_Push(t *testing.T) {
 // TestE2E_Search_ZeroResultsEmptyArray: impossible filter yields empty array not null.
 func TestE2E_Search_ZeroResultsEmptyArray(t *testing.T) {
 	s := setupTraderSuite(t)
-	code, resp := s.doJSON(t, "POST", "/api/v1/traders/search", "",
+	code, resp := s.doJSON(t, "POST", "/v1/traders/search", "",
 		`{"period":"30D","venue":"trader-e2e-venue","roi_min":999999}`)
 	if code != http.StatusOK {
 		t.Fatalf("search: %d %v", code, resp)

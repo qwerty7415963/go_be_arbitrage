@@ -511,7 +511,7 @@ func (a *App) Run() error {
 
 	// Start retention cleanup (every 24 hours): market tables with short
 	// windows plus trader daily/equity past 400d. Manual trigger remains at
-	// POST /api/v1/storage/retention/cleanup.
+	// POST /v1/storage/retention/cleanup.
 	if a.retentionService != nil {
 		go runRetentionWorker(ctx, a.logger, a.retentionService)
 	}

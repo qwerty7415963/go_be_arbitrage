@@ -817,8 +817,8 @@ func boolField(delta map[string]json.RawMessage, keys ...string) (*bool, bool) {
 // No reads of trader_period_metrics / trader_equity_daily (conformance §7); LB
 // refs are read live. TTL 12s + single-flight per (wallet,venue,period,mode);
 // HL error ⇒ stale with error else metrics stub + equity/series empty.
-func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period, 
-mode string, seriesOnly, sync bool) (*PerformanceDTO, error) {
+func (s *Service) Performance(ctx context.Context, venueCode, rawAddr, period,
+	mode string, seriesOnly, sync bool) (*PerformanceDTO, error) {
 	addr, err := NormalizeAddress(rawAddr)
 	if err != nil {
 		return nil, err
@@ -1086,4 +1086,3 @@ func (s *Service) performanceSynced(ctx context.Context, venueID uuid.UUID, addr
 	dto.MetricsSource = "synced"
 	return dto, nil
 }
-

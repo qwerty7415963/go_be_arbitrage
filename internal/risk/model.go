@@ -35,21 +35,21 @@ const (
 type RiskAction string
 
 const (
-	RiskActionApprove RiskAction = "APPROVE"
-	RiskActionReject  RiskAction = "REJECT"
+	RiskActionApprove  RiskAction = "APPROVE"
+	RiskActionReject   RiskAction = "REJECT"
 	RiskActionRestrict RiskAction = "RESTRICT"
-	RiskActionHalt    RiskAction = "HALT"
+	RiskActionHalt     RiskAction = "HALT"
 )
 
 type RiskPolicy struct {
-	ID        uuid.UUID      `json:"id"`
-	TenantID  uuid.UUID      `json:"tenant_id"`
-	Name      string         `json:"name"`
-	PolicyType PolicyType    `json:"policy_type"`
-	Config    RiskConfig     `json:"config"`
-	Status    PolicyStatus   `json:"status"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	ID         uuid.UUID    `json:"id"`
+	TenantID   uuid.UUID    `json:"tenant_id"`
+	Name       string       `json:"name"`
+	PolicyType PolicyType   `json:"policy_type"`
+	Config     RiskConfig   `json:"config"`
+	Status     PolicyStatus `json:"status"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
 }
 
 type RiskConfig struct {
@@ -64,14 +64,14 @@ type RiskConfig struct {
 }
 
 type RiskCheck struct {
-	ID              uuid.UUID   `json:"id"`
-	RiskDecisionID  *uuid.UUID  `json:"risk_decision_id,omitempty"`
-	CheckType       string      `json:"check_type"`
-	Result          CheckResult `json:"result"`
-	ObservedValue   interface{} `json:"observed_value"`
-	ThresholdValue  interface{} `json:"threshold_value,omitempty"`
-	ReasonCode      *string     `json:"reason_code,omitempty"`
-	CreatedAt       time.Time   `json:"created_at"`
+	ID             uuid.UUID   `json:"id"`
+	RiskDecisionID *uuid.UUID  `json:"risk_decision_id,omitempty"`
+	CheckType      string      `json:"check_type"`
+	Result         CheckResult `json:"result"`
+	ObservedValue  interface{} `json:"observed_value"`
+	ThresholdValue interface{} `json:"threshold_value,omitempty"`
+	ReasonCode     *string     `json:"reason_code,omitempty"`
+	CreatedAt      time.Time   `json:"created_at"`
 }
 
 type PreTradeCheckRequest struct {
@@ -86,15 +86,15 @@ type PreTradeCheckRequest struct {
 }
 
 type PreTradeCheckResult struct {
-	Action   RiskAction  `json:"action"`
-	Checks   []*RiskCheck `json:"checks"`
-	Reasons  []string    `json:"reasons,omitempty"`
+	Action  RiskAction   `json:"action"`
+	Checks  []*RiskCheck `json:"checks"`
+	Reasons []string     `json:"reasons,omitempty"`
 }
 
 type KillSwitch struct {
-	Enabled   bool      `json:"enabled"`
+	Enabled   bool       `json:"enabled"`
 	EnabledAt *time.Time `json:"enabled_at,omitempty"`
-	Reason    string    `json:"reason,omitempty"`
+	Reason    string     `json:"reason,omitempty"`
 }
 
 func DefaultRiskConfig() RiskConfig {

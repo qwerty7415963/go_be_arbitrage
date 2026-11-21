@@ -260,13 +260,13 @@ func TestEngine_AddRemovePolicy(t *testing.T) {
 	engine := NewEngine(DefaultRiskConfig())
 
 	policy := &RiskPolicy{
-		ID:        uuid.New(),
-		Name:      "Test Policy",
+		ID:         uuid.New(),
+		Name:       "Test Policy",
 		PolicyType: PolicyTypeGlobal,
-		Config:    DefaultRiskConfig(),
-		Status:    PolicyStatusActive,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Config:     DefaultRiskConfig(),
+		Status:     PolicyStatusActive,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
 	engine.AddPolicy(policy)

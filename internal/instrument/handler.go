@@ -27,7 +27,7 @@ func NewHandler(service *Service) *Handler {
 // @Success      201      {object}  api.Response{data=Instrument}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
 // @Failure      409      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/instruments [post]
+// @Router       /v1/instruments [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateInstrumentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -55,7 +55,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Param        id   path      string  true  "Instrument ID"
 // @Success      200  {object}  api.Response{data=Instrument}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/instruments/{id} [get]
+// @Router       /v1/instruments/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -82,7 +82,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  api.Response{data=[]Instrument}
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/instruments [get]
+// @Router       /v1/instruments [get]
 func (h *Handler) List(c *gin.Context) {
 	instruments, err := h.service.List(c.Request.Context())
 	if err != nil {
@@ -103,7 +103,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  api.Response{data=[]Instrument}
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/instruments/tradable [get]
+// @Router       /v1/instruments/tradable [get]
 func (h *Handler) ListTradable(c *gin.Context) {
 	instruments, err := h.service.ListTradable(c.Request.Context())
 	if err != nil {
@@ -128,7 +128,7 @@ func (h *Handler) ListTradable(c *gin.Context) {
 // @Success      200      {object}  api.Response{data=Instrument}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/instruments/{id} [put]
+// @Router       /v1/instruments/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -165,7 +165,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Success      200      {object}  api.Response
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/instruments/{id}/trading [put]
+// @Router       /v1/instruments/{id}/trading [put]
 func (h *Handler) EnableTrading(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -197,7 +197,7 @@ func (h *Handler) EnableTrading(c *gin.Context) {
 // @Param        id   path      string  true  "Instrument ID"
 // @Success      204
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/instruments/{id} [delete]
+// @Router       /v1/instruments/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -223,7 +223,7 @@ func (h *Handler) Delete(c *gin.Context) {
 // @Success      201      {object}  api.Response{data=VenueInstrument}
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
 // @Failure      409      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/venue-instruments [post]
+// @Router       /v1/venue-instruments [post]
 func (h *Handler) CreateVenueInstrument(c *gin.Context) {
 	var req CreateVenueInstrumentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -251,7 +251,7 @@ func (h *Handler) CreateVenueInstrument(c *gin.Context) {
 // @Param        venue_id  path      string  true  "Venue ID"
 // @Success      200       {object}  api.Response{data=[]VenueInstrument}
 // @Failure      400       {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/venue-instruments [get]
+// @Router       /v1/venue-instruments [get]
 func (h *Handler) ListVenueInstruments(c *gin.Context) {
 	venueID, err := uuid.Parse(c.Query("venue_id"))
 	if err != nil {

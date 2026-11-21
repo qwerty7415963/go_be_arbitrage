@@ -31,7 +31,7 @@ func NewHandler(service *Service) *Handler {
 // @Produce      json
 // @Param        market  query     string  false  "Filter by market type"  Enums(perp)
 // @Success      200     {object}  api.Response{data=[]VenuePerp}
-// @Router       /api/v1/public/venues [get]
+// @Router       /v1/public/venues [get]
 func (h *Handler) ListPerpVenues(c *gin.Context) {
 	venues, err := h.service.GetPerpVenues(c.Request.Context())
 	if err != nil {
@@ -59,7 +59,7 @@ func (h *Handler) ListPerpVenues(c *gin.Context) {
 // @Param        refresh       query     bool      false  "Force refresh cache"  Default(false)
 // @Success      200           {object}  api.Response{data=FundingArbitrageResponse,meta=api.Meta}
 // @Failure      400           {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/funding/arbitrage [get]
+// @Router       /v1/funding/arbitrage [get]
 func (h *Handler) GetFundingArbitrage(c *gin.Context) {
 	// Parse venue_ids (handles both duplicate params and comma-separated)
 	venueIDStrs := c.QueryArray("venue_id")

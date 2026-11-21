@@ -186,5 +186,3 @@ func TestRepo_PerformanceSeries_ModeCacheSeparation(t *testing.T) {
 		t.Fatalf("same-mode TTL hit must not refetch: calls=%d", got)
 	}
 }
-
-

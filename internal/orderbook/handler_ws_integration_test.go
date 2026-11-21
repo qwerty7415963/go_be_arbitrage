@@ -19,7 +19,7 @@ func setupIntegrationRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		orderbookRoutes := v1.Group("/orderbook")
 		{
@@ -70,7 +70,7 @@ func TestIntegrationWS_ConnectReceiveInitialSnapshot(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
@@ -151,7 +151,7 @@ func TestIntegrationWS_RealtimeUpdatePushed(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
@@ -239,7 +239,7 @@ func TestIntegrationWS_MultipleClients(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -297,7 +297,7 @@ func TestIntegrationWS_InvalidVenueID(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=invalid&instrument_id=" + uuid.New().String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=invalid&instrument_id=" + uuid.New().String()
 
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
@@ -322,7 +322,7 @@ func TestIntegrationWS_InvalidInstrumentID(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + uuid.New().String() + "&instrument_id=invalid"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + uuid.New().String() + "&instrument_id=invalid"
 
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
@@ -347,7 +347,7 @@ func TestIntegrationWS_MissingParams(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws"
 
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
@@ -386,7 +386,7 @@ func TestIntegrationWS_ClientDisconnect(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
@@ -445,7 +445,7 @@ func TestIntegrationWS_SnapshotContainsAllFields(t *testing.T) {
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {

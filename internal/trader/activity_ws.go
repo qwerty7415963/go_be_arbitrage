@@ -61,7 +61,7 @@ func (h *ActivityWSHandler) Watcher() *WatcherManager { return h.watcher }
 // @Param        channels  query  string  false  "Comma-separated channels: positions,orders,activity,trades"
 // @Success      200  {string}  string  "websocket upgrade"
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "invalid wallet"
-// @Router       /api/v1/traders/ws [get]
+// @Router       /v1/traders/ws [get]
 func (h *ActivityWSHandler) ServeWS(c *gin.Context) {
 	wallet, err := NormalizeAddress(c.Query("wallet"))
 	if err != nil {

@@ -605,8 +605,8 @@ tags `opportunities/strategies/risk/executions/reconciliation`.
 ## 19. Trader Scanner v1.1 (`internal/trader/`, `internal/tradergroup/`)
 
 Rewrite of the wallet scanner per `Hyperliquid_Trader_Scanner_BE_Spec_v1.1.docx`
-(spec v1.0 + approved deltas D1–D9). Contract: `POST /api/v1/traders/search`,
-`GET /api/v1/traders/{wallet}?venue=`, `/api/v1/trader-groups/...` (generic
+(spec v1.0 + approved deltas D1–D9). Contract: `POST /v1/traders/search`,
+`GET /v1/traders/{wallet}?venue=`, `/v1/trader-groups/...` (generic
 routes + `venue` param; multi-venue ready, V1 ships `venue=hyperliquid` only).
 Dual-run with §17 (`/wallets`, `/groups`) until the cutover release drops them.
 
@@ -709,7 +709,7 @@ the live server's workers write `venue=hyperliquid` rows into the shared DB.
 
 ### 19.9 Numbered pagination (CONTRACT.md 2026-10-06, BE worker)
 
-`POST /api/v1/traders/search` gains an additive numbered-pagination path:
+`POST /v1/traders/search` gains an additive numbered-pagination path:
 `page` (`*int`, `>= 1`; absent = legacy keyset path) switches to
 `LIMIT/OFFSET` (`offset = (page-1)*limit`) plus a `COUNT(*)` with identical
 filters for `total` / `total_pages = ceil(total / limit)`. When `page` is
@@ -955,7 +955,7 @@ descriptions + 5 stub definitions mirrored from `swagger.json`).
 ### 19.12 SYNC-FIX v1.1 (contract `SYNC-FIX-CONTRACT.md` frozen 2026-10-08)
 
 Additive over v1 (backfill 365d unchanged, no migration). B1 `POST
-/api/v1/traders/{wallet}/sync` (202 `queued`/`in_flight`/`recent`, 404 unknown
+/v1/traders/{wallet}/sync` (202 `queued`/`in_flight`/`recent`, 404 unknown
 wallet/venue, 400 bad address; singleflight + 10-min debounce const
 `SyncPriorityDebounceWindow`; dedicated drain sharing venue pacer + worker
 limit, 6h SyncAll unchanged). B2 `ActivityPage.data_status`
@@ -1445,7 +1445,7 @@ Note: OI is USD notional (Hyperliquid converted in adapter; consistent with Bina
 
 | ID | Case | Expected |
 |----|------|----------|
-| E2E-FND-01 | happy path | GET /api/v1/funding/arbitrage?venue_id=<A>,<B>: 200; exactly 1 pair; tokens len 1; symbol HUMA-PERP; funding_available=true; is_stale=false; venue_a_funding_rate 0.0001; venue_a_interval_seconds 28800; venue_a_oi 1000; venue_b_oi 2000; rate_1h_percent != nil; long_venue_id = lower-rate venue A; short = B; meta page=1 total_pages=1 has_more=false limit=50 |
+| E2E-FND-01 | happy path | GET /v1/funding/arbitrage?venue_id=<A>,<B>: 200; exactly 1 pair; tokens len 1; symbol HUMA-PERP; funding_available=true; is_stale=false; venue_a_funding_rate 0.0001; venue_a_interval_seconds 28800; venue_a_oi 1000; venue_b_oi 2000; rate_1h_percent != nil; long_venue_id = lower-rate venue A; short = B; meta page=1 total_pages=1 has_more=false limit=50 |
 | E2E-FND-02 | stale | default: 0 tokens; include_stale=true: 1 token with is_stale=true |
 | E2E-FND-03 | pagination | 3 tokens (T1,T4,T5), limit=2: page1 2 tokens has_more=true total_pages=2; page2 1 token has_more=false |
 | E2E-FND-04 | validation | 1 venue -> 400; duplicate venue_id -> 400 |
@@ -1454,7 +1454,7 @@ Note: OI is USD notional (Hyperliquid converted in adapter; consistent with Bina
 
 ### 19.22 Trader Overview (contract v2.0)
 
-Endpoint: GET /api/v1/traders/overview. Public (no JWT).
+Endpoint: GET /v1/traders/overview. Public (no JWT).
 
 #### Unit (internal/trader/overview_test.go)
 
@@ -1505,7 +1505,7 @@ Endpoint: GET /api/v1/traders/overview. Public (no JWT).
 
 ### 19.23 Bucket Detail (contract v2.1)
 
-Endpoint: GET /api/v1/traders/overview/buckets/:kind/:id (+ /wallets, /markets). Public (no JWT).
+Endpoint: GET /v1/traders/overview/buckets/:kind/:id (+ /wallets, /markets). Public (no JWT).
 
 #### Unit (internal/trader/overview_test.go)
 
@@ -1550,7 +1550,7 @@ Endpoint: GET /api/v1/traders/overview/buckets/:kind/:id (+ /wallets, /markets).
 
 ### 19.24 Trader Position Sync (contract manual sync)
 
-Endpoint: POST /api/v1/admin/traders/sync-positions. Admin (JWT + admin role).
+Endpoint: POST /v1/admin/traders/sync-positions. Admin (JWT + admin role).
 
 #### Unit (internal/trader/sync_test.go)
 
@@ -1649,8 +1649,8 @@ Endpoint: POST /api/v1/admin/traders/sync-positions. Admin (JWT + admin role).
 
 ### E2E
 - E2E_ASSET_LOGO_01: GET bucket detail markets_top includes asset_id and logo_url (ready) or empty/null (missing).
-- E2E_ASSET_LOGO_02: GET /api/v1/assets/logos/:assetId returns 200 for ready with Cache-Control: public, max-age=31536000, immutable + ETag; 304 on If-None-Match; 404 for missing.
-- E2E_ASSET_LOGO_03: POST /api/v1/admin/assets/logos/refresh returns 200 with enqueued count (admin auth).
+- E2E_ASSET_LOGO_02: GET /v1/assets/logos/:assetId returns 200 for ready with Cache-Control: public, max-age=31536000, immutable + ETag; 304 on If-None-Match; 404 for missing.
+- E2E_ASSET_LOGO_03: POST /v1/admin/assets/logos/refresh returns 200 with enqueued count (admin auth).
 - E2E_ASSET_LOGO_04: Serve route reads file from disk (no provider calls).
 
 ## Source-aware labels + live positions (bucket detail)
@@ -1670,7 +1670,7 @@ Endpoint: POST /api/v1/admin/traders/sync-positions. Admin (JWT + admin role).
 
 ### 19.27 Positions TP/SL (contract v2.2)
 
-Endpoint: GET /api/v1/traders/{wallet}/positions?venue=hyperliquid&sort=coin&dir=asc. Additive fields tp_pxs/sl_pxs (number[], always present).
+Endpoint: GET /v1/traders/{wallet}/positions?venue=hyperliquid&sort=coin&dir=asc. Additive fields tp_pxs/sl_pxs (number[], always present).
 
 #### Unit (internal/trader/positions_tpsl_test.go)
 
@@ -1749,7 +1749,7 @@ Endpoint: GET /api/v1/traders/{wallet}/positions?venue=hyperliquid&sort=coin&dir
 
 | ID | Case | Expected |
 |----|------|----------|
-| SRCH-EMPTY-03 | TestE2E_Search_ZeroResultsEmptyArray: POST /api/v1/traders/search roi_min 999999 | 200, data is [], meta.total 0 |
+| SRCH-EMPTY-03 | TestE2E_Search_ZeroResultsEmptyArray: POST /v1/traders/search roi_min 999999 | 200, data is [], meta.total 0 |
 
 ### 19.29 Event-driven position push (contract v2.3)
 
@@ -1774,7 +1774,7 @@ Endpoint: GET /api/v1/traders/{wallet}/positions?venue=hyperliquid&sort=coin&dir
 
 ### 19.30 Overview performance (contract v2.4)
 
-Endpoint: GET /api/v1/traders/overview (summary + buckets, no series) and GET /api/v1/traders/overview/series.
+Endpoint: GET /v1/traders/overview (summary + buckets, no series) and GET /v1/traders/overview/series.
 
 #### Handler
 | ID | Case | Expected |

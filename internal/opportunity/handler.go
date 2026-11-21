@@ -33,7 +33,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 // @Tags         opportunities
 // @Produce      json
 // @Success      200  {object}  api.Response{data=[]Opportunity}
-// @Router       /api/v1/opportunities [get]
+// @Router       /v1/opportunities [get]
 func (h *Handler) ListOpportunities(c *gin.Context) {
 	opps := h.service.GetAllOpportunities()
 
@@ -53,7 +53,7 @@ func (h *Handler) ListOpportunities(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=Opportunity}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902 invalid ID"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903 not found"
-// @Router       /api/v1/opportunities/{id} [get]
+// @Router       /v1/opportunities/{id} [get]
 func (h *Handler) GetOpportunity(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -79,7 +79,7 @@ func (h *Handler) GetOpportunity(c *gin.Context) {
 // @Param        type   path      string  true   "Opportunity type" Enums(PRICE_ARBITRAGE,FUNDING_ARBITRAGE,BASIS_ARBITRAGE)
 // @Success      200  {object}  api.Response{data=[]Opportunity}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902 invalid type"
-// @Router       /api/v1/opportunities/type/{type} [get]
+// @Router       /v1/opportunities/type/{type} [get]
 func (h *Handler) ListByType(c *gin.Context) {
 	oppType := c.Param("type")
 	switch OpportunityType(oppType) {
@@ -105,7 +105,7 @@ func (h *Handler) ListByType(c *gin.Context) {
 // @Param        instrument_id   path      string  true  "Instrument ID"
 // @Success      200  {object}  api.Response{data=[]Opportunity}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902 invalid ID"
-// @Router       /api/v1/opportunities/instrument/{instrument_id} [get]
+// @Router       /v1/opportunities/instrument/{instrument_id} [get]
 func (h *Handler) ListByInstrument(c *gin.Context) {
 	instrumentIDStr := c.Param("instrument_id")
 	instrumentID, err := uuid.Parse(instrumentIDStr)
@@ -128,7 +128,7 @@ func (h *Handler) ListByInstrument(c *gin.Context) {
 // @Tags         opportunities
 // @Produce      json
 // @Success      200  {object}  api.Response{data=ScanResult}
-// @Router       /api/v1/opportunities/scan [post]
+// @Router       /v1/opportunities/scan [post]
 func (h *Handler) TriggerScan(c *gin.Context) {
 	result := h.service.ScanNow()
 	api.RespondSuccess(c, result)
@@ -142,7 +142,7 @@ func (h *Handler) TriggerScan(c *gin.Context) {
 // @Param        id   path      string  true  "Opportunity ID"
 // @Success      200  {object}  api.Response{data=map[string]string}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902 invalid ID"
-// @Router       /api/v1/opportunities/{id} [delete]
+// @Router       /v1/opportunities/{id} [delete]
 func (h *Handler) RemoveOpportunity(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)

@@ -31,7 +31,7 @@ func NewHandler(service *Service, hub *WsHub) *Handler {
 // @Success      200  {object}  api.Response{data=OrderBookDepth}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/orderbook/depth [get]
+// @Router       /v1/orderbook/depth [get]
 func (h *Handler) GetOrderBook(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")
@@ -107,7 +107,7 @@ func (h *Handler) GetOrderBook(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=OrderBookHealth}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/orderbook/health [get]
+// @Router       /v1/orderbook/health [get]
 func (h *Handler) GetHealth(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")
@@ -163,7 +163,7 @@ func (h *Handler) GetHealth(c *gin.Context) {
 // @Success      200  {object}  api.Response
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/orderbook/resync [post]
+// @Router       /v1/orderbook/resync [post]
 func (h *Handler) RequestResync(c *gin.Context) {
 	var req SubscribeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -203,7 +203,7 @@ func (h *Handler) RequestResync(c *gin.Context) {
 // @Param        instrument_id  query      string  true  "Instrument ID"
 // @Success      200  {object}  api.Response{data=map[string]bool}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/orderbook/tradable [get]
+// @Router       /v1/orderbook/tradable [get]
 func (h *Handler) GetTradable(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")
@@ -249,7 +249,7 @@ func (h *Handler) GetTradable(c *gin.Context) {
 // @Param        depth          query      int     false "Depth levels (default 10, max 20)"
 // @Success      101  {object}  string
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/orderbook/ws [get]
+// @Router       /v1/orderbook/ws [get]
 func (h *Handler) SubscribeWS(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")

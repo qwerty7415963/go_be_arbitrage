@@ -2805,7 +2805,61 @@ info:
   title: Arbitrage Platform API
   version: "1.0"
 paths:
-  /api/v1/admin/assets/logos:
+  /health:
+    get:
+      description: Check service health status including all registered checkers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.HealthResponse'
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Health check
+      tags:
+      - system
+  /ready:
+    get:
+      description: Check if service is ready to accept requests
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.ReadyResponse'
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      summary: Readiness check
+      tags:
+      - system
+  /v1/admin/assets/logos:
     get:
       description: List asset logos filtered by status. Requires JWT + admin.
       parameters:
@@ -2851,7 +2905,7 @@ paths:
       summary: List asset logos by status
       tags:
       - admin-assets
-  /api/v1/admin/assets/logos/refresh:
+  /v1/admin/assets/logos/refresh:
     post:
       consumes:
       - application/json
@@ -2886,7 +2940,7 @@ paths:
       summary: Refresh asset logos
       tags:
       - admin-assets
-  /api/v1/admin/perp-dexes:
+  /v1/admin/perp-dexes:
     get:
       description: Get admin-configurable perp dex list. Requires JWT + admin role.
       produces:
@@ -2979,7 +3033,7 @@ paths:
       summary: Update perp dex list
       tags:
       - admin-perp-dexes
-  /api/v1/admin/telegram/settings:
+  /v1/admin/telegram/settings:
     get:
       description: Get admin-configurable Telegram settings. Requires JWT + admin
         role.
@@ -3074,7 +3128,7 @@ paths:
       summary: Update Telegram settings
       tags:
       - admin-telegram
-  /api/v1/admin/traders/sync-positions:
+  /v1/admin/traders/sync-positions:
     post:
       consumes:
       - application/json
@@ -3139,7 +3193,7 @@ paths:
       summary: Manually sync trader positions (admin)
       tags:
       - traders
-  /api/v1/assets/logos/{assetId}:
+  /v1/assets/logos/{assetId}:
     get:
       description: Serve a stored asset logo file.
       parameters:
@@ -3162,7 +3216,7 @@ paths:
       summary: Get asset logo
       tags:
       - assets
-  /api/v1/auth/change-password:
+  /v1/auth/change-password:
     post:
       consumes:
       - application/json
@@ -3192,7 +3246,7 @@ paths:
       summary: Change password
       tags:
       - auth
-  /api/v1/auth/login:
+  /v1/auth/login:
     post:
       consumes:
       - application/json
@@ -3223,7 +3277,7 @@ paths:
       summary: Login
       tags:
       - auth
-  /api/v1/auth/logout:
+  /v1/auth/logout:
     post:
       description: Revoke all refresh tokens for current user
       produces:
@@ -3240,7 +3294,7 @@ paths:
       summary: Logout
       tags:
       - auth
-  /api/v1/auth/me:
+  /v1/auth/me:
     get:
       description: Get authenticated user's profile
       produces:
@@ -3264,7 +3318,7 @@ paths:
       summary: Get current user
       tags:
       - auth
-  /api/v1/auth/refresh:
+  /v1/auth/refresh:
     post:
       consumes:
       - application/json
@@ -3295,7 +3349,7 @@ paths:
       summary: Refresh token
       tags:
       - auth
-  /api/v1/auth/register:
+  /v1/auth/register:
     post:
       consumes:
       - application/json
@@ -3330,7 +3384,7 @@ paths:
       summary: Register new user
       tags:
       - auth
-  /api/v1/auth/wallet/{wallet_id}:
+  /v1/auth/wallet/{wallet_id}:
     delete:
       description: Remove a wallet from the authenticated user
       parameters:
@@ -3358,7 +3412,7 @@ paths:
       tags:
       - auth
       - web3
-  /api/v1/auth/wallet/link:
+  /v1/auth/wallet/link:
     post:
       consumes:
       - application/json
@@ -3389,7 +3443,7 @@ paths:
       tags:
       - auth
       - web3
-  /api/v1/auth/wallet/list:
+  /v1/auth/wallet/list:
     get:
       description: Get all wallet addresses linked to the authenticated user
       produces:
@@ -3416,7 +3470,7 @@ paths:
       tags:
       - auth
       - web3
-  /api/v1/auth/wallet/nonce:
+  /v1/auth/wallet/nonce:
     post:
       consumes:
       - application/json
@@ -3448,7 +3502,7 @@ paths:
       tags:
       - auth
       - web3
-  /api/v1/auth/wallet/verify:
+  /v1/auth/wallet/verify:
     post:
       consumes:
       - application/json
@@ -3484,7 +3538,7 @@ paths:
       tags:
       - auth
       - web3
-  /api/v1/executions:
+  /v1/executions:
     get:
       description: Executions for the caller's tenant (currently always an empty array
         — storage not wired). Requires JWT + admin role (401 AUTH-003 without token,
@@ -3591,7 +3645,7 @@ paths:
       summary: Create execution
       tags:
       - executions
-  /api/v1/executions/{id}:
+  /v1/executions/{id}:
     get:
       description: One execution by ID. Requires JWT + admin role.
       parameters:
@@ -3653,7 +3707,7 @@ paths:
       summary: Get execution
       tags:
       - executions
-  /api/v1/executions/{id}/cancel:
+  /v1/executions/{id}/cancel:
     post:
       description: Cancels an execution. Requires JWT + admin role.
       parameters:
@@ -3717,7 +3771,7 @@ paths:
       summary: Cancel execution
       tags:
       - executions
-  /api/v1/executions/{id}/fills:
+  /v1/executions/{id}/fills:
     get:
       description: Fills for one execution; empty array when none. Requires JWT +
         admin role.
@@ -3782,7 +3836,7 @@ paths:
       summary: List execution fills
       tags:
       - executions
-  /api/v1/executions/{id}/legs:
+  /v1/executions/{id}/legs:
     get:
       description: Execution legs (per-venue splits) for one execution; empty array
         when none. Requires JWT + admin role.
@@ -3847,7 +3901,7 @@ paths:
       summary: List execution legs
       tags:
       - executions
-  /api/v1/executions/{id}/submit:
+  /v1/executions/{id}/submit:
     post:
       description: Submits an execution to its venue adapter. Requires JWT + admin
         role.
@@ -3912,7 +3966,7 @@ paths:
       summary: Submit execution
       tags:
       - executions
-  /api/v1/funding/arbitrage:
+  /v1/funding/arbitrage:
     get:
       description: Get funding arbitrage table for selected venues
       parameters:
@@ -3989,7 +4043,7 @@ paths:
       summary: Get funding arbitrage opportunities
       tags:
       - funding-arbitrage
-  /api/v1/instruments:
+  /v1/instruments:
     get:
       description: Get all instruments
       produces:
@@ -4062,7 +4116,7 @@ paths:
       summary: Create instrument
       tags:
       - instruments
-  /api/v1/instruments/{id}:
+  /v1/instruments/{id}:
     delete:
       description: Delete instrument by ID
       parameters:
@@ -4169,7 +4223,7 @@ paths:
       summary: Update instrument
       tags:
       - instruments
-  /api/v1/instruments/{id}/trading:
+  /v1/instruments/{id}/trading:
     put:
       consumes:
       - application/json
@@ -4214,7 +4268,7 @@ paths:
       summary: Enable/disable trading
       tags:
       - instruments
-  /api/v1/instruments/tradable:
+  /v1/instruments/tradable:
     get:
       description: Get all instruments with trading enabled
       produces:
@@ -4243,7 +4297,7 @@ paths:
       summary: List tradable instruments
       tags:
       - instruments
-  /api/v1/market/funding:
+  /v1/market/funding:
     get:
       description: Get latest funding rate for a venue instrument
       parameters:
@@ -4290,7 +4344,7 @@ paths:
       summary: Get latest funding rate
       tags:
       - market
-  /api/v1/market/subscribe:
+  /v1/market/subscribe:
     get:
       description: Subscribe to market data updates via WebSocket
       parameters:
@@ -4328,7 +4382,7 @@ paths:
       summary: Subscribe to market data
       tags:
       - market
-  /api/v1/market/subscriptions:
+  /v1/market/subscriptions:
     get:
       description: Get all active market data subscriptions
       produces:
@@ -4348,7 +4402,7 @@ paths:
       summary: Get active subscriptions
       tags:
       - market
-  /api/v1/market/ticker:
+  /v1/market/ticker:
     get:
       description: Get latest ticker for a venue instrument
       parameters:
@@ -4395,7 +4449,7 @@ paths:
       summary: Get latest ticker
       tags:
       - market
-  /api/v1/market/trades:
+  /v1/market/trades:
     get:
       description: Get recent trades for a venue instrument
       parameters:
@@ -4439,7 +4493,7 @@ paths:
       summary: Get recent trades
       tags:
       - market
-  /api/v1/opportunities:
+  /v1/opportunities:
     get:
       description: All in-memory opportunities from the live scanner, newest first;
         empty array when none. Public endpoint — no auth.
@@ -4460,7 +4514,7 @@ paths:
       summary: List opportunities (public)
       tags:
       - opportunities
-  /api/v1/opportunities/{id}:
+  /v1/opportunities/{id}:
     delete:
       description: Drops one opportunity from the in-memory store; idempotent. Public
         endpoint — no auth.
@@ -4537,7 +4591,7 @@ paths:
       summary: Get opportunity (public)
       tags:
       - opportunities
-  /api/v1/opportunities/instrument/{instrument_id}:
+  /v1/opportunities/instrument/{instrument_id}:
     get:
       description: Opportunities for one instrument ID. Public endpoint — no auth.
       parameters:
@@ -4572,7 +4626,7 @@ paths:
       summary: List opportunities by instrument (public)
       tags:
       - opportunities
-  /api/v1/opportunities/scan:
+  /v1/opportunities/scan:
     post:
       description: Runs the opportunity scanner synchronously and returns what it
         found (count, venues, duration). Public endpoint — no auth.
@@ -4591,7 +4645,7 @@ paths:
       summary: Trigger an immediate scan (public)
       tags:
       - opportunities
-  /api/v1/opportunities/type/{type}:
+  /v1/opportunities/type/{type}:
     get:
       description: Opportunities filtered by arbitrage type. Public endpoint — no
         auth.
@@ -4631,7 +4685,7 @@ paths:
       summary: List opportunities by type (public)
       tags:
       - opportunities
-  /api/v1/orderbook/depth:
+  /v1/orderbook/depth:
     get:
       description: Get L2 order book for a venue instrument
       parameters:
@@ -4682,7 +4736,7 @@ paths:
       summary: Get order book
       tags:
       - orderbook
-  /api/v1/orderbook/health:
+  /v1/orderbook/health:
     get:
       description: Get health status of an order book
       parameters:
@@ -4729,7 +4783,7 @@ paths:
       summary: Get order book health
       tags:
       - orderbook
-  /api/v1/orderbook/resync:
+  /v1/orderbook/resync:
     post:
       description: Request a resync of the order book
       parameters:
@@ -4767,7 +4821,7 @@ paths:
       summary: Request order book resync
       tags:
       - orderbook
-  /api/v1/orderbook/tradable:
+  /v1/orderbook/tradable:
     get:
       description: Check if the order book is healthy and tradable
       parameters:
@@ -4807,7 +4861,7 @@ paths:
       summary: Check if order book is tradable
       tags:
       - orderbook
-  /api/v1/orderbook/ws:
+  /v1/orderbook/ws:
     get:
       description: Subscribe to real-time order book updates via WebSocket
       parameters:
@@ -4842,7 +4896,7 @@ paths:
       summary: Subscribe to order book WebSocket
       tags:
       - orderbook
-  /api/v1/ping:
+  /v1/ping:
     get:
       description: Simple ping endpoint to test connectivity
       produces:
@@ -4857,7 +4911,7 @@ paths:
       summary: Ping test
       tags:
       - system
-  /api/v1/public/venues:
+  /v1/public/venues:
     get:
       description: Get all active venues that support perpetual trading
       parameters:
@@ -4884,7 +4938,7 @@ paths:
       summary: List perp venues
       tags:
       - funding-arbitrage
-  /api/v1/reconciliation/runs:
+  /v1/reconciliation/runs:
     get:
       description: Latest reconciliation runs for the caller's tenant (max 50). Requires
         JWT + admin role.
@@ -5000,7 +5054,7 @@ paths:
       summary: Start reconciliation run
       tags:
       - reconciliation
-  /api/v1/reconciliation/runs/{id}:
+  /v1/reconciliation/runs/{id}:
     get:
       description: One reconciliation run by ID. Requires JWT + admin role.
       parameters:
@@ -5062,7 +5116,7 @@ paths:
       summary: Get reconciliation run
       tags:
       - reconciliation
-  /api/v1/reconciliation/runs/{id}/items:
+  /v1/reconciliation/runs/{id}/items:
     get:
       description: Discrepancy items for one run; empty array when none. Requires
         JWT + admin role.
@@ -5127,7 +5181,7 @@ paths:
       summary: List reconciliation items
       tags:
       - reconciliation
-  /api/v1/risk/kill-switch:
+  /v1/risk/kill-switch:
     get:
       description: Current kill switch status (enabled flag, reason, timestamp). Requires
         JWT + admin role.
@@ -5166,7 +5220,7 @@ paths:
       summary: Get kill switch state
       tags:
       - risk
-  /api/v1/risk/kill-switch/disable:
+  /v1/risk/kill-switch/disable:
     post:
       description: Resets the global kill switch. Requires JWT + admin role.
       produces:
@@ -5206,7 +5260,7 @@ paths:
       summary: Disable kill switch
       tags:
       - risk
-  /api/v1/risk/kill-switch/enable:
+  /v1/risk/kill-switch/enable:
     post:
       consumes:
       - application/json
@@ -5258,7 +5312,7 @@ paths:
       summary: Enable kill switch
       tags:
       - risk
-  /api/v1/risk/policies:
+  /v1/risk/policies:
     get:
       description: Risk policies for the caller's tenant. Requires JWT + admin role
         (401 AUTH-003 without token, 403 AUTH-005 for non-admin).
@@ -5373,7 +5427,7 @@ paths:
       summary: Create risk policy
       tags:
       - risk
-  /api/v1/risk/policies/{id}:
+  /v1/risk/policies/{id}:
     delete:
       description: Deletes a risk policy by ID. Requires JWT + admin role.
       parameters:
@@ -5567,7 +5621,7 @@ paths:
       summary: Update risk policy
       tags:
       - risk
-  /api/v1/risk/pre-trade-check:
+  /v1/risk/pre-trade-check:
     post:
       consumes:
       - application/json
@@ -5624,7 +5678,7 @@ paths:
       summary: Pre-trade risk check
       tags:
       - risk
-  /api/v1/storage/audit/{tenant_id}:
+  /v1/storage/audit/{tenant_id}:
     get:
       consumes:
       - application/json
@@ -5659,7 +5713,7 @@ paths:
       summary: List audit events
       tags:
       - storage
-  /api/v1/storage/decisions/risk/{instance_id}:
+  /v1/storage/decisions/risk/{instance_id}:
     get:
       consumes:
       - application/json
@@ -5694,7 +5748,7 @@ paths:
       summary: List risk decisions
       tags:
       - storage
-  /api/v1/storage/decisions/strategy/{instance_id}:
+  /v1/storage/decisions/strategy/{instance_id}:
     get:
       consumes:
       - application/json
@@ -5729,7 +5783,7 @@ paths:
       summary: List strategy decisions
       tags:
       - storage
-  /api/v1/storage/opportunities:
+  /v1/storage/opportunities:
     get:
       consumes:
       - application/json
@@ -5764,7 +5818,7 @@ paths:
       summary: List opportunities
       tags:
       - storage
-  /api/v1/storage/opportunities/{id}:
+  /v1/storage/opportunities/{id}:
     get:
       consumes:
       - application/json
@@ -5789,7 +5843,7 @@ paths:
       summary: Get opportunity by ID
       tags:
       - storage
-  /api/v1/storage/replay/market:
+  /v1/storage/replay/market:
     get:
       consumes:
       - application/json
@@ -5832,7 +5886,7 @@ paths:
       summary: Replay market events
       tags:
       - storage
-  /api/v1/storage/retention/cleanup:
+  /v1/storage/retention/cleanup:
     post:
       consumes:
       - application/json
@@ -5851,7 +5905,7 @@ paths:
       summary: Cleanup old data
       tags:
       - storage
-  /api/v1/strategies:
+  /v1/strategies:
     get:
       description: 'Strategy instances for the caller''s tenant. Requires JWT + admin
         role (group middleware: 401 AUTH-003 without token, 403 AUTH-005 for non-admin).'
@@ -5966,7 +6020,7 @@ paths:
       summary: Create strategy instance
       tags:
       - strategies
-  /api/v1/strategies/{id}:
+  /v1/strategies/{id}:
     delete:
       description: Deletes a strategy instance by ID. Requires JWT + admin role.
       parameters:
@@ -6160,7 +6214,7 @@ paths:
       summary: Update strategy instance
       tags:
       - strategies
-  /api/v1/strategies/{id}/decisions:
+  /v1/strategies/{id}/decisions:
     get:
       description: Recent decisions for one strategy instance. Requires JWT + admin
         role.
@@ -6231,7 +6285,7 @@ paths:
       summary: List strategy decisions
       tags:
       - strategies
-  /api/v1/strategies/{id}/start:
+  /v1/strategies/{id}/start:
     post:
       description: Starts an existing strategy instance. Requires JWT + admin role.
       parameters:
@@ -6295,7 +6349,7 @@ paths:
       summary: Start strategy instance
       tags:
       - strategies
-  /api/v1/strategies/{id}/stop:
+  /v1/strategies/{id}/stop:
     post:
       description: Stops a running strategy instance. Requires JWT + admin role.
       parameters:
@@ -6359,7 +6413,7 @@ paths:
       summary: Stop strategy instance
       tags:
       - strategies
-  /api/v1/telegram/link:
+  /v1/telegram/link:
     delete:
       description: Remove the Telegram binding for the authenticated user. Requires
         JWT.
@@ -6437,7 +6491,7 @@ paths:
       summary: Link Telegram account
       tags:
       - telegram
-  /api/v1/telegram/status:
+  /v1/telegram/status:
     get:
       description: Get the current Telegram binding status for the authenticated user.
         Requires JWT.
@@ -6467,7 +6521,7 @@ paths:
       summary: Telegram link status
       tags:
       - telegram
-  /api/v1/trader-groups:
+  /v1/trader-groups:
     get:
       description: The caller's groups with member counts. Requires JWT.
       produces:
@@ -6572,7 +6626,7 @@ paths:
       summary: Create trader group
       tags:
       - trader-groups
-  /api/v1/trader-groups/{id}:
+  /v1/trader-groups/{id}:
     delete:
       description: Deletes an owned group; memberships cascade, registry rows stay.
         Requires JWT.
@@ -6768,7 +6822,7 @@ paths:
       summary: Update trader group
       tags:
       - trader-groups
-  /api/v1/trader-groups/{id}/members:
+  /v1/trader-groups/{id}/members:
     delete:
       consumes:
       - application/json
@@ -7063,7 +7117,7 @@ paths:
       summary: Add group members
       tags:
       - trader-groups
-  /api/v1/traders/{wallet}:
+  /v1/traders/{wallet}:
     get:
       description: LIVE registry header + overview metrics for one wallet (LIVE-CONTRACT
         v1.2 §1.7). Registry is a light DB read (404 unknown wallet); metrics are
@@ -7127,7 +7181,7 @@ paths:
       summary: Trader detail (public, live)
       tags:
       - traders
-  /api/v1/traders/{wallet}/activity:
+  /v1/traders/{wallet}/activity:
     get:
       description: LIVE closed trades for one wallet (LIVE-CONTRACT v1.2 §1.2). Source
         is live userFillsByTime over the trailing 30d → in-memory ReconstructTrades
@@ -7234,7 +7288,7 @@ paths:
       summary: Trader recent activity (public, live)
       tags:
       - traders
-  /api/v1/traders/{wallet}/balances:
+  /v1/traders/{wallet}/balances:
     get:
       description: Perp + spot balances on-demand with short TTL cache (WALLET-TABS
         v1 §1.3, WS2). Either side may be null on partial failure; data_status reflects
@@ -7283,7 +7337,7 @@ paths:
       summary: Trader balances (public, on-demand)
       tags:
       - traders
-  /api/v1/traders/{wallet}/fills:
+  /v1/traders/{wallet}/fills:
     get:
       description: Recent user fills newest-first with tid keyset pagination (WALLET-TABS
         v1 §1.4, WS4). Source userFills (2000 most recent); FE paginates through the
@@ -7341,7 +7395,7 @@ paths:
       summary: Trader fills (public, on-demand)
       tags:
       - traders
-  /api/v1/traders/{wallet}/orders:
+  /v1/traders/{wallet}/orders:
     get:
       description: Open or historical orders (WALLET-TABS v1 §1.5, WS3). order_status/status_timestamp
         present only for status=historical. Short TTL cache.
@@ -7402,7 +7456,7 @@ paths:
       summary: Trader orders (public, on-demand)
       tags:
       - traders
-  /api/v1/traders/{wallet}/performance:
+  /v1/traders/{wallet}/performance:
     get:
       description: 'LIVE overview metrics + equity curve + PNL/VALUE portfolio series
         for one wallet (LIVE-CONTRACT v1.2 §1.7, contract v1.7). Metrics computed
@@ -7479,7 +7533,7 @@ paths:
       summary: Trader performance (public, live)
       tags:
       - traders
-  /api/v1/traders/{wallet}/positions:
+  /v1/traders/{wallet}/positions:
     get:
       description: LIVE open-position snapshot for one wallet (LIVE-CONTRACT v1.2
         §1.1). Source is live clearinghouseState per request behind the interactive
@@ -7553,7 +7607,7 @@ paths:
       summary: Trader open positions (public, live)
       tags:
       - traders
-  /api/v1/traders/{wallet}/transfers:
+  /v1/traders/{wallet}/transfers:
     get:
       description: Non-funding ledger transfers newest-first with time+hash keyset
         pagination (WALLET-TABS v1 §1.6, WS5). Funding excluded by decision. Short
@@ -7616,7 +7670,7 @@ paths:
       summary: Trader transfers (public, on-demand)
       tags:
       - traders
-  /api/v1/traders/markets/{market}:
+  /v1/traders/markets/{market}:
     get:
       parameters:
       - description: Market (coin)
@@ -7661,7 +7715,7 @@ paths:
       summary: Market detail (public)
       tags:
       - traders
-  /api/v1/traders/markets/{market}/trades:
+  /v1/traders/markets/{market}/trades:
     get:
       parameters:
       - description: Market (coin)
@@ -7729,7 +7783,7 @@ paths:
       summary: Market trades (public)
       tags:
       - traders
-  /api/v1/traders/markets/{market}/wallets:
+  /v1/traders/markets/{market}/wallets:
     get:
       parameters:
       - description: Market (coin)
@@ -7814,7 +7868,7 @@ paths:
       summary: Market wallets (public)
       tags:
       - traders
-  /api/v1/traders/overview:
+  /v1/traders/overview:
     get:
       description: Aggregate trader overview buckets (PnL + account) with series.
       parameters:
@@ -7870,7 +7924,7 @@ paths:
       summary: Trader overview (public)
       tags:
       - traders
-  /api/v1/traders/overview/buckets/{kind}/{id}:
+  /v1/traders/overview/buckets/{kind}/{id}:
     get:
       parameters:
       - description: Bucket kind
@@ -7943,7 +7997,7 @@ paths:
       summary: Bucket detail (public)
       tags:
       - traders
-  /api/v1/traders/overview/buckets/{kind}/{id}/markets:
+  /v1/traders/overview/buckets/{kind}/{id}/markets:
     get:
       parameters:
       - description: Bucket kind
@@ -8051,7 +8105,7 @@ paths:
       summary: Bucket markets (public)
       tags:
       - traders
-  /api/v1/traders/overview/buckets/{kind}/{id}/wallets:
+  /v1/traders/overview/buckets/{kind}/{id}/wallets:
     get:
       parameters:
       - description: Bucket kind
@@ -8148,7 +8202,7 @@ paths:
       summary: Bucket wallets (public)
       tags:
       - traders
-  /api/v1/traders/overview/series:
+  /v1/traders/overview/series:
     get:
       description: PnL and account series for trader overview.
       parameters:
@@ -8204,7 +8258,7 @@ paths:
       summary: Trader overview series (public)
       tags:
       - traders
-  /api/v1/traders/search:
+  /v1/traders/search:
     post:
       consumes:
       - application/json
@@ -8276,7 +8330,7 @@ paths:
       summary: Search traders (public)
       tags:
       - traders
-  /api/v1/traders/ws:
+  /v1/traders/ws:
     get:
       description: 'Realtime wallet events for one watched wallet (LIVE-CONTRACT v1.2
         §2 + SIDEBAR-3EVENTS D2). Query wallet=0x... (lowercased server-side). Transport
@@ -8320,7 +8374,7 @@ paths:
       summary: Trader wallet stream (public WS)
       tags:
       - traders
-  /api/v1/unified/health:
+  /v1/unified/health:
     get:
       description: Get health overview for all venues
       produces:
@@ -8338,7 +8392,7 @@ paths:
       summary: Get health overview
       tags:
       - unified
-  /api/v1/unified/instruments:
+  /v1/unified/instruments:
     get:
       description: Get all unified instrument states across venues
       produces:
@@ -8358,7 +8412,7 @@ paths:
       summary: Get all unified instrument states
       tags:
       - unified
-  /api/v1/unified/instruments/{id}:
+  /v1/unified/instruments/{id}:
     get:
       description: Get unified state for a specific instrument
       parameters:
@@ -8400,7 +8454,7 @@ paths:
       summary: Get unified instrument state
       tags:
       - unified
-  /api/v1/unified/instruments/{id}/depth:
+  /v1/unified/instruments/{id}/depth:
     get:
       description: Get executable depth for an instrument
       parameters:
@@ -8446,7 +8500,7 @@ paths:
       summary: Get executable depth
       tags:
       - unified
-  /api/v1/unified/ws:
+  /v1/unified/ws:
     get:
       description: Subscribe to real-time unified state updates via WebSocket
       parameters:
@@ -8474,7 +8528,7 @@ paths:
       summary: Subscribe to unified state updates
       tags:
       - unified
-  /api/v1/venue-instruments:
+  /v1/venue-instruments:
     get:
       description: Get all venue instruments for a venue
       parameters:
@@ -8553,7 +8607,7 @@ paths:
       summary: Create venue instrument mapping
       tags:
       - instruments
-  /api/v1/venues:
+  /v1/venues:
     get:
       description: Get all venues. Requires JWT + admin role
       produces:
@@ -8667,7 +8721,7 @@ paths:
       summary: Create venue
       tags:
       - venues
-  /api/v1/venues/{id}:
+  /v1/venues/{id}:
     delete:
       description: Delete venue by ID. Requires JWT + admin role
       parameters:
@@ -8834,60 +8888,6 @@ paths:
       summary: Update venue
       tags:
       - venues
-  /health:
-    get:
-      description: Check service health status including all registered checkers
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.HealthResponse'
-              type: object
-        "503":
-          description: Service Unavailable
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/api.ErrorBody'
-              type: object
-      summary: Health check
-      tags:
-      - system
-  /ready:
-    get:
-      description: Check if service is ready to accept requests
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ReadyResponse'
-              type: object
-        "503":
-          description: Service Unavailable
-          schema:
-            allOf:
-            - $ref: '#/definitions/api.Response'
-            - properties:
-                error:
-                  $ref: '#/definitions/api.ErrorBody'
-              type: object
-      summary: Readiness check
-      tags:
-      - system
 schemes:
 - http
 - https

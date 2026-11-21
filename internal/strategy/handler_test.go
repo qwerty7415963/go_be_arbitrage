@@ -92,7 +92,7 @@ func setupTestRouter(handler *Handler) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(contextMiddleware())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		v1.GET("/strategies", handler.List)
 		v1.POST("/strategies", handler.Create)
@@ -123,7 +123,7 @@ func TestHandler_List_WhenValid_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/strategies", nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -145,7 +145,7 @@ func TestHandler_List_WhenEmpty_ReturnsEmptyList(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/strategies", nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -177,7 +177,7 @@ func TestHandler_Create_WhenValid_Returns201(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/strategies", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -201,7 +201,7 @@ func TestHandler_Create_WhenInvalidBody_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies", bytes.NewBuffer([]byte("invalid json")))
+	req, _ := http.NewRequest("POST", "/v1/strategies", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -221,7 +221,7 @@ func TestHandler_Create_WhenMissingRequiredFields_Returns400(t *testing.T) {
 	body := map[string]string{"name": "Test Strategy"}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/strategies", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -246,7 +246,7 @@ func TestHandler_Create_WhenUnknownStrategyType_Returns500(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/strategies", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -274,7 +274,7 @@ func TestHandler_GetByID_WhenFound_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/strategies/"+v.ID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies/"+v.ID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -289,7 +289,7 @@ func TestHandler_GetByID_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/strategies/not-a-uuid", nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -305,7 +305,7 @@ func TestHandler_GetByID_WhenNotFound_Returns404(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	randomID := uuid.New()
-	req, _ := http.NewRequest("GET", "/api/v1/strategies/"+randomID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies/"+randomID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -334,7 +334,7 @@ func TestHandler_Update_WhenValid_Returns200(t *testing.T) {
 	updateBody := map[string]string{"name": "Updated Strategy"}
 	jsonBody, _ := json.Marshal(updateBody)
 
-	req, _ := http.NewRequest("PUT", "/api/v1/strategies/"+v.ID.String(), bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("PUT", "/v1/strategies/"+v.ID.String(), bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -354,7 +354,7 @@ func TestHandler_Update_WhenInvalidID_Returns400(t *testing.T) {
 	updateBody := map[string]string{"name": "Updated Strategy"}
 	jsonBody, _ := json.Marshal(updateBody)
 
-	req, _ := http.NewRequest("PUT", "/api/v1/strategies/not-a-uuid", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("PUT", "/v1/strategies/not-a-uuid", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -375,7 +375,7 @@ func TestHandler_Update_WhenNotFound_Returns500(t *testing.T) {
 	updateBody := map[string]string{"name": "Updated Strategy"}
 	jsonBody, _ := json.Marshal(updateBody)
 
-	req, _ := http.NewRequest("PUT", "/api/v1/strategies/"+randomID.String(), bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("PUT", "/v1/strategies/"+randomID.String(), bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -403,7 +403,7 @@ func TestHandler_Delete_WhenValid_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("DELETE", "/api/v1/strategies/"+v.ID.String(), nil)
+	req, _ := http.NewRequest("DELETE", "/v1/strategies/"+v.ID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -418,7 +418,7 @@ func TestHandler_Delete_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("DELETE", "/api/v1/strategies/not-a-uuid", nil)
+	req, _ := http.NewRequest("DELETE", "/v1/strategies/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -434,7 +434,7 @@ func TestHandler_Delete_WhenNotFound_SucceedsIdempotent(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	randomID := uuid.New()
-	req, _ := http.NewRequest("DELETE", "/api/v1/strategies/"+randomID.String(), nil)
+	req, _ := http.NewRequest("DELETE", "/v1/strategies/"+randomID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -460,7 +460,7 @@ func TestHandler_Start_WhenValid_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies/"+v.ID.String()+"/start", nil)
+	req, _ := http.NewRequest("POST", "/v1/strategies/"+v.ID.String()+"/start", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -491,7 +491,7 @@ func TestHandler_Start_WhenAlreadyRunning_Returns500(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies/"+v.ID.String()+"/start", nil)
+	req, _ := http.NewRequest("POST", "/v1/strategies/"+v.ID.String()+"/start", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -507,7 +507,7 @@ func TestHandler_Start_WhenNotFound_Returns500(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	randomID := uuid.New()
-	req, _ := http.NewRequest("POST", "/api/v1/strategies/"+randomID.String()+"/start", nil)
+	req, _ := http.NewRequest("POST", "/v1/strategies/"+randomID.String()+"/start", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -522,7 +522,7 @@ func TestHandler_Start_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies/not-a-uuid/start", nil)
+	req, _ := http.NewRequest("POST", "/v1/strategies/not-a-uuid/start", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -548,7 +548,7 @@ func TestHandler_Stop_WhenValid_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies/"+v.ID.String()+"/stop", nil)
+	req, _ := http.NewRequest("POST", "/v1/strategies/"+v.ID.String()+"/stop", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -569,7 +569,7 @@ func TestHandler_Stop_WhenNotFound_Returns500(t *testing.T) {
 	router := setupTestRouter(handler)
 
 	randomID := uuid.New()
-	req, _ := http.NewRequest("POST", "/api/v1/strategies/"+randomID.String()+"/stop", nil)
+	req, _ := http.NewRequest("POST", "/v1/strategies/"+randomID.String()+"/stop", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -584,7 +584,7 @@ func TestHandler_Stop_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/strategies/not-a-uuid/stop", nil)
+	req, _ := http.NewRequest("POST", "/v1/strategies/not-a-uuid/stop", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -620,7 +620,7 @@ func TestHandler_ListDecisions_WhenValid_Returns200(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/strategies/"+v.ID.String()+"/decisions", nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies/"+v.ID.String()+"/decisions", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -642,7 +642,7 @@ func TestHandler_ListDecisions_WhenInvalidID_Returns400(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/strategies/not-a-uuid/decisions", nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies/not-a-uuid/decisions", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -668,7 +668,7 @@ func TestHandler_ListDecisions_WhenEmpty_ReturnsEmptyList(t *testing.T) {
 	handler := NewHandler(svc)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/strategies/"+v.ID.String()+"/decisions?limit=10", nil)
+	req, _ := http.NewRequest("GET", "/v1/strategies/"+v.ID.String()+"/decisions?limit=10", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

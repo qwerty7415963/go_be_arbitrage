@@ -43,20 +43,20 @@ func TestCalculator_PriceArb_Profitable(t *testing.T) {
 	bid := strPtr("50000")
 	ask := strPtr("50050")
 	buyVenue := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthHealthy,
-		BestBid:   bid,
-		BestAsk:   ask,
+		Health:     unifiedstate.VenueHealthHealthy,
+		BestBid:    bid,
+		BestAsk:    ask,
 		LastUpdate: time.Now(),
-		BidDepth:  []unifiedstate.PriceLevel{{Price: "50000", Quantity: "10"}},
-		AskDepth:  []unifiedstate.PriceLevel{{Price: "50050", Quantity: "10"}},
+		BidDepth:   []unifiedstate.PriceLevel{{Price: "50000", Quantity: "10"}},
+		AskDepth:   []unifiedstate.PriceLevel{{Price: "50050", Quantity: "10"}},
 	}
 	sellVenue := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthHealthy,
-		BestBid:   strPtr("50500"),
-		BestAsk:   strPtr("50550"),
+		Health:     unifiedstate.VenueHealthHealthy,
+		BestBid:    strPtr("50500"),
+		BestAsk:    strPtr("50550"),
 		LastUpdate: time.Now(),
-		BidDepth:  []unifiedstate.PriceLevel{{Price: "50500", Quantity: "10"}},
-		AskDepth:  []unifiedstate.PriceLevel{{Price: "50550", Quantity: "10"}},
+		BidDepth:   []unifiedstate.PriceLevel{{Price: "50500", Quantity: "10"}},
+		AskDepth:   []unifiedstate.PriceLevel{{Price: "50550", Quantity: "10"}},
 	}
 
 	input := &PriceArbInput{
@@ -113,20 +113,20 @@ func TestCalculator_PriceArb_NoEdge(t *testing.T) {
 	calc := NewCalculator(config)
 
 	buyVenue := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthHealthy,
-		BestBid:   strPtr("50000"),
-		BestAsk:   strPtr("50010"),
+		Health:     unifiedstate.VenueHealthHealthy,
+		BestBid:    strPtr("50000"),
+		BestAsk:    strPtr("50010"),
 		LastUpdate: time.Now(),
-		BidDepth:  []unifiedstate.PriceLevel{{Price: "50000", Quantity: "10"}},
-		AskDepth:  []unifiedstate.PriceLevel{{Price: "50010", Quantity: "10"}},
+		BidDepth:   []unifiedstate.PriceLevel{{Price: "50000", Quantity: "10"}},
+		AskDepth:   []unifiedstate.PriceLevel{{Price: "50010", Quantity: "10"}},
 	}
 	sellVenue := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthHealthy,
-		BestBid:   strPtr("50005"),
-		BestAsk:   strPtr("50015"),
+		Health:     unifiedstate.VenueHealthHealthy,
+		BestBid:    strPtr("50005"),
+		BestAsk:    strPtr("50015"),
 		LastUpdate: time.Now(),
-		BidDepth:  []unifiedstate.PriceLevel{{Price: "50005", Quantity: "10"}},
-		AskDepth:  []unifiedstate.PriceLevel{{Price: "50015", Quantity: "10"}},
+		BidDepth:   []unifiedstate.PriceLevel{{Price: "50005", Quantity: "10"}},
+		AskDepth:   []unifiedstate.PriceLevel{{Price: "50015", Quantity: "10"}},
 	}
 
 	input := &PriceArbInput{
@@ -153,15 +153,15 @@ func TestCalculator_PriceArb_UnhealthyVenue(t *testing.T) {
 	calc := NewCalculator(DefaultScannerConfig())
 
 	buyVenue := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthStale,
-		BestBid:   strPtr("50000"),
-		BestAsk:   strPtr("50010"),
+		Health:     unifiedstate.VenueHealthStale,
+		BestBid:    strPtr("50000"),
+		BestAsk:    strPtr("50010"),
 		LastUpdate: time.Now(),
 	}
 	sellVenue := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthHealthy,
-		BestBid:   strPtr("50100"),
-		BestAsk:   strPtr("50150"),
+		Health:     unifiedstate.VenueHealthHealthy,
+		BestBid:    strPtr("50100"),
+		BestAsk:    strPtr("50150"),
 		LastUpdate: time.Now(),
 	}
 
@@ -216,9 +216,9 @@ func TestCalculator_FundingArb_Profitable(t *testing.T) {
 	calc := NewCalculator(config)
 
 	venueA := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthHealthy,
-		BestBid:   strPtr("50000"),
-		BestAsk:   strPtr("50010"),
+		Health:     unifiedstate.VenueHealthHealthy,
+		BestBid:    strPtr("50000"),
+		BestAsk:    strPtr("50010"),
 		LastUpdate: time.Now(),
 		Funding: &unifiedstate.FundingState{
 			FundingRate:     "0.0001",
@@ -227,9 +227,9 @@ func TestCalculator_FundingArb_Profitable(t *testing.T) {
 		},
 	}
 	venueB := &unifiedstate.VenueMarketState{
-		Health:    unifiedstate.VenueHealthHealthy,
-		BestBid:   strPtr("50020"),
-		BestAsk:   strPtr("50030"),
+		Health:     unifiedstate.VenueHealthHealthy,
+		BestBid:    strPtr("50020"),
+		BestAsk:    strPtr("50030"),
 		LastUpdate: time.Now(),
 		Funding: &unifiedstate.FundingState{
 			FundingRate:     "0.002",
@@ -516,9 +516,9 @@ func TestEngine_ScanAll_Empty(t *testing.T) {
 	engine := NewEngine(DefaultScannerConfig())
 
 	snapshot := &unifiedstate.UnifiedStateSnapshot{
-		Instruments:     make(map[uuid.UUID]*unifiedstate.InstrumentState),
+		Instruments:      make(map[uuid.UUID]*unifiedstate.InstrumentState),
 		TotalInstruments: 0,
-		Timestamp:       time.Now(),
+		Timestamp:        time.Now(),
 	}
 
 	result := engine.ScanAll(snapshot)
@@ -541,7 +541,7 @@ func TestEngine_ScanAll_WithOpportunity(t *testing.T) {
 	venueBID := uuid.New()
 	instrumentID := uuid.New()
 
- inst := &unifiedstate.InstrumentState{
+	inst := &unifiedstate.InstrumentState{
 		InstrumentID:    instrumentID,
 		CanonicalSymbol: "BTCUSD",
 		BaseAsset:       "BTC",
@@ -550,24 +550,24 @@ func TestEngine_ScanAll_WithOpportunity(t *testing.T) {
 		TotalVenues:     2,
 		VenueStates: map[uuid.UUID]*unifiedstate.VenueMarketState{
 			venueAID: {
-				VenueID:      venueAID,
-				VenueCode:    "binance",
-				Health:       unifiedstate.VenueHealthHealthy,
-				BestBid:      strPtr("50000"),
-				BestAsk:      strPtr("50050"),
-				LastUpdate:   time.Now(),
-				BidDepth:     []unifiedstate.PriceLevel{{Price: "50000", Quantity: "10"}},
-				AskDepth:     []unifiedstate.PriceLevel{{Price: "50050", Quantity: "10"}},
+				VenueID:    venueAID,
+				VenueCode:  "binance",
+				Health:     unifiedstate.VenueHealthHealthy,
+				BestBid:    strPtr("50000"),
+				BestAsk:    strPtr("50050"),
+				LastUpdate: time.Now(),
+				BidDepth:   []unifiedstate.PriceLevel{{Price: "50000", Quantity: "10"}},
+				AskDepth:   []unifiedstate.PriceLevel{{Price: "50050", Quantity: "10"}},
 			},
 			venueBID: {
-				VenueID:      venueBID,
-				VenueCode:    "extended",
-				Health:       unifiedstate.VenueHealthHealthy,
-				BestBid:      strPtr("50500"),
-				BestAsk:      strPtr("50550"),
-				LastUpdate:   time.Now(),
-				BidDepth:     []unifiedstate.PriceLevel{{Price: "50500", Quantity: "10"}},
-				AskDepth:     []unifiedstate.PriceLevel{{Price: "50550", Quantity: "10"}},
+				VenueID:    venueBID,
+				VenueCode:  "extended",
+				Health:     unifiedstate.VenueHealthHealthy,
+				BestBid:    strPtr("50500"),
+				BestAsk:    strPtr("50550"),
+				LastUpdate: time.Now(),
+				BidDepth:   []unifiedstate.PriceLevel{{Price: "50500", Quantity: "10"}},
+				AskDepth:   []unifiedstate.PriceLevel{{Price: "50550", Quantity: "10"}},
 			},
 		},
 	}
@@ -603,7 +603,7 @@ func TestEngine_GetOpportunity(t *testing.T) {
 	engine := NewEngine(DefaultScannerConfig())
 
 	opp := &Opportunity{
-		ID:            uuid.New(),
+		ID:              uuid.New(),
 		CanonicalSymbol: "BTCUSD",
 	}
 	engine.results[opp.ID] = opp
@@ -621,7 +621,7 @@ func TestEngine_RemoveOpportunity(t *testing.T) {
 	engine := NewEngine(DefaultScannerConfig())
 
 	opp := &Opportunity{
-		ID:            uuid.New(),
+		ID:              uuid.New(),
 		CanonicalSymbol: "BTCUSD",
 	}
 	engine.results[opp.ID] = opp

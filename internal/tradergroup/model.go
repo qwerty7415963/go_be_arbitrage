@@ -45,20 +45,20 @@ type Member struct {
 	Metrics       *trader.PeriodMetrics `json:"metrics"`
 }
 
-// CreateGroupRequest is POST /api/v1/trader-groups.
+// CreateGroupRequest is POST /v1/trader-groups.
 type CreateGroupRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
-// UpdateGroupRequest is PATCH /api/v1/trader-groups/{id}: name and/or
+// UpdateGroupRequest is PATCH /v1/trader-groups/{id}: name and/or
 // description; owner is immutable.
 type UpdateGroupRequest struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
 }
 
-// AddMembersRequest is POST /api/v1/trader-groups/{id}/members.
+// AddMembersRequest is POST /v1/trader-groups/{id}/members.
 type AddMembersRequest struct {
 	Members []MemberInput `json:"members"`
 }
@@ -71,7 +71,7 @@ type MemberInput struct {
 	Note          string `json:"note"`
 }
 
-// UpdateMembersRequest is PATCH /api/v1/trader-groups/{id}/members.
+// UpdateMembersRequest is PATCH /v1/trader-groups/{id}/members.
 type UpdateMembersRequest struct {
 	Members []UpdateMemberInput `json:"members"`
 }

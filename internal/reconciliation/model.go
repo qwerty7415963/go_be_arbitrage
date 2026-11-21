@@ -10,10 +10,10 @@ import (
 type TriggerSource string
 
 const (
-	TriggerStartup          TriggerSource = "STARTUP"
-	TriggerReconnect        TriggerSource = "RECONNECT"
-	TriggerScheduled        TriggerSource = "SCHEDULED"
-	TriggerManual           TriggerSource = "MANUAL"
+	TriggerStartup           TriggerSource = "STARTUP"
+	TriggerReconnect         TriggerSource = "RECONNECT"
+	TriggerScheduled         TriggerSource = "SCHEDULED"
+	TriggerManual            TriggerSource = "MANUAL"
 	TriggerExecutionRecovery TriggerSource = "EXECUTION_RECOVERY"
 )
 
@@ -39,11 +39,11 @@ const (
 type ItemResult string
 
 const (
-	ResultMatch            ItemResult = "MATCH"
-	ResultMismatch         ItemResult = "MISMATCH"
-	ResultMissingInternal  ItemResult = "MISSING_INTERNAL"
-	ResultMissingExternal  ItemResult = "MISSING_EXTERNAL"
-	ResultUnresolved       ItemResult = "UNRESOLVED"
+	ResultMatch           ItemResult = "MATCH"
+	ResultMismatch        ItemResult = "MISMATCH"
+	ResultMissingInternal ItemResult = "MISSING_INTERNAL"
+	ResultMissingExternal ItemResult = "MISSING_EXTERNAL"
+	ResultUnresolved      ItemResult = "UNRESOLVED"
 )
 
 type ReconciliationRun struct {
@@ -83,20 +83,20 @@ type PositionState struct {
 }
 
 type OrderState struct {
-	OrderID    string  `json:"order_id"`
-	Symbol     string  `json:"symbol"`
-	Side       string  `json:"side"`
-	Quantity   float64 `json:"quantity"`
-	Price      float64 `json:"price"`
-	Status     string  `json:"status"`
-	FilledQty  float64 `json:"filled_qty"`
+	OrderID   string  `json:"order_id"`
+	Symbol    string  `json:"symbol"`
+	Side      string  `json:"side"`
+	Quantity  float64 `json:"quantity"`
+	Price     float64 `json:"price"`
+	Status    string  `json:"status"`
+	FilledQty float64 `json:"filled_qty"`
 }
 
 type MarginState struct {
-	TotalEquity    float64 `json:"total_equity"`
-	UsedMargin     float64 `json:"used_margin"`
+	TotalEquity     float64 `json:"total_equity"`
+	UsedMargin      float64 `json:"used_margin"`
 	AvailableMargin float64 `json:"available_margin"`
-	MarginRatio    float64 `json:"margin_ratio"`
+	MarginRatio     float64 `json:"margin_ratio"`
 }
 
 type CreateRunRequest struct {
@@ -105,9 +105,9 @@ type CreateRunRequest struct {
 }
 
 type RunSummary struct {
-	TotalItems   int `json:"total_items"`
-	Matched      int `json:"matched"`
-	Mismatched   int `json:"mismatched"`
-	MissingInt   int `json:"missing_internal"`
-	MissingExt   int `json:"missing_external"`
+	TotalItems int `json:"total_items"`
+	Matched    int `json:"matched"`
+	Mismatched int `json:"mismatched"`
+	MissingInt int `json:"missing_internal"`
+	MissingExt int `json:"missing_external"`
 }

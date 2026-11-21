@@ -80,7 +80,7 @@ func (h *Handler) appErr(err error) *domain.AppError {
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "invalid locale"
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      409  {object}  api.Response{error=api.ErrorBody}  "already connected"
-// @Router       /api/v1/telegram/link [post]
+// @Router       /v1/telegram/link [post]
 func (h *Handler) Link(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -114,7 +114,7 @@ func (h *Handler) Link(c *gin.Context) {
 // @Security     BearerAuth
 // @Success      200  {object}  api.Response{data=StatusResponse}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/telegram/status [get]
+// @Router       /v1/telegram/status [get]
 func (h *Handler) Status(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
@@ -136,7 +136,7 @@ func (h *Handler) Status(c *gin.Context) {
 // @Security     BearerAuth
 // @Success      204
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/telegram/link [delete]
+// @Router       /v1/telegram/link [delete]
 func (h *Handler) Unlink(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {

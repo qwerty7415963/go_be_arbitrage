@@ -60,7 +60,7 @@ func (s *Server) SetupRoutes(
 	s.engine.GET("/health", healthHandler.Health)
 	s.engine.GET("/ready", healthHandler.Ready)
 
-	v1 := s.engine.Group("/api/v1")
+	v1 := s.engine.Group("/v1")
 	{
 		v1.GET("/ping", pingHandler)
 
@@ -240,7 +240,7 @@ func (s *Server) SetupRoutes(
 // @Tags         system
 // @Produce      json
 // @Success      200  {object}  map[string]string
-// @Router       /api/v1/ping [get]
+// @Router       /v1/ping [get]
 func pingHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "pong"})
 }

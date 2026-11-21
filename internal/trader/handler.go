@@ -137,7 +137,7 @@ func appErr(err error) *domain.AppError {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003 group filter without token"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "GROUP-003 foreign group"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown group"
-// @Router       /api/v1/traders/search [post]
+// @Router       /v1/traders/search [post]
 func (h *Handler) Search(c *gin.Context) {
 	var req SearchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -170,7 +170,7 @@ func (h *Handler) Search(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=Detail}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER / validation"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet} [get]
+// @Router       /v1/traders/{wallet} [get]
 func (h *Handler) Detail(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	period := c.DefaultQuery("period", Period30D)
@@ -201,7 +201,7 @@ func (h *Handler) Detail(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=PositionSnapshotDTO}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER / validation"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet}/positions [get]
+// @Router       /v1/traders/{wallet}/positions [get]
 func (h *Handler) Positions(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	d, err := h.svc.Positions(c.Request.Context(), venue, c.Param("wallet"), c.Query("sort"), c.Query("dir"))
@@ -228,7 +228,7 @@ func (h *Handler) Positions(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=ActivityPage}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER (limit/cursor/sort/dir/result/side)"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet}/activity [get]
+// @Router       /v1/traders/{wallet}/activity [get]
 func (h *Handler) Activity(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	limit := 20
@@ -263,7 +263,7 @@ func (h *Handler) Activity(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=BalancesDTO}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER / validation"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet}/balances [get]
+// @Router       /v1/traders/{wallet}/balances [get]
 func (h *Handler) Balances(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	d, err := h.svc.Balances(c.Request.Context(), venue, c.Param("wallet"))
@@ -286,7 +286,7 @@ func (h *Handler) Balances(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=FillsPage}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER (limit/cursor)"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet}/fills [get]
+// @Router       /v1/traders/{wallet}/fills [get]
 func (h *Handler) Fills(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	limit := 100
@@ -318,7 +318,7 @@ func (h *Handler) Fills(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=OrdersDTO}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER (status/limit)"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet}/orders [get]
+// @Router       /v1/traders/{wallet}/orders [get]
 func (h *Handler) Orders(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	status := c.DefaultQuery("status", "open")
@@ -352,7 +352,7 @@ func (h *Handler) Orders(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=TransfersPage}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER (days/limit/cursor)"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet}/transfers [get]
+// @Router       /v1/traders/{wallet}/transfers [get]
 func (h *Handler) Transfers(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	days := 30
@@ -394,7 +394,7 @@ func (h *Handler) Transfers(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=PerformanceDTO}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "INVALID_FILTER / validation"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "unknown wallet/venue"
-// @Router       /api/v1/traders/{wallet}/performance [get]
+// @Router       /v1/traders/{wallet}/performance [get]
 func (h *Handler) Performance(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	period := c.DefaultQuery("period", Period30D)
@@ -422,7 +422,7 @@ func (h *Handler) Performance(c *gin.Context) {
 	api.RespondSuccess(c, d)
 }
 
-// SyncPositionsRequest is the body for POST /api/v1/admin/traders/sync-positions.
+// SyncPositionsRequest is the body for POST /v1/admin/traders/sync-positions.
 type SyncPositionsRequest struct {
 	Venue   string   `json:"venue"`
 	Kind    string   `json:"kind"`
@@ -459,7 +459,7 @@ type SyncPositionsResponse struct {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      503  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/admin/traders/sync-positions [post]
+// @Router       /v1/admin/traders/sync-positions [post]
 func (h *Handler) SyncPositions(c *gin.Context) {
 	var req SyncPositionsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -1045,5 +1045,3 @@ func channelForEvt(evt string) string {
 	}
 	return ""
 }
-
-

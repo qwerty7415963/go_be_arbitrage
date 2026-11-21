@@ -41,7 +41,7 @@ type refreshLogosRequest struct {
 // @Param        assetId  path      string  true  "Asset ID"
 // @Success      200
 // @Failure      404  {object}  api.Response
-// @Router       /api/v1/assets/logos/{assetId} [get]
+// @Router       /v1/assets/logos/{assetId} [get]
 func (h *Handler) ServeLogo(c *gin.Context) {
 	assetID, err := uuid.Parse(c.Param("assetId"))
 	if err != nil {
@@ -102,7 +102,7 @@ func (h *Handler) firstLogoRow(c *gin.Context, assetID uuid.UUID) *AssetLogo {
 // @Failure      400  {object}  api.Response
 // @Failure      401  {object}  api.Response
 // @Failure      403  {object}  api.Response
-// @Router       /api/v1/admin/assets/logos/refresh [post]
+// @Router       /v1/admin/assets/logos/refresh [post]
 func (h *Handler) RefreshLogos(c *gin.Context) {
 	var req refreshLogosRequest
 	_ = c.ShouldBindJSON(&req)
@@ -161,7 +161,7 @@ func (h *Handler) RefreshLogos(c *gin.Context) {
 // @Failure      400  {object}  api.Response
 // @Failure      401  {object}  api.Response
 // @Failure      403  {object}  api.Response
-// @Router       /api/v1/admin/assets/logos [get]
+// @Router       /v1/admin/assets/logos [get]
 func (h *Handler) ListLogos(c *gin.Context) {
 	status := c.Query("status")
 	if status == "" {

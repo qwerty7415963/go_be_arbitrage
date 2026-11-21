@@ -68,7 +68,7 @@ func setupHandlerRouter(handler *Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		authRoutes := v1.Group("/auth")
 		{
@@ -105,7 +105,7 @@ func registerAndLogin(t *testing.T, router *gin.Engine, email, password string) 
 	// Register
 	body := map[string]string{"email": email, "password": password}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -134,7 +134,7 @@ func TestHandler_Register_Success(t *testing.T) {
 	body := map[string]string{"email": email, "password": "testpass123"}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -183,7 +183,7 @@ func TestHandler_Register_DuplicateEmail(t *testing.T) {
 
 	// First register
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -194,7 +194,7 @@ func TestHandler_Register_DuplicateEmail(t *testing.T) {
 
 	// Second register with same email
 	jsonBody, _ = json.Marshal(body)
-	req, _ = http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -214,7 +214,7 @@ func TestHandler_Register_InvalidBody(t *testing.T) {
 	handler := NewHandler(service)
 	router := setupHandlerRouter(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer([]byte("invalid")))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer([]byte("invalid")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -234,7 +234,7 @@ func TestHandler_Register_ShortPassword(t *testing.T) {
 
 	body := map[string]string{"email": "short@test.com", "password": "ab"}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -254,7 +254,7 @@ func TestHandler_Register_InvalidEmail(t *testing.T) {
 
 	body := map[string]string{"email": "not-an-email", "password": "testpass123"}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -283,7 +283,7 @@ func TestHandler_Login_Success(t *testing.T) {
 	// Login
 	body := map[string]string{"email": email, "password": password}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -315,7 +315,7 @@ func TestHandler_Login_WrongPassword(t *testing.T) {
 
 	body := map[string]string{"email": email, "password": "wrongpass"}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -343,7 +343,7 @@ func TestHandler_Login_NonExistentEmail(t *testing.T) {
 
 	body := map[string]string{"email": "nonexistent@test.com", "password": "whatever"}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -369,7 +369,7 @@ func TestHandler_Refresh_Success(t *testing.T) {
 
 	body := map[string]string{"refresh_token": refreshToken}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -403,7 +403,7 @@ func TestHandler_Refresh_ReuseOldToken(t *testing.T) {
 	// First refresh (success)
 	body := map[string]string{"refresh_token": oldRefreshToken}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -414,7 +414,7 @@ func TestHandler_Refresh_ReuseOldToken(t *testing.T) {
 
 	// Second refresh with same old token (should fail)
 	jsonBody, _ = json.Marshal(body)
-	req, _ = http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -435,10 +435,10 @@ func TestHandler_Logout_NoToken(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.POST("/auth/logout", handler.Logout)
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/logout", nil)
+	req, _ := http.NewRequest("POST", "/v1/auth/logout", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -472,20 +472,20 @@ func TestHandler_Logout_RefreshDies(t *testing.T) {
 	// Logout
 	gin.SetMode(gin.TestMode)
 	logoutRouter := gin.New()
-	v1 := logoutRouter.Group("/api/v1")
+	v1 := logoutRouter.Group("/v1")
 	v1.POST("/auth/logout", func(c *gin.Context) {
 		c.Set("user_id", claims.UserID)
 		c.Next()
 	}, handler.Logout)
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/logout", nil)
+	req, _ := http.NewRequest("POST", "/v1/auth/logout", nil)
 	w := httptest.NewRecorder()
 	logoutRouter.ServeHTTP(w, req)
 
 	// Try refresh with the old token
 	body := map[string]string{"refresh_token": refreshToken}
 	jsonBody, _ := json.Marshal(body)
-	refreshReq, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(jsonBody))
+	refreshReq, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
 	refreshReq.Header.Set("Content-Type", "application/json")
 	refreshW := httptest.NewRecorder()
 	router.ServeHTTP(refreshW, refreshReq)
@@ -511,9 +511,9 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	// Register
 	gin.SetMode(gin.TestMode)
 	registerRouter := gin.New()
-	v1 := registerRouter.Group("/api/v1")
+	v1 := registerRouter.Group("/v1")
 	v1.POST("/auth/register", handler.Register)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	registerRouter.ServeHTTP(w, req)
@@ -529,13 +529,13 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	changeJSON, _ := json.Marshal(changeBody)
 
 	changeRouter := gin.New()
-	changeV1 := changeRouter.Group("/api/v1")
+	changeV1 := changeRouter.Group("/v1")
 	changeV1.POST("/auth/change-password", func(c *gin.Context) {
 		c.Set("user_id", userID)
 		c.Next()
 	}, handler.ChangePassword)
 
-	changeReq, _ := http.NewRequest("POST", "/api/v1/auth/change-password", bytes.NewBuffer(changeJSON))
+	changeReq, _ := http.NewRequest("POST", "/v1/auth/change-password", bytes.NewBuffer(changeJSON))
 	changeReq.Header.Set("Content-Type", "application/json")
 	changeW := httptest.NewRecorder()
 	changeRouter.ServeHTTP(changeW, changeReq)
@@ -547,12 +547,12 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	// Old password should no longer work
 	loginBody := map[string]string{"email": email, "password": "oldpass123"}
 	loginJSON, _ := json.Marshal(loginBody)
-	loginReq, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(loginJSON))
+	loginReq, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(loginJSON))
 	loginReq.Header.Set("Content-Type", "application/json")
 	loginW := httptest.NewRecorder()
 
 	loginRouter := gin.New()
-	loginV1 := loginRouter.Group("/api/v1")
+	loginV1 := loginRouter.Group("/v1")
 	loginV1.POST("/auth/login", handler.Login)
 	loginRouter.ServeHTTP(loginW, loginReq)
 
@@ -563,7 +563,7 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	// New password should work
 	loginBody2 := map[string]string{"email": email, "password": "newpass456"}
 	loginJSON2, _ := json.Marshal(loginBody2)
-	loginReq2, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(loginJSON2))
+	loginReq2, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(loginJSON2))
 	loginReq2.Header.Set("Content-Type", "application/json")
 	loginW2 := httptest.NewRecorder()
 	loginRouter.ServeHTTP(loginW2, loginReq2)
@@ -586,9 +586,9 @@ func TestHandler_ChangePassword_WrongOld(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	registerRouter := gin.New()
-	v1 := registerRouter.Group("/api/v1")
+	v1 := registerRouter.Group("/v1")
 	v1.POST("/auth/register", handler.Register)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	registerRouter.ServeHTTP(w, req)
@@ -603,13 +603,13 @@ func TestHandler_ChangePassword_WrongOld(t *testing.T) {
 	changeJSON, _ := json.Marshal(changeBody)
 
 	changeRouter := gin.New()
-	changeV1 := changeRouter.Group("/api/v1")
+	changeV1 := changeRouter.Group("/v1")
 	changeV1.POST("/auth/change-password", func(c *gin.Context) {
 		c.Set("user_id", userID)
 		c.Next()
 	}, handler.ChangePassword)
 
-	changeReq, _ := http.NewRequest("POST", "/api/v1/auth/change-password", bytes.NewBuffer(changeJSON))
+	changeReq, _ := http.NewRequest("POST", "/v1/auth/change-password", bytes.NewBuffer(changeJSON))
 	changeReq.Header.Set("Content-Type", "application/json")
 	changeW := httptest.NewRecorder()
 	changeRouter.ServeHTTP(changeW, changeReq)
@@ -634,9 +634,9 @@ func TestHandler_Me_Success(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	registerRouter := gin.New()
-	v1 := registerRouter.Group("/api/v1")
+	v1 := registerRouter.Group("/v1")
 	v1.POST("/auth/register", handler.Register)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	registerRouter.ServeHTTP(w, req)
@@ -648,13 +648,13 @@ func TestHandler_Me_Success(t *testing.T) {
 	userID := userData["id"].(string)
 
 	meRouter := gin.New()
-	meV1 := meRouter.Group("/api/v1")
+	meV1 := meRouter.Group("/v1")
 	meV1.GET("/auth/me", func(c *gin.Context) {
 		c.Set("user_id", userID)
 		c.Next()
 	}, handler.Me)
 
-	meReq, _ := http.NewRequest("GET", "/api/v1/auth/me", nil)
+	meReq, _ := http.NewRequest("GET", "/v1/auth/me", nil)
 	meW := httptest.NewRecorder()
 	meRouter.ServeHTTP(meW, meReq)
 
@@ -680,10 +680,10 @@ func TestHandler_Me_NoAuth(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/auth/me", handler.Me)
 
-	req, _ := http.NewRequest("GET", "/api/v1/auth/me", nil)
+	req, _ := http.NewRequest("GET", "/v1/auth/me", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -711,7 +711,7 @@ func TestHandler_Refresh_ExpiredToken(t *testing.T) {
 	// For unit test, just verify the refresh flow works with valid token
 	body := map[string]string{"refresh_token": refreshToken}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

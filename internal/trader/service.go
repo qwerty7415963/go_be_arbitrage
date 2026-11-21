@@ -429,7 +429,7 @@ func liveSnapshotToPeriodMetrics(snap *LivePerformanceSnapshot, venueID uuid.UUI
 	}
 }
 
-// Detail is the GET /api/v1/traders/{wallet} payload (LIVE-CONTRACT v1.2
+// Detail is the GET /v1/traders/{wallet} payload (LIVE-CONTRACT v1.2
 // Â§1.7). Registry + Period shape kept; DataStatus âˆˆ {ready,error} ONLY with
 // AsOf = live fetch time (null on error without cache). Metrics is the live
 // overview (nil only on error without cache or ALL equity-only).

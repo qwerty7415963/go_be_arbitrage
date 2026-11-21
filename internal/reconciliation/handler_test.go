@@ -71,7 +71,7 @@ func setupTestRouter(handler *Handler) *gin.Engine {
 		c.Next()
 	})
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		recon := v1.Group("/reconciliation")
 		recon.Use(func(c *gin.Context) {
@@ -109,7 +109,7 @@ func TestHandler_CreateRun_WhenValid_Returns201(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req, _ := http.NewRequest("POST", "/api/v1/reconciliation/runs", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/reconciliation/runs", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -154,7 +154,7 @@ func TestHandler_ListRuns_WhenValid_Returns200(t *testing.T) {
 		c.Next()
 	})
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	recon := v1.Group("/reconciliation")
 	recon.Use(func(c *gin.Context) {
 		role, exists := c.Get("role")
@@ -173,7 +173,7 @@ func TestHandler_ListRuns_WhenValid_Returns200(t *testing.T) {
 	})
 	recon.GET("/runs", handler.ListRuns)
 
-	req, _ := http.NewRequest("GET", "/api/v1/reconciliation/runs", nil)
+	req, _ := http.NewRequest("GET", "/v1/reconciliation/runs", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -205,7 +205,7 @@ func TestHandler_GetRun_WhenValid_Returns200(t *testing.T) {
 	handler := NewHandler(mock)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/reconciliation/runs/"+runID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/reconciliation/runs/"+runID.String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -238,7 +238,7 @@ func TestHandler_ListItems_WhenValid_Returns200(t *testing.T) {
 	handler := NewHandler(mock)
 	router := setupTestRouter(handler)
 
-	req, _ := http.NewRequest("GET", "/api/v1/reconciliation/runs/"+runID.String()+"/items", nil)
+	req, _ := http.NewRequest("GET", "/v1/reconciliation/runs/"+runID.String()+"/items", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

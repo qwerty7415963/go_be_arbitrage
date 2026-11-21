@@ -30,7 +30,7 @@ func setupTestMiddlewareRouter(jwtMiddleware gin.HandlerFunc) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		v1.GET("/protected", jwtMiddleware, func(c *gin.Context) {
 			c.JSON(200, gin.H{
@@ -51,7 +51,7 @@ func TestJWT_MissingHeader(t *testing.T) {
 	jwtMw := JWT(svc)
 	router := setupTestMiddlewareRouter(jwtMw)
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -79,7 +79,7 @@ func TestJWT_InvalidHeaderFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+			req, _ := http.NewRequest("GET", "/v1/protected", nil)
 			req.Header.Set("Authorization", tt.header)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -98,7 +98,7 @@ func TestJWT_InvalidToken(t *testing.T) {
 	jwtMw := JWT(svc)
 	router := setupTestMiddlewareRouter(jwtMw)
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer not-a-real-jwt")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -126,7 +126,7 @@ func TestJWT_WrongSecret(t *testing.T) {
 	jwtMw := JWT(svc2)
 	router := setupTestMiddlewareRouter(jwtMw)
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -153,7 +153,7 @@ func TestJWT_ExpiredToken(t *testing.T) {
 	jwtMw := JWT(validSvc)
 	router := setupTestMiddlewareRouter(jwtMw)
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -172,7 +172,7 @@ func TestJWT_ValidToken_SetsContext(t *testing.T) {
 	jwtMw := JWT(svc)
 	router := setupTestMiddlewareRouter(jwtMw)
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -202,7 +202,7 @@ func TestJWT_ValidToken_SetsUserContext(t *testing.T) {
 	jwtMw := JWT(svc)
 	router := setupTestMiddlewareRouter(jwtMw)
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -229,7 +229,7 @@ func TestJWT_EmptyToken(t *testing.T) {
 	jwtMw := JWT(svc)
 	router := setupTestMiddlewareRouter(jwtMw)
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer ")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -245,7 +245,7 @@ func TestOptionalJWT_NoHeader_PassesThrough(t *testing.T) {
 	svc := auth.NewService(testAuthConfig(), nil)
 	router := setupTestMiddlewareRouter(OptionalJWT(svc))
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -266,7 +266,7 @@ func TestOptionalJWT_ValidToken_SetsContext(t *testing.T) {
 	token := genToken(svc, "user-opt", "tenant-opt", "user")
 	router := setupTestMiddlewareRouter(OptionalJWT(svc))
 
-	req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+	req, _ := http.NewRequest("GET", "/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -291,7 +291,7 @@ func TestOptionalJWT_InvalidCredentials_401(t *testing.T) {
 		"malformed": "Token abc",
 		"bad token": "Bearer not-a-real-jwt",
 	} {
-		req, _ := http.NewRequest("GET", "/api/v1/protected", nil)
+		req, _ := http.NewRequest("GET", "/v1/protected", nil)
 		req.Header.Set("Authorization", header)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)

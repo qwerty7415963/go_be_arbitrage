@@ -222,11 +222,11 @@ func TestStrategyInstance_Creation(t *testing.T) {
 
 func TestStrategyConfig_Defaults(t *testing.T) {
 	config := &StrategyConfig{
-		MinNetEdgeBPS:      10,
-		MinConfidence:      0.5,
+		MinNetEdgeBPS:       10,
+		MinConfidence:       0.5,
 		MaxNotionalPerTrade: "100000",
-		MaxPositionUSD:     "500000",
-		MaxLeverage:        10,
+		MaxPositionUSD:      "500000",
+		MaxLeverage:         10,
 	}
 
 	if config.MinNetEdgeBPS != 10 {

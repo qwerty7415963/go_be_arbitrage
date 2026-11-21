@@ -74,7 +74,7 @@ func setupTestSuite(t *testing.T) *TestSuite {
 
 	router.GET("/health", func(c *gin.Context) { c.JSON(200, gin.H{"status": "healthy"}) })
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		// Venues
 		v1.POST("/venues", venueHandler.Create)
@@ -129,7 +129,7 @@ func TestE2E_RegisterVenue_ThenDiscoverInstrument(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(venueBody)
 
-	req, _ := http.NewRequest("POST", "/api/v1/venues", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/venues", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -157,7 +157,7 @@ func TestE2E_RegisterVenue_ThenDiscoverInstrument(t *testing.T) {
 	}
 	jsonBody, _ = json.Marshal(instrumentBody)
 
-	req, _ = http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -181,7 +181,7 @@ func TestE2E_RegisterVenue_ThenDiscoverInstrument(t *testing.T) {
 	}
 	jsonBody, _ = json.Marshal(mappingBody)
 
-	req, _ = http.NewRequest("POST", "/api/v1/venue-instruments", bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("POST", "/v1/venue-instruments", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -192,7 +192,7 @@ func TestE2E_RegisterVenue_ThenDiscoverInstrument(t *testing.T) {
 	}
 
 	// Verify mapping exists
-	req, _ = http.NewRequest("GET", "/api/v1/venue-instruments?venue_id="+venueID, nil)
+	req, _ = http.NewRequest("GET", "/v1/venue-instruments?venue_id="+venueID, nil)
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
 
@@ -229,7 +229,7 @@ func TestE2E_EnableInstrument_NotReviewed_Blocked(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(instrumentBody)
 
-	req, _ := http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -251,7 +251,7 @@ func TestE2E_EnableInstrument_NotReviewed_Blocked(t *testing.T) {
 	}
 	jsonBody, _ = json.Marshal(tradingBody)
 
-	req, _ = http.NewRequest("PUT", "/api/v1/instruments/"+instrumentID+"/trading", bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("PUT", "/v1/instruments/"+instrumentID+"/trading", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -283,7 +283,7 @@ func TestE2E_EnableInstrument_Reviewed_Allowed(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(instrumentBody)
 
-	req, _ := http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -305,7 +305,7 @@ func TestE2E_EnableInstrument_Reviewed_Allowed(t *testing.T) {
 	}
 	jsonBody, _ = json.Marshal(updateBody)
 
-	req, _ = http.NewRequest("PUT", "/api/v1/instruments/"+instrumentID, bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("PUT", "/v1/instruments/"+instrumentID, bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -321,7 +321,7 @@ func TestE2E_EnableInstrument_Reviewed_Allowed(t *testing.T) {
 	}
 	jsonBody, _ = json.Marshal(tradingBody)
 
-	req, _ = http.NewRequest("PUT", "/api/v1/instruments/"+instrumentID+"/trading", bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("PUT", "/v1/instruments/"+instrumentID+"/trading", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -352,7 +352,7 @@ func TestE2E_Instrument_NotInTradableList_BeforeReview(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(instrumentBody)
 
-	req, _ := http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -363,7 +363,7 @@ func TestE2E_Instrument_NotInTradableList_BeforeReview(t *testing.T) {
 	}
 
 	// Check tradable list - should not contain this instrument
-	req, _ = http.NewRequest("GET", "/api/v1/instruments/tradable", nil)
+	req, _ = http.NewRequest("GET", "/v1/instruments/tradable", nil)
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
 
@@ -403,7 +403,7 @@ func TestE2E_Instrument_InTradableList_AfterReview(t *testing.T) {
 	}
 	jsonBody, _ := json.Marshal(instrumentBody)
 
-	req, _ := http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -425,7 +425,7 @@ func TestE2E_Instrument_InTradableList_AfterReview(t *testing.T) {
 	}
 	jsonBody, _ = json.Marshal(updateBody)
 
-	req, _ = http.NewRequest("PUT", "/api/v1/instruments/"+instrumentID, bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("PUT", "/v1/instruments/"+instrumentID, bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -437,7 +437,7 @@ func TestE2E_Instrument_InTradableList_AfterReview(t *testing.T) {
 	}
 	jsonBody, _ = json.Marshal(tradingBody)
 
-	req, _ = http.NewRequest("PUT", "/api/v1/instruments/"+instrumentID+"/trading", bytes.NewBuffer(jsonBody))
+	req, _ = http.NewRequest("PUT", "/v1/instruments/"+instrumentID+"/trading", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -448,7 +448,7 @@ func TestE2E_Instrument_InTradableList_AfterReview(t *testing.T) {
 	}
 
 	// Check tradable list - should contain this instrument
-	req, _ = http.NewRequest("GET", "/api/v1/instruments/tradable", nil)
+	req, _ = http.NewRequest("GET", "/v1/instruments/tradable", nil)
 	w = httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
 
@@ -500,7 +500,7 @@ func TestE2E_Ping_Returns200(t *testing.T) {
 	defer suite.cleanup()
 
 	// Ping endpoint not in this router, but we can test venue/instrument endpoints
-	req, _ := http.NewRequest("GET", "/api/v1/venues", nil)
+	req, _ := http.NewRequest("GET", "/v1/venues", nil)
 	w := httptest.NewRecorder()
 	suite.router.ServeHTTP(w, req)
 
@@ -517,7 +517,7 @@ func TestE2E_CreateVenue_InvalidBody_Returns400(t *testing.T) {
 	suite := setupTestSuite(t)
 	defer suite.cleanup()
 
-	req, _ := http.NewRequest("POST", "/api/v1/venues", bytes.NewBuffer([]byte("invalid json")))
+	req, _ := http.NewRequest("POST", "/v1/venues", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -536,7 +536,7 @@ func TestE2E_CreateInstrument_InvalidBody_Returns400(t *testing.T) {
 	suite := setupTestSuite(t)
 	defer suite.cleanup()
 
-	req, _ := http.NewRequest("POST", "/api/v1/instruments", bytes.NewBuffer([]byte("invalid json")))
+	req, _ := http.NewRequest("POST", "/v1/instruments", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -601,7 +601,7 @@ func setupAuthTestSuite(t *testing.T) *TestSuite {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	{
 		authRoutes := v1.Group("/auth")
 		{
@@ -637,7 +637,7 @@ func e2eRegister(t *testing.T, router *gin.Engine, email, password string) map[s
 	t.Helper()
 	body := map[string]string{"email": email, "password": password}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/register", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -654,7 +654,7 @@ func e2eLogin(t *testing.T, router *gin.Engine, email, password string) map[stri
 	t.Helper()
 	body := map[string]string{"email": email, "password": password}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -702,7 +702,7 @@ func TestE2E_Auth_FullFlow(t *testing.T) {
 	// Step 3: Refresh
 	refreshBody := map[string]string{"refresh_token": loginRefresh}
 	refreshJSON, _ := json.Marshal(refreshBody)
-	refreshReq, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(refreshJSON))
+	refreshReq, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(refreshJSON))
 	refreshReq.Header.Set("Content-Type", "application/json")
 	refreshW := httptest.NewRecorder()
 	suite.router.ServeHTTP(refreshW, refreshReq)
@@ -719,7 +719,7 @@ func TestE2E_Auth_FullFlow(t *testing.T) {
 	// Step 4: Old refresh token should be dead
 	oldRefreshBody := map[string]string{"refresh_token": loginRefresh}
 	oldRefreshJSON, _ := json.Marshal(oldRefreshBody)
-	oldRefreshReq, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(oldRefreshJSON))
+	oldRefreshReq, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(oldRefreshJSON))
 	oldRefreshReq.Header.Set("Content-Type", "application/json")
 	oldRefreshW := httptest.NewRecorder()
 	suite.router.ServeHTTP(oldRefreshW, oldRefreshReq)
@@ -731,7 +731,7 @@ func TestE2E_Auth_FullFlow(t *testing.T) {
 	// Step 5: New refresh token works
 	newRefreshBody := map[string]string{"refresh_token": newRefreshToken}
 	newRefreshJSON, _ := json.Marshal(newRefreshBody)
-	newRefreshReq, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(newRefreshJSON))
+	newRefreshReq, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(newRefreshJSON))
 	newRefreshReq.Header.Set("Content-Type", "application/json")
 	newRefreshW := httptest.NewRecorder()
 	suite.router.ServeHTTP(newRefreshW, newRefreshReq)
@@ -781,7 +781,7 @@ func TestE2E_Auth_ChangePassword(t *testing.T) {
 	authHandler := auth.NewHandler(authService)
 
 	changeRouter := gin.New()
-	changeV1 := changeRouter.Group("/api/v1")
+	changeV1 := changeRouter.Group("/v1")
 	changeV1.POST("/auth/change-password", func(c *gin.Context) {
 		c.Set("user_id", userID)
 		c.Next()
@@ -789,7 +789,7 @@ func TestE2E_Auth_ChangePassword(t *testing.T) {
 
 	changeBody := map[string]string{"old_password": oldPass, "new_password": newPass}
 	changeJSON, _ := json.Marshal(changeBody)
-	changeReq, _ := http.NewRequest("POST", "/api/v1/auth/change-password", bytes.NewBuffer(changeJSON))
+	changeReq, _ := http.NewRequest("POST", "/v1/auth/change-password", bytes.NewBuffer(changeJSON))
 	changeReq.Header.Set("Content-Type", "application/json")
 	changeW := httptest.NewRecorder()
 	changeRouter.ServeHTTP(changeW, changeReq)
@@ -801,7 +801,7 @@ func TestE2E_Auth_ChangePassword(t *testing.T) {
 	// Login with old password should fail
 	oldLoginBody := map[string]string{"email": email, "password": oldPass}
 	oldLoginJSON, _ := json.Marshal(oldLoginBody)
-	oldLoginReq, _ := http.NewRequest("POST", "/api/v1/auth/login", bytes.NewBuffer(oldLoginJSON))
+	oldLoginReq, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(oldLoginJSON))
 	oldLoginReq.Header.Set("Content-Type", "application/json")
 	oldLoginW := httptest.NewRecorder()
 	suite.router.ServeHTTP(oldLoginW, oldLoginReq)
@@ -843,7 +843,7 @@ func TestE2E_Auth_DisabledUser(t *testing.T) {
 	// Refresh should fail because user is disabled
 	refreshBody := map[string]string{"refresh_token": refreshToken}
 	refreshJSON, _ := json.Marshal(refreshBody)
-	refreshReq, _ := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBuffer(refreshJSON))
+	refreshReq, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(refreshJSON))
 	refreshReq.Header.Set("Content-Type", "application/json")
 	refreshW := httptest.NewRecorder()
 	suite.router.ServeHTTP(refreshW, refreshReq)
@@ -901,7 +901,7 @@ func TestE2E_Auth_AdminSeed(t *testing.T) {
 	// Login as admin
 	gin.SetMode(gin.TestMode)
 	loginRouter := gin.New()
-	loginV1 := loginRouter.Group("/api/v1")
+	loginV1 := loginRouter.Group("/v1")
 	authHandler := auth.NewHandler(authService)
 	loginV1.POST("/auth/login", authHandler.Login)
 

@@ -105,7 +105,7 @@ func TestHandler_List_WhenNoAuth_ReturnsForbidden(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		role, exists := c.Get("role")
@@ -124,7 +124,7 @@ func TestHandler_List_WhenNoAuth_ReturnsForbidden(t *testing.T) {
 	})
 	executions.GET("", handler.List)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -145,7 +145,7 @@ func TestHandler_List_WhenNonAdmin_ReturnsForbidden(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "user")
@@ -169,7 +169,7 @@ func TestHandler_List_WhenNonAdmin_ReturnsForbidden(t *testing.T) {
 	})
 	executions.GET("", handler.List)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -190,7 +190,7 @@ func TestHandler_List_WhenAdmin_Returns200(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -208,7 +208,7 @@ func TestHandler_List_WhenAdmin_Returns200(t *testing.T) {
 	})
 	executions.GET("", handler.List)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -235,7 +235,7 @@ func TestHandler_Create_WhenValid_Returns201(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -271,7 +271,7 @@ func TestHandler_Create_WhenValid_Returns201(t *testing.T) {
 	}
 
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/executions", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/executions", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -300,7 +300,7 @@ func TestHandler_Create_WhenInvalidBody_Returns400(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -318,7 +318,7 @@ func TestHandler_Create_WhenInvalidBody_Returns400(t *testing.T) {
 	})
 	executions.POST("", handler.Create)
 
-	req, _ := http.NewRequest("POST", "/api/v1/executions", bytes.NewBuffer([]byte("invalid json")))
+	req, _ := http.NewRequest("POST", "/v1/executions", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -341,7 +341,7 @@ func TestHandler_GetByID_WhenValid_Returns200(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -378,7 +378,7 @@ func TestHandler_GetByID_WhenValid_Returns200(t *testing.T) {
 	}
 
 	jsonBody, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/executions", bytes.NewBuffer(jsonBody))
+	createReq, _ := http.NewRequest("POST", "/v1/executions", bytes.NewBuffer(jsonBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -388,7 +388,7 @@ func TestHandler_GetByID_WhenValid_Returns200(t *testing.T) {
 	data := createResp["data"].(map[string]interface{})
 	execID := data["id"].(string)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions/"+execID, nil)
+	req, _ := http.NewRequest("GET", "/v1/executions/"+execID, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -409,7 +409,7 @@ func TestHandler_GetByID_WhenInvalidID_Returns400(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -427,7 +427,7 @@ func TestHandler_GetByID_WhenInvalidID_Returns400(t *testing.T) {
 	})
 	executions.GET("/:id", handler.GetByID)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions/not-a-uuid", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions/not-a-uuid", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -448,7 +448,7 @@ func TestHandler_Submit_WhenValid_Returns200(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -485,7 +485,7 @@ func TestHandler_Submit_WhenValid_Returns200(t *testing.T) {
 	}
 
 	jsonBody, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/executions", bytes.NewBuffer(jsonBody))
+	createReq, _ := http.NewRequest("POST", "/v1/executions", bytes.NewBuffer(jsonBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -495,7 +495,7 @@ func TestHandler_Submit_WhenValid_Returns200(t *testing.T) {
 	data := createResp["data"].(map[string]interface{})
 	execID := data["id"].(string)
 
-	req, _ := http.NewRequest("POST", "/api/v1/executions/"+execID+"/submit", nil)
+	req, _ := http.NewRequest("POST", "/v1/executions/"+execID+"/submit", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -516,7 +516,7 @@ func TestHandler_Cancel_WhenValid_Returns200(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -553,7 +553,7 @@ func TestHandler_Cancel_WhenValid_Returns200(t *testing.T) {
 	}
 
 	jsonBody, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/executions", bytes.NewBuffer(jsonBody))
+	createReq, _ := http.NewRequest("POST", "/v1/executions", bytes.NewBuffer(jsonBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -563,7 +563,7 @@ func TestHandler_Cancel_WhenValid_Returns200(t *testing.T) {
 	data := createResp["data"].(map[string]interface{})
 	execID := data["id"].(string)
 
-	req, _ := http.NewRequest("POST", "/api/v1/executions/"+execID+"/cancel", nil)
+	req, _ := http.NewRequest("POST", "/v1/executions/"+execID+"/cancel", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -584,7 +584,7 @@ func TestHandler_ListLegs_WhenValid_Returns200(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -621,7 +621,7 @@ func TestHandler_ListLegs_WhenValid_Returns200(t *testing.T) {
 	}
 
 	jsonBody, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/executions", bytes.NewBuffer(jsonBody))
+	createReq, _ := http.NewRequest("POST", "/v1/executions", bytes.NewBuffer(jsonBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -631,7 +631,7 @@ func TestHandler_ListLegs_WhenValid_Returns200(t *testing.T) {
 	data := createResp["data"].(map[string]interface{})
 	execID := data["id"].(string)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions/"+execID+"/legs", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions/"+execID+"/legs", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -658,7 +658,7 @@ func TestHandler_ListFills_WhenValid_Returns200(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -695,7 +695,7 @@ func TestHandler_ListFills_WhenValid_Returns200(t *testing.T) {
 	}
 
 	jsonBody, _ := json.Marshal(createBody)
-	createReq, _ := http.NewRequest("POST", "/api/v1/executions", bytes.NewBuffer(jsonBody))
+	createReq, _ := http.NewRequest("POST", "/v1/executions", bytes.NewBuffer(jsonBody))
 	createReq.Header.Set("Content-Type", "application/json")
 	createW := httptest.NewRecorder()
 	router.ServeHTTP(createW, createReq)
@@ -705,7 +705,7 @@ func TestHandler_ListFills_WhenValid_Returns200(t *testing.T) {
 	data := createResp["data"].(map[string]interface{})
 	execID := data["id"].(string)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions/"+execID+"/fills", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions/"+execID+"/fills", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -732,7 +732,7 @@ func TestHandler_Submit_WhenInvalidID_Returns400(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -750,7 +750,7 @@ func TestHandler_Submit_WhenInvalidID_Returns400(t *testing.T) {
 	})
 	executions.POST("/:id/submit", handler.Submit)
 
-	req, _ := http.NewRequest("POST", "/api/v1/executions/not-a-uuid/submit", nil)
+	req, _ := http.NewRequest("POST", "/v1/executions/not-a-uuid/submit", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -771,7 +771,7 @@ func TestHandler_Cancel_WhenInvalidID_Returns400(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -789,7 +789,7 @@ func TestHandler_Cancel_WhenInvalidID_Returns400(t *testing.T) {
 	})
 	executions.POST("/:id/cancel", handler.Cancel)
 
-	req, _ := http.NewRequest("POST", "/api/v1/executions/not-a-uuid/cancel", nil)
+	req, _ := http.NewRequest("POST", "/v1/executions/not-a-uuid/cancel", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -810,7 +810,7 @@ func TestHandler_ListLegs_WhenInvalidID_Returns400(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -828,7 +828,7 @@ func TestHandler_ListLegs_WhenInvalidID_Returns400(t *testing.T) {
 	})
 	executions.GET("/:id/legs", handler.ListLegs)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions/not-a-uuid/legs", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions/not-a-uuid/legs", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -849,7 +849,7 @@ func TestHandler_ListFills_WhenInvalidID_Returns400(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	executions := v1.Group("/executions")
 	executions.Use(func(c *gin.Context) {
 		c.Set("role", "admin")
@@ -867,7 +867,7 @@ func TestHandler_ListFills_WhenInvalidID_Returns400(t *testing.T) {
 	})
 	executions.GET("/:id/fills", handler.ListFills)
 
-	req, _ := http.NewRequest("GET", "/api/v1/executions/not-a-uuid/fills", nil)
+	req, _ := http.NewRequest("GET", "/v1/executions/not-a-uuid/fills", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

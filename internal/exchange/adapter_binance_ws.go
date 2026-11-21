@@ -37,13 +37,13 @@ func NewBinanceWSAdapter(venueID uuid.UUID) *BinanceWSAdapter {
 }
 
 type BinanceDepthMessage struct {
-	E string     `json:"e"`
-	E2 int64     `json:"E"`
-	S string     `json:"s"`
-	U int64      `json:"U"`
-	U2 int64     `json:"u"`
-	B [][]string `json:"b"`
-	A [][]string `json:"a"`
+	E  string     `json:"e"`
+	E2 int64      `json:"E"`
+	S  string     `json:"s"`
+	U  int64      `json:"U"`
+	U2 int64      `json:"u"`
+	B  [][]string `json:"b"`
+	A  [][]string `json:"a"`
 }
 
 type BinanceDepthSnapshot struct {

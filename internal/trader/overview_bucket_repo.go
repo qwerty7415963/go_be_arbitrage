@@ -549,7 +549,7 @@ func (r *Repository) GetAssetAliasesByVenueSymbols(ctx context.Context, venueID 
 			return nil, err
 		}
 		if logoURL == "" && storagePath != "" {
-			logoURL = "/api/v1/assets/logos/" + assetID.String()
+			logoURL = "/v1/assets/logos/" + assetID.String()
 		}
 		out[symbol] = AssetAliasInfo{AssetID: assetID, Category: category, LogoURL: logoURL}
 	}

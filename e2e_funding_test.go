@@ -129,7 +129,7 @@ func setupFundingSuite(t *testing.T) *fundingSuite {
 
 	router := gin.New()
 	router.Use(gin.Recovery())
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/funding/arbitrage", handler.GetFundingArbitrage)
 	s.router = router
 
@@ -169,7 +169,7 @@ func TestE2E_Funding_HappyPath(t *testing.T) {
 	s := setupFundingSuite(t)
 	a := s.venueAID.String()
 	b := s.venueBID.String()
-	code, resp := s.doJSON(t, "GET", fmt.Sprintf("/api/v1/funding/arbitrage?venue_id=%s,%s&refresh=true", a, b))
+	code, resp := s.doJSON(t, "GET", fmt.Sprintf("/v1/funding/arbitrage?venue_id=%s,%s&refresh=true", a, b))
 	if code != http.StatusOK {
 		t.Fatalf("status: %d %v", code, resp)
 	}
@@ -239,7 +239,7 @@ func TestE2E_Funding_Stale(t *testing.T) {
 	// Remove fresh T1 funding so default result is empty.
 	_, _ = s.db.Exec(context.Background(), `DELETE FROM funding_rates WHERE instrument_id = $1`, s.instIDs["T1"])
 	// default: no tokens
-	code, resp := s.doJSON(t, "GET", fmt.Sprintf("/api/v1/funding/arbitrage?venue_id=%s,%s&refresh=true", a, b))
+	code, resp := s.doJSON(t, "GET", fmt.Sprintf("/v1/funding/arbitrage?venue_id=%s,%s&refresh=true", a, b))
 	if code != http.StatusOK {
 		t.Fatalf("status: %d %v", code, resp)
 	}
@@ -253,7 +253,7 @@ func TestE2E_Funding_Stale(t *testing.T) {
 		}
 	}
 	// include_stale
-	code, resp = s.doJSON(t, "GET", fmt.Sprintf("/api/v1/funding/arbitrage?venue_id=%s,%s&include_stale=true&refresh=true", a, b))
+	code, resp = s.doJSON(t, "GET", fmt.Sprintf("/v1/funding/arbitrage?venue_id=%s,%s&include_stale=true&refresh=true", a, b))
 	if code != http.StatusOK {
 		t.Fatalf("status: %d %v", code, resp)
 	}
@@ -294,7 +294,7 @@ func TestE2E_Funding_Pagination(t *testing.T) {
 		}
 	})
 	// page1
-	code, resp := s.doJSON(t, "GET", fmt.Sprintf("/api/v1/funding/arbitrage?venue_id=%s,%s&limit=2&refresh=true", a, b))
+	code, resp := s.doJSON(t, "GET", fmt.Sprintf("/v1/funding/arbitrage?venue_id=%s,%s&limit=2&refresh=true", a, b))
 	if code != http.StatusOK {
 		t.Fatalf("status: %d %v", code, resp)
 	}
@@ -313,7 +313,7 @@ func TestE2E_Funding_Pagination(t *testing.T) {
 		t.Fatalf("total_pages: %v", meta["total_pages"])
 	}
 	// page2
-	code, resp = s.doJSON(t, "GET", fmt.Sprintf("/api/v1/funding/arbitrage?venue_id=%s,%s&limit=2&page=2&refresh=true", a, b))
+	code, resp = s.doJSON(t, "GET", fmt.Sprintf("/v1/funding/arbitrage?venue_id=%s,%s&limit=2&page=2&refresh=true", a, b))
 	if code != http.StatusOK {
 		t.Fatalf("status: %d %v", code, resp)
 	}
@@ -333,11 +333,11 @@ func TestE2E_Funding_Pagination(t *testing.T) {
 func TestE2E_Funding_Validation(t *testing.T) {
 	s := setupFundingSuite(t)
 	a := s.venueAID.String()
-	code, _ := s.doJSON(t, "GET", fmt.Sprintf("/api/v1/funding/arbitrage?venue_id=%s", a))
+	code, _ := s.doJSON(t, "GET", fmt.Sprintf("/v1/funding/arbitrage?venue_id=%s", a))
 	if code != http.StatusBadRequest {
 		t.Fatalf("1 venue: %d", code)
 	}
-	code, _ = s.doJSON(t, "GET", fmt.Sprintf("/api/v1/funding/arbitrage?venue_id=%s,%s", a, a))
+	code, _ = s.doJSON(t, "GET", fmt.Sprintf("/v1/funding/arbitrage?venue_id=%s,%s", a, a))
 	if code != http.StatusBadRequest {
 		t.Fatalf("dup: %d", code)
 	}

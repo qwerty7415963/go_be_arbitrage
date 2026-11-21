@@ -34,7 +34,7 @@ type updatePerpDexesRequest struct {
 // @Success      200  {object}  api.Response{data=TelegramSettings}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/admin/telegram/settings [get]
+// @Router       /v1/admin/telegram/settings [get]
 func (h *Handler) GetSettings(c *gin.Context) {
 	settings, err := h.service.GetTelegramSettings()
 	if err != nil {
@@ -59,7 +59,7 @@ func (h *Handler) GetSettings(c *gin.Context) {
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
 // @Failure      401      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/admin/telegram/settings [patch]
+// @Router       /v1/admin/telegram/settings [patch]
 func (h *Handler) UpdateSettings(c *gin.Context) {
 	var req updateSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -99,7 +99,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=PerpDexSettings}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/admin/perp-dexes [get]
+// @Router       /v1/admin/perp-dexes [get]
 func (h *Handler) GetPerpDexes(c *gin.Context) {
 	dexes, err := h.service.GetPerpDexes(c.Request.Context())
 	if err != nil {
@@ -124,7 +124,7 @@ func (h *Handler) GetPerpDexes(c *gin.Context) {
 // @Failure      400      {object}  api.Response{error=api.ErrorBody}
 // @Failure      401      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/admin/perp-dexes [patch]
+// @Router       /v1/admin/perp-dexes [patch]
 func (h *Handler) UpdatePerpDexes(c *gin.Context) {
 	var req updatePerpDexesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

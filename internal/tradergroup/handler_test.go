@@ -67,7 +67,7 @@ const authedUserID = "11111111-1111-1111-1111-111111111111"
 func testRouter(h *Handler, withUser bool) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	v1 := r.Group("/api/v1")
+	v1 := r.Group("/v1")
 	if withUser {
 		v1.Use(func(c *gin.Context) {
 			c.Set("user_id", authedUserID)
@@ -102,7 +102,7 @@ func errCode(t *testing.T, w *httptest.ResponseRecorder) string {
 func TestHandler_Anonymous_Forbidden(t *testing.T) {
 	h := NewHandler(&mockStore{})
 	for method, target := range map[string]string{
-		"POST": "/api/v1/trader-groups", "GET": "/api/v1/trader-groups",
+		"POST": "/v1/trader-groups", "GET": "/v1/trader-groups",
 	} {
 		w := doReq(t, testRouter(h, false), method, target, `{"name":"x"}`)
 		if w.Code != http.StatusForbidden || errCode(t, w) != "AUTH-005" {
@@ -119,13 +119,13 @@ func TestHandler_Create(t *testing.T) {
 		}
 		return &Group{ID: uuid.New(), Name: n}, nil
 	}})
-	w := doReq(t, testRouter(h, true), "POST", "/api/v1/trader-groups", `{"name":"Alphas"}`)
+	w := doReq(t, testRouter(h, true), "POST", "/v1/trader-groups", `{"name":"Alphas"}`)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
 
 	h2 := NewHandler(&mockStore{})
-	w2 := doReq(t, testRouter(h2, true), "POST", "/api/v1/trader-groups", `{"name":""}`)
+	w2 := doReq(t, testRouter(h2, true), "POST", "/v1/trader-groups", `{"name":""}`)
 	if w2.Code != http.StatusBadRequest {
 		t.Errorf("blank name: got %d", w2.Code)
 	}
@@ -133,7 +133,7 @@ func TestHandler_Create(t *testing.T) {
 	h3 := NewHandler(&mockStore{createFn: func(context.Context, uuid.UUID, string, string) (*Group, error) {
 		return nil, domain.NewError(domain.ErrCodeGroupDuplicate, "dup")
 	}})
-	w3 := doReq(t, testRouter(h3, true), "POST", "/api/v1/trader-groups", `{"name":"Alphas"}`)
+	w3 := doReq(t, testRouter(h3, true), "POST", "/v1/trader-groups", `{"name":"Alphas"}`)
 	if w3.Code != http.StatusConflict || errCode(t, w3) != "GROUP-002" {
 		t.Errorf("dup: got %d %s", w3.Code, w3.Body.String())
 	}
@@ -142,7 +142,7 @@ func TestHandler_Create(t *testing.T) {
 // Get: bad UUID 400, unknown 404, foreign 403.
 func TestHandler_Get_Errors(t *testing.T) {
 	h := NewHandler(&mockStore{})
-	w := doReq(t, testRouter(h, true), "GET", "/api/v1/trader-groups/nope", "")
+	w := doReq(t, testRouter(h, true), "GET", "/v1/trader-groups/nope", "")
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("bad uuid: got %d", w.Code)
 	}
@@ -150,13 +150,13 @@ func TestHandler_Get_Errors(t *testing.T) {
 	h2 := NewHandler(&mockStore{getFn: func(context.Context, uuid.UUID, uuid.UUID) (*Group, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "nope")
 	}})
-	if w := doReq(t, testRouter(h2, true), "GET", "/api/v1/trader-groups/"+id, ""); w.Code != http.StatusNotFound {
+	if w := doReq(t, testRouter(h2, true), "GET", "/v1/trader-groups/"+id, ""); w.Code != http.StatusNotFound {
 		t.Errorf("unknown: got %d", w.Code)
 	}
 	h3 := NewHandler(&mockStore{getFn: func(context.Context, uuid.UUID, uuid.UUID) (*Group, error) {
 		return nil, domain.NewError(domain.ErrCodeGroupForbidden, "nope")
 	}})
-	if w := doReq(t, testRouter(h3, true), "GET", "/api/v1/trader-groups/"+id, ""); w.Code != http.StatusForbidden {
+	if w := doReq(t, testRouter(h3, true), "GET", "/v1/trader-groups/"+id, ""); w.Code != http.StatusForbidden {
 		t.Errorf("foreign: got %d", w.Code)
 	}
 }
@@ -168,7 +168,7 @@ func TestHandler_AddMembers_Validation(t *testing.T) {
 		called = true
 		return 0, nil
 	}})
-	w := doReq(t, testRouter(h, true), "POST", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+	w := doReq(t, testRouter(h, true), "POST", "/v1/trader-groups/"+uuid.NewString()+"/members",
 		`{"members":[{"venue":"hyperliquid","wallet_address":"zzz"}]}`)
 	if w.Code != http.StatusBadRequest || called {
 		t.Errorf("bad address: got %d called=%v", w.Code, called)
@@ -178,14 +178,14 @@ func TestHandler_AddMembers_Validation(t *testing.T) {
 // Delete: 204, unknown 404.
 func TestHandler_Delete(t *testing.T) {
 	h := NewHandler(&mockStore{deleteFn: func(context.Context, uuid.UUID, uuid.UUID) error { return nil }})
-	w := doReq(t, testRouter(h, true), "DELETE", "/api/v1/trader-groups/"+uuid.NewString(), "")
+	w := doReq(t, testRouter(h, true), "DELETE", "/v1/trader-groups/"+uuid.NewString(), "")
 	if w.Code != http.StatusNoContent {
 		t.Errorf("got %d", w.Code)
 	}
 	h2 := NewHandler(&mockStore{deleteFn: func(context.Context, uuid.UUID, uuid.UUID) error {
 		return errors.New("db gone")
 	}})
-	w2 := doReq(t, testRouter(h2, true), "DELETE", "/api/v1/trader-groups/"+uuid.NewString(), "")
+	w2 := doReq(t, testRouter(h2, true), "DELETE", "/v1/trader-groups/"+uuid.NewString(), "")
 	if w2.Code != http.StatusInternalServerError {
 		t.Errorf("raw error must map to 500, got %d", w2.Code)
 	}
@@ -202,7 +202,7 @@ func TestHandler_UpdateMembers(t *testing.T) {
 		}
 		return 1, nil
 	}})
-	w := doReq(t, testRouter(h, true), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+	w := doReq(t, testRouter(h, true), "PATCH", "/v1/trader-groups/"+uuid.NewString()+"/members",
 		`{"members":[{"venue":"Hyperliquid","wallet_address":"0xABCDEF0123456789abcdef0123456789ABCDEF01","alias":"w1"}]}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
@@ -217,7 +217,7 @@ func TestHandler_UpdateMembers(t *testing.T) {
 
 	// Anonymous → 403.
 	h2 := NewHandler(&mockStore{})
-	w2 := doReq(t, testRouter(h2, false), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+	w2 := doReq(t, testRouter(h2, false), "PATCH", "/v1/trader-groups/"+uuid.NewString()+"/members",
 		`{"members":[]}`)
 	if w2.Code != http.StatusForbidden {
 		t.Errorf("anonymous: got %d", w2.Code)
@@ -230,7 +230,7 @@ func TestHandler_UpdateMembers(t *testing.T) {
 		called = true
 		return 0, nil
 	}})
-	w3 := doReq(t, testRouter(h3, true), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+	w3 := doReq(t, testRouter(h3, true), "PATCH", "/v1/trader-groups/"+uuid.NewString()+"/members",
 		`{"members":[{"venue":"hyperliquid","wallet_address":"0xabcdef0123456789abcdef0123456789abcdef01","alias":"`+long+`"}]}`)
 	if w3.Code != http.StatusBadRequest || called {
 		t.Errorf("cap: got %d called=%v", w3.Code, called)
@@ -240,7 +240,7 @@ func TestHandler_UpdateMembers(t *testing.T) {
 	h4 := NewHandler(&mockStore{updateMembersFn: func(context.Context, uuid.UUID, uuid.UUID, []ValidatedMemberUpdate) (int64, error) {
 		return 0, domain.NewError(domain.ErrCodeGroupForbidden, "nope")
 	}})
-	w4 := doReq(t, testRouter(h4, true), "PATCH", "/api/v1/trader-groups/"+uuid.NewString()+"/members",
+	w4 := doReq(t, testRouter(h4, true), "PATCH", "/v1/trader-groups/"+uuid.NewString()+"/members",
 		`{"members":[{"venue":"hyperliquid","wallet_address":"0xabcdef0123456789abcdef0123456789abcdef01"}]}`)
 	if w4.Code != http.StatusForbidden {
 		t.Errorf("foreign: got %d", w4.Code)

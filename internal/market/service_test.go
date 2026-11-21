@@ -362,8 +362,8 @@ func TestService_ProcessRawEvent_WithNilRepo_Panics(t *testing.T) {
 	}()
 
 	event := &RawMarketEvent{
-		VenueID:  uuid.New(),
-		Payload:  []byte(`{}`),
+		VenueID: uuid.New(),
+		Payload: []byte(`{}`),
 	}
 	_ = svc.ProcessRawEvent(context.Background(), event)
 }

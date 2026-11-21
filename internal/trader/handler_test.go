@@ -187,7 +187,7 @@ func (m *mockService) DeleteWatchedMarket(ctx context.Context, venue, market str
 func testRouter(h *Handler, userID string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	v1 := r.Group("/api/v1")
+	v1 := r.Group("/v1")
 	if userID != "" {
 		v1.Use(func(c *gin.Context) {
 			c.Set("user_id", userID)
@@ -227,7 +227,7 @@ func errCode(t *testing.T, w *httptest.ResponseRecorder) string {
 // SRCH-H-04: malformed body and service INVALID_FILTER surface as 400.
 func TestHandler_Search_InvalidBody(t *testing.T) {
 	h := NewHandler(&mockService{})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", "{bad json")
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", "{bad json")
 	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -237,7 +237,7 @@ func TestHandler_Search_ServiceErrors(t *testing.T) {
 	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, _ *SearchRequest) (*SearchResult, error) {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "roi_min > roi_max")
 	}})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"period":"30D"}`)
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", `{"period":"30D"}`)
 	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -245,7 +245,7 @@ func TestHandler_Search_ServiceErrors(t *testing.T) {
 	h2 := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, _ *SearchRequest) (*SearchResult, error) {
 		return nil, domain.NewError(domain.ErrCodeAuthTokenInvalid, "login needed")
 	}})
-	w2 := doReq(t, testRouter(h2, ""), "POST", "/api/v1/traders/search", `{"group_id":"11111111-1111-1111-1111-111111111111"}`)
+	w2 := doReq(t, testRouter(h2, ""), "POST", "/v1/traders/search", `{"group_id":"11111111-1111-1111-1111-111111111111"}`)
 	if w2.Code != http.StatusUnauthorized || errCode(t, w2) != "AUTH-003" {
 		t.Errorf("got %d %s", w2.Code, w2.Body.String())
 	}
@@ -261,7 +261,7 @@ func TestHandler_Search_Shape(t *testing.T) {
 			HasMore:    true,
 		}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"limit":1}`)
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", `{"limit":1}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -296,7 +296,7 @@ func TestHandler_Search_PageMeta(t *testing.T) {
 			TotalPages: 2,
 		}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":2,"limit":2}`)
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", `{"page":2,"limit":2}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -322,7 +322,7 @@ func TestHandler_Search_InvalidPage(t *testing.T) {
 	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, _ *SearchRequest) (*SearchResult, error) {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "page must be >= 1")
 	}})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":0,"limit":20}`)
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", `{"page":0,"limit":20}`)
 	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -336,7 +336,7 @@ func TestHandler_Search_NonIntPage(t *testing.T) {
 		called = true
 		return &SearchResult{Rows: []*PeriodMetrics{}}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":"abc","limit":20}`)
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", `{"page":"abc","limit":20}`)
 	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -354,7 +354,7 @@ func TestHandler_Search_PageWithCursorForwarded(t *testing.T) {
 		}
 		return &SearchResult{Rows: []*PeriodMetrics{}, Page: 1, Total: 0, TotalPages: 0}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":1,"cursor":"forged.cursor"}`)
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", `{"page":1,"cursor":"forged.cursor"}`)
 	if w.Code != http.StatusOK {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -365,7 +365,7 @@ func TestHandler_Search_EmptyRowsIsArray(t *testing.T) {
 	h := NewHandler(&mockService{searchFn: func(_ context.Context, _ uuid.UUID, _ *SearchRequest) (*SearchResult, error) {
 		return &SearchResult{Rows: nil, Page: 1, Total: 0, TotalPages: 0}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "POST", "/api/v1/traders/search", `{"page":1,"limit":20}`)
+	w := doReq(t, testRouter(h, ""), "POST", "/v1/traders/search", `{"page":1,"limit":20}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -395,7 +395,7 @@ func TestHandler_Detail_Errors(t *testing.T) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "nope")
 	}})
 	w := doReq(t, testRouter(h, ""), "GET",
-		"/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "")
+		"/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "")
 	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -403,7 +403,7 @@ func TestHandler_Detail_Errors(t *testing.T) {
 	h2 := NewHandler(&mockService{detailFn: func(_ context.Context, _, _, _ string, _ bool) (*Detail, error) {
 		return nil, domain.NewError(domain.ErrCodeValidation, "invalid wallet address")
 	}})
-	w2 := doReq(t, testRouter(h2, ""), "GET", "/api/v1/traders/not-an-address", "")
+	w2 := doReq(t, testRouter(h2, ""), "GET", "/v1/traders/not-an-address", "")
 	if w2.Code != http.StatusBadRequest || errCode(t, w2) != "COMMON-902" {
 		t.Errorf("bad address: got %d %s", w2.Code, w2.Body.String())
 	}
@@ -424,7 +424,7 @@ func TestHandler_Performance_SeriesShape(t *testing.T) {
 		}, nil
 	}})
 	addr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/"+addr+"/performance", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -456,7 +456,7 @@ func TestHandler_Performance_SeriesShape(t *testing.T) {
 		}
 	}
 
-	w2 := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance?mode=combined", "")
+	w2 := doReq(t, testRouter(h, ""), "GET", "/v1/traders/"+addr+"/performance?mode=combined", "")
 	if w2.Code != http.StatusOK || gotMode != PerformanceModeCombined {
 		t.Errorf("combined: got %d mode=%q", w2.Code, gotMode)
 	}
@@ -470,7 +470,7 @@ func TestHandler_Performance_InvalidMode(t *testing.T) {
 		}
 		return &PerformanceDTO{Mode: mode}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/performance?mode=bogus", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/performance?mode=bogus", "")
 	if w.Code != http.StatusBadRequest || errCode(t, w) != "INVALID_FILTER" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -481,7 +481,7 @@ func TestHandler_Performance_UnknownWallet(t *testing.T) {
 	h := NewHandler(&mockService{performanceFn: func(_ context.Context, _, _, _, _ string, _, _ bool) (*PerformanceDTO, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "unknown wallet")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/performance", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/performance", "")
 	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -501,7 +501,7 @@ func TestHandler_Performance_SeriesOnlyTrue(t *testing.T) {
 		}, nil
 	}})
 	addr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance?series_only=true", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/"+addr+"/performance?series_only=true", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -541,7 +541,7 @@ func TestHandler_Performance_SeriesOnlyFalseDefault(t *testing.T) {
 		}, nil
 	}})
 	addr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/"+addr+"/performance", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/"+addr+"/performance", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -565,7 +565,7 @@ func TestHandler_BucketDetail_DefaultsAndShape(t *testing.T) {
 		gotVenue, gotKind, gotID, gotPeriod, gotRange = venue, kind, id, period, rangeCode
 		return &BucketDetail{Kind: kind, BucketID: id, WalletCount: 2}, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -588,7 +588,7 @@ func TestHandler_BucketDetail_ErrorMapping(t *testing.T) {
 	h := NewHandler(&mockService{bucketDetailFn: func(_ context.Context, _, _, _, _, _ string) (*BucketDetail, error) {
 		return nil, domain.NewError(domain.ErrCodeNotFound, "bucket not found")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable", "")
 	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -596,7 +596,7 @@ func TestHandler_BucketDetail_ErrorMapping(t *testing.T) {
 	h2 := NewHandler(&mockService{bucketDetailFn: func(_ context.Context, _, _, _, _, _ string) (*BucketDetail, error) {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "invalid bucket id")
 	}})
-	w2 := doReq(t, testRouter(h2, ""), "GET", "/api/v1/traders/overview/buckets/pnl/bogus", "")
+	w2 := doReq(t, testRouter(h2, ""), "GET", "/v1/traders/overview/buckets/pnl/bogus", "")
 	if w2.Code != http.StatusBadRequest || errCode(t, w2) != "INVALID_FILTER" {
 		t.Errorf("got %d %s", w2.Code, w2.Body.String())
 	}
@@ -610,7 +610,7 @@ func TestHandler_BucketWallets_DefaultsAndShape(t *testing.T) {
 		gotPage, gotLimit = page, limit
 		return []BucketWalletRow{{Address: "0xabc", DisplayName: strPtr("name")}}, 1, nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/account/whale/wallets", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/account/whale/wallets", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -635,11 +635,11 @@ func TestHandler_BucketWallets_DefaultsAndShape(t *testing.T) {
 
 func TestHandler_BucketWallets_Validation(t *testing.T) {
 	h := NewHandler(&mockService{})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets?page=0", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable/wallets?page=0", "")
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("page=0: got %d %s", w.Code, w.Body.String())
 	}
-	w2 := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets?limit=101", "")
+	w2 := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable/wallets?limit=101", "")
 	if w2.Code != http.StatusBadRequest {
 		t.Errorf("limit=101: got %d %s", w2.Code, w2.Body.String())
 	}
@@ -649,7 +649,7 @@ func TestHandler_BucketWallets_ErrorMapping(t *testing.T) {
 	h := NewHandler(&mockService{bucketWalletsFn: func(_ context.Context, _, _, _, _, _, _ string, _, _ int) ([]BucketWalletRow, int, error) {
 		return nil, 0, domain.NewError(domain.ErrCodeNotFound, "bucket not found")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/wallets", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable/wallets", "")
 	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}
@@ -663,7 +663,7 @@ func TestHandler_BucketMarkets_DefaultsAndShape(t *testing.T) {
 		gotPage, gotLimit = page, limit
 		return []BucketMarketRow{{Market: "BTC", NotionalLong: 10}}, 1, "positions", nil
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable/markets", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d %s", w.Code, w.Body.String())
 	}
@@ -685,7 +685,7 @@ func TestHandler_BucketMarkets_DefaultsAndShape(t *testing.T) {
 
 func TestHandler_BucketMarkets_Validation(t *testing.T) {
 	h := NewHandler(&mockService{})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets?limit=0", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable/markets?limit=0", "")
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("limit=0: got %d %s", w.Code, w.Body.String())
 	}
@@ -695,7 +695,7 @@ func TestHandler_BucketMarkets_ErrorMapping(t *testing.T) {
 	h := NewHandler(&mockService{bucketMarketsFn: func(_ context.Context, _, _, _, _, _, _, _, _ string, _, _ int) ([]BucketMarketRow, int, string, error) {
 		return nil, 0, "", domain.NewError(domain.ErrCodeNotFound, "bucket not found")
 	}})
-	w := doReq(t, testRouter(h, ""), "GET", "/api/v1/traders/overview/buckets/pnl/profitable/markets", "")
+	w := doReq(t, testRouter(h, ""), "GET", "/v1/traders/overview/buckets/pnl/profitable/markets", "")
 	if w.Code != http.StatusNotFound || errCode(t, w) != "COMMON-903" {
 		t.Errorf("got %d %s", w.Code, w.Body.String())
 	}

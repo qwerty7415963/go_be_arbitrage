@@ -99,7 +99,7 @@ func parseUUIDList(raw string) ([]uuid.UUID, error) {
 // @Param        to       query  string  false  "To date (YYYY-MM-DD)"
 // @Success      200  {object}  api.Response{data=MarketDetailResponse}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/markets/{market} [get]
+// @Router       /v1/traders/markets/{market} [get]
 func (h *Handler) MarketDetail(c *gin.Context) {
 	market := c.Param("market")
 	venue := c.DefaultQuery("venue", DefaultVenue)
@@ -152,7 +152,7 @@ func (h *Handler) MarketDetail(c *gin.Context) {
 // @Param        limit    query  int     false  "Limit" default(20)
 // @Success      200  {object}  api.Response{data=[]MarketWalletRow,meta=api.Meta}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/markets/{market}/wallets [get]
+// @Router       /v1/traders/markets/{market}/wallets [get]
 func (h *Handler) MarketWallets(c *gin.Context) {
 	market := c.Param("market")
 	venue := c.DefaultQuery("venue", DefaultVenue)
@@ -243,7 +243,7 @@ func (h *Handler) MarketWallets(c *gin.Context) {
 // @Param        limit    query  int     false  "Limit" default(20)
 // @Success      200  {object}  api.Response{data=[]MarketTradeRow,meta=api.Meta}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/markets/{market}/trades [get]
+// @Router       /v1/traders/markets/{market}/trades [get]
 func (h *Handler) MarketTrades(c *gin.Context) {
 	market := c.Param("market")
 	venue := c.DefaultQuery("venue", DefaultVenue)

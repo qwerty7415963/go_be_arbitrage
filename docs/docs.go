@@ -22,7 +22,107 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/admin/assets/logos": {
+        "/health": {
+            "get": {
+                "description": "Check service health status including all registered checkers",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.HealthResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/ready": {
+            "get": {
+                "description": "Check if service is ready to accept requests",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Readiness check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.ReadyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/admin/assets/logos": {
             "get": {
                 "security": [
                     {
@@ -92,7 +192,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/assets/logos/refresh": {
+        "/v1/admin/assets/logos/refresh": {
             "post": {
                 "security": [
                     {
@@ -148,7 +248,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/perp-dexes": {
+        "/v1/admin/perp-dexes": {
             "get": {
                 "security": [
                     {
@@ -324,7 +424,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/telegram/settings": {
+        "/v1/admin/telegram/settings": {
             "get": {
                 "security": [
                     {
@@ -500,7 +600,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/traders/sync-positions": {
+        "/v1/admin/traders/sync-positions": {
             "post": {
                 "security": [
                     {
@@ -623,7 +723,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/assets/logos/{assetId}": {
+        "/v1/assets/logos/{assetId}": {
             "get": {
                 "description": "Serve a stored asset logo file.",
                 "produces": [
@@ -657,7 +757,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/change-password": {
+        "/v1/auth/change-password": {
             "post": {
                 "security": [
                     {
@@ -705,7 +805,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/login": {
+        "/v1/auth/login": {
             "post": {
                 "description": "Authenticate with email and password",
                 "consumes": [
@@ -757,7 +857,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/logout": {
+        "/v1/auth/logout": {
             "post": {
                 "security": [
                     {
@@ -785,7 +885,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/me": {
+        "/v1/auth/me": {
             "get": {
                 "security": [
                     {
@@ -828,7 +928,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/refresh": {
+        "/v1/auth/refresh": {
             "post": {
                 "description": "Get new access token using refresh token",
                 "consumes": [
@@ -880,7 +980,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/register": {
+        "/v1/auth/register": {
             "post": {
                 "description": "Create a new user account",
                 "consumes": [
@@ -938,7 +1038,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/wallet/link": {
+        "/v1/auth/wallet/link": {
             "post": {
                 "security": [
                     {
@@ -987,7 +1087,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/wallet/list": {
+        "/v1/auth/wallet/list": {
             "get": {
                 "security": [
                     {
@@ -1034,7 +1134,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/wallet/nonce": {
+        "/v1/auth/wallet/nonce": {
             "post": {
                 "description": "Generate a nonce for wallet signature verification",
                 "consumes": [
@@ -1087,7 +1187,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/wallet/verify": {
+        "/v1/auth/wallet/verify": {
             "post": {
                 "description": "Verify SIWE message + signature, returns JWT for new/existing user",
                 "consumes": [
@@ -1146,7 +1246,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/wallet/{wallet_id}": {
+        "/v1/auth/wallet/{wallet_id}": {
             "delete": {
                 "security": [
                     {
@@ -1190,7 +1290,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/executions": {
+        "/v1/executions": {
             "get": {
                 "security": [
                     {
@@ -1387,7 +1487,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/executions/{id}": {
+        "/v1/executions/{id}": {
             "get": {
                 "security": [
                     {
@@ -1505,7 +1605,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/executions/{id}/cancel": {
+        "/v1/executions/{id}/cancel": {
             "post": {
                 "security": [
                     {
@@ -1626,7 +1726,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/executions/{id}/fills": {
+        "/v1/executions/{id}/fills": {
             "get": {
                 "security": [
                     {
@@ -1747,7 +1847,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/executions/{id}/legs": {
+        "/v1/executions/{id}/legs": {
             "get": {
                 "security": [
                     {
@@ -1868,7 +1968,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/executions/{id}/submit": {
+        "/v1/executions/{id}/submit": {
             "post": {
                 "security": [
                     {
@@ -1989,7 +2089,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/funding/arbitrage": {
+        "/v1/funding/arbitrage": {
             "get": {
                 "description": "Get funding arbitrage table for selected venues",
                 "produces": [
@@ -2107,7 +2207,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/instruments": {
+        "/v1/instruments": {
             "get": {
                 "description": "Get all instruments",
                 "produces": [
@@ -2240,7 +2340,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/instruments/tradable": {
+        "/v1/instruments/tradable": {
             "get": {
                 "description": "Get all instruments with trading enabled",
                 "produces": [
@@ -2293,7 +2393,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/instruments/{id}": {
+        "/v1/instruments/{id}": {
             "get": {
                 "description": "Get instrument by ID",
                 "produces": [
@@ -2481,7 +2581,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/instruments/{id}/trading": {
+        "/v1/instruments/{id}/trading": {
             "put": {
                 "description": "Enable or disable trading for an instrument",
                 "consumes": [
@@ -2558,7 +2658,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/market/funding": {
+        "/v1/market/funding": {
             "get": {
                 "description": "Get latest funding rate for a venue instrument",
                 "produces": [
@@ -2642,7 +2742,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/market/subscribe": {
+        "/v1/market/subscribe": {
             "get": {
                 "description": "Subscribe to market data updates via WebSocket",
                 "produces": [
@@ -2703,7 +2803,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/market/subscriptions": {
+        "/v1/market/subscriptions": {
             "get": {
                 "description": "Get all active market data subscriptions",
                 "produces": [
@@ -2738,7 +2838,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/market/ticker": {
+        "/v1/market/ticker": {
             "get": {
                 "description": "Get latest ticker for a venue instrument",
                 "produces": [
@@ -2822,7 +2922,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/market/trades": {
+        "/v1/market/trades": {
             "get": {
                 "description": "Get recent trades for a venue instrument",
                 "produces": [
@@ -2897,7 +2997,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/opportunities": {
+        "/v1/opportunities": {
             "get": {
                 "description": "All in-memory opportunities from the live scanner, newest first; empty array when none. Public endpoint — no auth.",
                 "produces": [
@@ -2932,7 +3032,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/opportunities/instrument/{instrument_id}": {
+        "/v1/opportunities/instrument/{instrument_id}": {
             "get": {
                 "description": "Opportunities for one instrument ID. Public endpoint — no auth.",
                 "produces": [
@@ -2994,7 +3094,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/opportunities/scan": {
+        "/v1/opportunities/scan": {
             "post": {
                 "description": "Runs the opportunity scanner synchronously and returns what it found (count, venues, duration). Public endpoint — no auth.",
                 "produces": [
@@ -3026,7 +3126,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/opportunities/type/{type}": {
+        "/v1/opportunities/type/{type}": {
             "get": {
                 "description": "Opportunities filtered by arbitrage type. Public endpoint — no auth.",
                 "produces": [
@@ -3093,7 +3193,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/opportunities/{id}": {
+        "/v1/opportunities/{id}": {
             "get": {
                 "description": "One opportunity by ID. Public endpoint — no auth.",
                 "produces": [
@@ -3230,7 +3330,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/orderbook/depth": {
+        "/v1/orderbook/depth": {
             "get": {
                 "description": "Get L2 order book for a venue instrument",
                 "produces": [
@@ -3320,7 +3420,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/orderbook/health": {
+        "/v1/orderbook/health": {
             "get": {
                 "description": "Get health status of an order book",
                 "produces": [
@@ -3404,7 +3504,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/orderbook/resync": {
+        "/v1/orderbook/resync": {
             "post": {
                 "description": "Request a resync of the order book",
                 "produces": [
@@ -3471,7 +3571,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/orderbook/tradable": {
+        "/v1/orderbook/tradable": {
             "get": {
                 "description": "Check if the order book is healthy and tradable",
                 "produces": [
@@ -3540,7 +3640,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/orderbook/ws": {
+        "/v1/orderbook/ws": {
             "get": {
                 "description": "Subscribe to real-time order book updates via WebSocket",
                 "tags": [
@@ -3597,7 +3697,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/ping": {
+        "/v1/ping": {
             "get": {
                 "description": "Simple ping endpoint to test connectivity",
                 "produces": [
@@ -3620,7 +3720,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/public/venues": {
+        "/v1/public/venues": {
             "get": {
                 "description": "Get all active venues that support perpetual trading",
                 "produces": [
@@ -3666,7 +3766,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/reconciliation/runs": {
+        "/v1/reconciliation/runs": {
             "get": {
                 "security": [
                     {
@@ -3881,7 +3981,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/reconciliation/runs/{id}": {
+        "/v1/reconciliation/runs/{id}": {
             "get": {
                 "security": [
                     {
@@ -3999,7 +4099,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/reconciliation/runs/{id}/items": {
+        "/v1/reconciliation/runs/{id}/items": {
             "get": {
                 "security": [
                     {
@@ -4120,7 +4220,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/risk/kill-switch": {
+        "/v1/risk/kill-switch": {
             "get": {
                 "security": [
                     {
@@ -4193,7 +4293,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/risk/kill-switch/disable": {
+        "/v1/risk/kill-switch/disable": {
             "post": {
                 "security": [
                     {
@@ -4269,7 +4369,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/risk/kill-switch/enable": {
+        "/v1/risk/kill-switch/enable": {
             "post": {
                 "security": [
                     {
@@ -4366,7 +4466,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/risk/policies": {
+        "/v1/risk/policies": {
             "get": {
                 "security": [
                     {
@@ -4581,7 +4681,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/risk/policies/{id}": {
+        "/v1/risk/policies/{id}": {
             "get": {
                 "security": [
                     {
@@ -4946,7 +5046,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/risk/pre-trade-check": {
+        "/v1/risk/pre-trade-check": {
             "post": {
                 "security": [
                     {
@@ -5051,7 +5151,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/audit/{tenant_id}": {
+        "/v1/storage/audit/{tenant_id}": {
             "get": {
                 "description": "List audit events for a tenant",
                 "consumes": [
@@ -5103,7 +5203,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/decisions/risk/{instance_id}": {
+        "/v1/storage/decisions/risk/{instance_id}": {
             "get": {
                 "description": "List risk decisions for a strategy instance",
                 "consumes": [
@@ -5155,7 +5255,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/decisions/strategy/{instance_id}": {
+        "/v1/storage/decisions/strategy/{instance_id}": {
             "get": {
                 "description": "List strategy decisions for a strategy instance",
                 "consumes": [
@@ -5207,7 +5307,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/opportunities": {
+        "/v1/storage/opportunities": {
             "get": {
                 "description": "List arbitrage opportunities with pagination",
                 "consumes": [
@@ -5259,7 +5359,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/opportunities/{id}": {
+        "/v1/storage/opportunities/{id}": {
             "get": {
                 "description": "Get a single opportunity with its legs",
                 "consumes": [
@@ -5297,7 +5397,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/replay/market": {
+        "/v1/storage/replay/market": {
             "get": {
                 "description": "Replay market events from a time range",
                 "consumes": [
@@ -5361,7 +5461,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/storage/retention/cleanup": {
+        "/v1/storage/retention/cleanup": {
             "post": {
                 "description": "Run data retention cleanup with default config",
                 "consumes": [
@@ -5390,7 +5490,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/strategies": {
+        "/v1/strategies": {
             "get": {
                 "security": [
                     {
@@ -5605,7 +5705,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/strategies/{id}": {
+        "/v1/strategies/{id}": {
             "get": {
                 "security": [
                     {
@@ -5970,7 +6070,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/strategies/{id}/decisions": {
+        "/v1/strategies/{id}/decisions": {
             "get": {
                 "security": [
                     {
@@ -6099,7 +6199,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/strategies/{id}/start": {
+        "/v1/strategies/{id}/start": {
             "post": {
                 "security": [
                     {
@@ -6220,7 +6320,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/strategies/{id}/stop": {
+        "/v1/strategies/{id}/stop": {
             "post": {
                 "security": [
                     {
@@ -6341,7 +6441,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/telegram/link": {
+        "/v1/telegram/link": {
             "post": {
                 "security": [
                     {
@@ -6483,7 +6583,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/telegram/status": {
+        "/v1/telegram/status": {
             "get": {
                 "security": [
                     {
@@ -6538,7 +6638,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/trader-groups": {
+        "/v1/trader-groups": {
             "get": {
                 "security": [
                     {
@@ -6735,7 +6835,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/trader-groups/{id}": {
+        "/v1/trader-groups/{id}": {
             "get": {
                 "security": [
                     {
@@ -7100,7 +7200,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/trader-groups/{id}/members": {
+        "/v1/trader-groups/{id}/members": {
             "get": {
                 "security": [
                     {
@@ -7630,7 +7730,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/markets/{market}": {
+        "/v1/traders/markets/{market}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7707,7 +7807,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/markets/{market}/trades": {
+        "/v1/traders/markets/{market}/trades": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7816,7 +7916,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/markets/{market}/wallets": {
+        "/v1/traders/markets/{market}/wallets": {
             "get": {
                 "produces": [
                     "application/json"
@@ -7951,7 +8051,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/overview": {
+        "/v1/traders/overview": {
             "get": {
                 "description": "Aggregate trader overview buckets (PnL + account) with series.",
                 "produces": [
@@ -8041,7 +8141,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/overview/buckets/{kind}/{id}": {
+        "/v1/traders/overview/buckets/{kind}/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8160,7 +8260,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/overview/buckets/{kind}/{id}/markets": {
+        "/v1/traders/overview/buckets/{kind}/{id}/markets": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8328,7 +8428,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/overview/buckets/{kind}/{id}/wallets": {
+        "/v1/traders/overview/buckets/{kind}/{id}/wallets": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8480,7 +8580,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/overview/series": {
+        "/v1/traders/overview/series": {
             "get": {
                 "description": "PnL and account series for trader overview.",
                 "produces": [
@@ -8570,7 +8670,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/search": {
+        "/v1/traders/search": {
             "post": {
                 "description": "Trader scan over period metrics (spec v1.1). Two additive pagination modes: legacy keyset cursor (no page field; next page via meta.cursor/has_more) and numbered pages (page \u003e= 1 selects LIMIT/OFFSET with offset=(page-1)*limit; a cursor in the same body is ignored; meta carries page/total/total_pages with total_pages=ceil(total/limit)). Public endpoint: group_id requires a token (AUTH-003 otherwise). Reads period_metrics only, never upstream.",
                 "consumes": [
@@ -8694,7 +8794,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/ws": {
+        "/v1/traders/ws": {
             "get": {
                 "description": "Realtime wallet events for one watched wallet (LIVE-CONTRACT v1.2 §2 + SIDEBAR-3EVENTS D2). Query wallet=0x... (lowercased server-side). Transport is GET /traders/ws?wallet= (unchanged); payloads use the wallet.* envelope for incremental updates (no full refetch): wallet.position.updated (full PositionSnapshot on bootstrap/resync and after fills/orders, debounced ~2s), wallet.fill.created (data always carries dir + closed_pnl), wallet.funding.created, wallet.order.created (first-seen oid, OrderDTO + status open) then wallet.order.updated for later updates, wallet.activity.created, wallet.state.updated, wallet.connection.updated (DISCONNECTED→RECONNECT→RESYNC→RECONCILE→LIVE). Server sends {type:subscribed} on connect, then wallet.* frames; legacy {type:activity} frames from the global harvest feed are still forwarded (sidebar ignores them). Client {type:ping} gets {type:pong}. Existing backoff + hidden-suspend + ping/pong stay. No auth (public read).",
                 "produces": [
@@ -8747,7 +8847,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}": {
+        "/v1/traders/{wallet}": {
             "get": {
                 "description": "LIVE registry header + overview metrics for one wallet (LIVE-CONTRACT v1.2 §1.7). Registry is a light DB read (404 unknown wallet); metrics are computed live from the same fills universe as activity/performance (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read) via computeLiveMetrics + portfolio + LB refs (same as performance). No reads of trader_period_metrics / trader_positions / trader_trades; scanner search still reads period_metrics (unchanged). data_status is ready or error only (never syncing/stale); as_of is fetch time (null on error without cache).",
                 "produces": [
@@ -8844,7 +8944,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/activity": {
+        "/v1/traders/{wallet}/activity": {
             "get": {
                 "description": "LIVE closed trades for one wallet (LIVE-CONTRACT v1.2 §1.2). Source is live userFillsByTime over the trailing 30d → in-memory ReconstructTrades → rows with entry_price/exit_price (avg), duration_sec, volume, pnl, fees, funding (signed, negative = paid), net_pnl = pnl - fees (unchanged), fills. Funding attribution sums userFunding payments with openTime \u003c= time \u003c= closeTime per coin (informational only; win/loss/counts still on net_pnl). Counts over the fetched 30d window (stable across pagination/filters). Server-side sort/filter; keyset pagination honouring sort+dir; cursor opaque + HMAC-sealed over (sortKey, closed_at, market, opened_at). data_status is ready or error only; plus as_of + partial (true when the venue truncated the window). Rows never null. Default limit=20 (1..100), sort=closed_at, dir=desc, result=all, side=all.",
                 "produces": [
@@ -8994,7 +9094,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/balances": {
+        "/v1/traders/{wallet}/balances": {
             "get": {
                 "description": "Perp + spot balances on-demand with short TTL cache (WALLET-TABS v1 §1.3, WS2). Either side may be null on partial failure; data_status reflects it. No DB.",
                 "produces": [
@@ -9078,7 +9178,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/fills": {
+        "/v1/traders/{wallet}/fills": {
             "get": {
                 "description": "Recent user fills newest-first with tid keyset pagination (WALLET-TABS v1 §1.4, WS4). Source userFills (2000 most recent); FE paginates through the fetched set. Short TTL cache; graceful degradation on HL error.",
                 "produces": [
@@ -9175,7 +9275,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/orders": {
+        "/v1/traders/{wallet}/orders": {
             "get": {
                 "description": "Open or historical orders (WALLET-TABS v1 §1.5, WS3). order_status/status_timestamp present only for status=historical. Short TTL cache.",
                 "produces": [
@@ -9277,7 +9377,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/performance": {
+        "/v1/traders/{wallet}/performance": {
             "get": {
                 "description": "LIVE overview metrics + equity curve + PNL/VALUE portfolio series for one wallet (LIVE-CONTRACT v1.2 §1.7, contract v1.7). Metrics computed live from the same fills universe as activity (1D/7D/30D from fills; ALL from portfolio allTime + leaderboard refs passthrough, live-read). Equity is live portfolio (FetchPortfolio + AggregateEquityDaily). Series carries all four ranges (24H/7D/30D/ALL) with account_value and pnl histories from the same portfolio fetch: mode=perps maps perp windows, mode=combined maps base windows. Funding is informational only; net = pnl - fees unchanged; win/loss unchanged.",
                 "produces": [
@@ -9392,7 +9492,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/positions": {
+        "/v1/traders/{wallet}/positions": {
             "get": {
                 "description": "LIVE open-position snapshot for one wallet (LIVE-CONTRACT v1.2 §1.1). Source is live clearinghouseState per request behind the interactive client (own pacer floor ~200ms, concurrency ~4, ctx timeout) + TTL 12s cache + single-flight. data_status is ready or error only (never syncing/stale); as_of is fetch time (never null on success). Positions is [] (never null). Server-side sort.",
                 "produces": [
@@ -9504,7 +9604,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/traders/{wallet}/transfers": {
+        "/v1/traders/{wallet}/transfers": {
             "get": {
                 "description": "Non-funding ledger transfers newest-first with time+hash keyset pagination (WALLET-TABS v1 §1.6, WS5). Funding excluded by decision. Short TTL cache.",
                 "produces": [
@@ -9608,7 +9708,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/unified/health": {
+        "/v1/unified/health": {
             "get": {
                 "description": "Get health overview for all venues",
                 "produces": [
@@ -9640,7 +9740,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/unified/instruments": {
+        "/v1/unified/instruments": {
             "get": {
                 "description": "Get all unified instrument states across venues",
                 "produces": [
@@ -9675,7 +9775,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/unified/instruments/{id}": {
+        "/v1/unified/instruments/{id}": {
             "get": {
                 "description": "Get unified state for a specific instrument",
                 "produces": [
@@ -9752,7 +9852,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/unified/instruments/{id}/depth": {
+        "/v1/unified/instruments/{id}/depth": {
             "get": {
                 "description": "Get executable depth for an instrument",
                 "produces": [
@@ -9835,7 +9935,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/unified/ws": {
+        "/v1/unified/ws": {
             "get": {
                 "description": "Subscribe to real-time unified state updates via WebSocket",
                 "produces": [
@@ -9882,7 +9982,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/venue-instruments": {
+        "/v1/venue-instruments": {
             "get": {
                 "description": "Get all venue instruments for a venue",
                 "produces": [
@@ -10024,7 +10124,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/venues": {
+        "/v1/venues": {
             "get": {
                 "security": [
                     {
@@ -10239,7 +10339,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/venues/{id}": {
+        "/v1/venues/{id}": {
             "get": {
                 "security": [
                     {
@@ -10531,106 +10631,6 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/health": {
-            "get": {
-                "description": "Check service health status including all registered checkers",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "system"
-                ],
-                "summary": "Health check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/api.HealthResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/api.ErrorBody"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/ready": {
-            "get": {
-                "description": "Check if service is ready to accept requests",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "system"
-                ],
-                "summary": "Readiness check",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/api.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/api.ReadyResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
                         "schema": {
                             "allOf": [
                                 {

@@ -33,37 +33,37 @@ const (
 )
 
 type StrategyInstance struct {
-	ID             uuid.UUID      `json:"id"`
-	TenantID       uuid.UUID      `json:"tenant_id"`
-	StrategyTypeID uuid.UUID      `json:"strategy_type_id"`
-	Name           string         `json:"name"`
-	Mode           StrategyMode   `json:"mode"`
-	Status         StrategyStatus `json:"status"`
+	ID             uuid.UUID       `json:"id"`
+	TenantID       uuid.UUID       `json:"tenant_id"`
+	StrategyTypeID uuid.UUID       `json:"strategy_type_id"`
+	Name           string          `json:"name"`
+	Mode           StrategyMode    `json:"mode"`
+	Status         StrategyStatus  `json:"status"`
 	Config         *StrategyConfig `json:"config,omitempty"`
-	CreatedBy      *uuid.UUID     `json:"created_by,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	CreatedBy      *uuid.UUID      `json:"created_by,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 type StrategyConfig struct {
-	MinNetEdgeBPS       int              `json:"min_net_edge_bps"`
-	MinConfidence       float64          `json:"min_confidence"`
-	MaxNotionalPerTrade string           `json:"max_notional_per_trade"`
-	MaxPositionUSD      string           `json:"max_position_usd"`
-	MaxLeverage         float64          `json:"max_leverage"`
-	Instruments         []uuid.UUID      `json:"instruments,omitempty"`
-	Venues              []uuid.UUID      `json:"venues,omitempty"`
+	MinNetEdgeBPS       int               `json:"min_net_edge_bps"`
+	MinConfidence       float64           `json:"min_confidence"`
+	MaxNotionalPerTrade string            `json:"max_notional_per_trade"`
+	MaxPositionUSD      string            `json:"max_position_usd"`
+	MaxLeverage         float64           `json:"max_leverage"`
+	Instruments         []uuid.UUID       `json:"instruments,omitempty"`
+	Venues              []uuid.UUID       `json:"venues,omitempty"`
 	CustomParams        map[string]string `json:"custom_params,omitempty"`
 }
 
 type StrategyDecision struct {
-	ID            uuid.UUID   `json:"id"`
-	StrategyID    uuid.UUID   `json:"strategy_id"`
-	OpportunityID uuid.UUID   `json:"opportunity_id"`
-	Action        string      `json:"action"`
-	Status        string      `json:"status"`
-	ExecutedAt    time.Time   `json:"executed_at"`
-	CreatedAt     time.Time   `json:"created_at"`
+	ID            uuid.UUID `json:"id"`
+	StrategyID    uuid.UUID `json:"strategy_id"`
+	OpportunityID uuid.UUID `json:"opportunity_id"`
+	Action        string    `json:"action"`
+	Status        string    `json:"status"`
+	ExecutedAt    time.Time `json:"executed_at"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type StrategyMetrics struct {

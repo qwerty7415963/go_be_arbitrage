@@ -90,7 +90,7 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/reconciliation/runs [post]
+// @Router       /v1/reconciliation/runs [post]
 func (h *Handler) CreateRun(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -121,7 +121,7 @@ func (h *Handler) CreateRun(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
-// @Router       /api/v1/reconciliation/runs/{id} [get]
+// @Router       /v1/reconciliation/runs/{id} [get]
 func (h *Handler) GetRun(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -146,7 +146,7 @@ func (h *Handler) GetRun(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/reconciliation/runs [get]
+// @Router       /v1/reconciliation/runs [get]
 func (h *Handler) ListRuns(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -175,7 +175,7 @@ func (h *Handler) ListRuns(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/reconciliation/runs/{id}/items [get]
+// @Router       /v1/reconciliation/runs/{id}/items [get]
 func (h *Handler) ListItems(c *gin.Context) {
 	runID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

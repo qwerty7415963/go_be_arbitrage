@@ -18,17 +18,17 @@ func NewRetentionService(db *pgxpool.Pool) *RetentionService {
 }
 
 type RetentionResult struct {
-	RawMarketEvents int64 `json:"raw_market_events"`
-	MarketTrades    int64 `json:"market_trades"`
-	MarketTickers   int64 `json:"market_tickers"`
-	FundingRates    int64 `json:"funding_rates"`
-	Opportunities   int64 `json:"opportunities"`
-	SystemEvents    int64 `json:"system_events"`
-	TraderDaily            int64 `json:"trader_daily"`
-	TraderEquity           int64 `json:"trader_equity"`
-	TraderTrades           int64 `json:"trader_trades"`
+	RawMarketEvents         int64 `json:"raw_market_events"`
+	MarketTrades            int64 `json:"market_trades"`
+	MarketTickers           int64 `json:"market_tickers"`
+	FundingRates            int64 `json:"funding_rates"`
+	Opportunities           int64 `json:"opportunities"`
+	SystemEvents            int64 `json:"system_events"`
+	TraderDaily             int64 `json:"trader_daily"`
+	TraderEquity            int64 `json:"trader_equity"`
+	TraderTrades            int64 `json:"trader_trades"`
 	TraderPositionSnapshots int64 `json:"trader_position_snapshots"`
-	DeadTraders            int64 `json:"dead_traders"`
+	DeadTraders             int64 `json:"dead_traders"`
 }
 
 func (s *RetentionService) CleanupRawMarketEvents(ctx context.Context, maxAge time.Duration) (int64, error) {
@@ -194,7 +194,9 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 	run("trader_trades", func(n int64) { result.TraderTrades = n },
 		func() (int64, error) { return s.CleanupTraderTrades(ctx, config.TraderTradesMaxAge) })
 	run("trader_position_snapshots", func(n int64) { result.TraderPositionSnapshots = n },
-		func() (int64, error) { return s.CleanupTraderPositionSnapshotDaily(ctx, config.TraderPositionSnapshotDailyMaxAge) })
+		func() (int64, error) {
+			return s.CleanupTraderPositionSnapshotDaily(ctx, config.TraderPositionSnapshotDailyMaxAge)
+		})
 	if config.TraderPruneEnabled {
 		run("dead_traders", func(n int64) { result.DeadTraders = n },
 			func() (int64, error) { return s.CleanupDeadTraders(ctx, config.TraderPruneStaleAfter) })
@@ -204,31 +206,31 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 }
 
 type RetentionConfig struct {
-	RawMarketEventsMaxAge time.Duration
-	MarketTradesMaxAge    time.Duration
-	MarketTickersMaxAge   time.Duration
-	FundingRatesMaxAge    time.Duration
-	SystemEventsMaxAge    time.Duration
-	TraderDailyMaxAge                time.Duration
-	TraderEquityMaxAge               time.Duration
-	TraderTradesMaxAge               time.Duration
+	RawMarketEventsMaxAge             time.Duration
+	MarketTradesMaxAge                time.Duration
+	MarketTickersMaxAge               time.Duration
+	FundingRatesMaxAge                time.Duration
+	SystemEventsMaxAge                time.Duration
+	TraderDailyMaxAge                 time.Duration
+	TraderEquityMaxAge                time.Duration
+	TraderTradesMaxAge                time.Duration
 	TraderPositionSnapshotDailyMaxAge time.Duration
-	TraderPruneEnabled               bool
-	TraderPruneStaleAfter time.Duration
+	TraderPruneEnabled                bool
+	TraderPruneStaleAfter             time.Duration
 }
 
 func DefaultRetentionConfig() RetentionConfig {
 	return RetentionConfig{
-		RawMarketEventsMaxAge: 7 * 24 * time.Hour,
-		MarketTradesMaxAge:    30 * 24 * time.Hour,
-		MarketTickersMaxAge:   30 * 24 * time.Hour,
-		FundingRatesMaxAge:    90 * 24 * time.Hour,
-		SystemEventsMaxAge:    90 * 24 * time.Hour,
-		TraderDailyMaxAge:                400 * 24 * time.Hour,
-		TraderEquityMaxAge:               400 * 24 * time.Hour,
-		TraderTradesMaxAge:               60 * 24 * time.Hour,
+		RawMarketEventsMaxAge:             7 * 24 * time.Hour,
+		MarketTradesMaxAge:                30 * 24 * time.Hour,
+		MarketTickersMaxAge:               30 * 24 * time.Hour,
+		FundingRatesMaxAge:                90 * 24 * time.Hour,
+		SystemEventsMaxAge:                90 * 24 * time.Hour,
+		TraderDailyMaxAge:                 400 * 24 * time.Hour,
+		TraderEquityMaxAge:                400 * 24 * time.Hour,
+		TraderTradesMaxAge:                60 * 24 * time.Hour,
 		TraderPositionSnapshotDailyMaxAge: 30 * 24 * time.Hour,
-		TraderPruneEnabled:    true,
-		TraderPruneStaleAfter: 30 * 24 * time.Hour,
+		TraderPruneEnabled:                true,
+		TraderPruneStaleAfter:             30 * 24 * time.Hour,
 	}
 }

@@ -43,7 +43,7 @@ var upgrader = websocket.Upgrader{
 // @Param        channel      query      string  true  "Channel (trades, ticker, funding)"
 // @Success      101  {object}  api.Response
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/market/subscribe [get]
+// @Router       /v1/market/subscribe [get]
 func (h *Handler) Subscribe(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")
@@ -182,7 +182,7 @@ func (h *Handler) handleMessages(clientID, subscriptionID uuid.UUID) {
 // @Param        limit         query      int     false "Limit (default 100)"
 // @Success      200  {object}  api.Response{data=[]TradeEvent}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/market/trades [get]
+// @Router       /v1/market/trades [get]
 func (h *Handler) GetTrades(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")
@@ -240,7 +240,7 @@ func (h *Handler) GetTrades(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=TickerEvent}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/market/ticker [get]
+// @Router       /v1/market/ticker [get]
 func (h *Handler) GetTicker(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")
@@ -297,7 +297,7 @@ func (h *Handler) GetTicker(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=FundingEvent}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/market/funding [get]
+// @Router       /v1/market/funding [get]
 func (h *Handler) GetFunding(c *gin.Context) {
 	venueIDStr := c.Query("venue_id")
 	instrumentIDStr := c.Query("instrument_id")
@@ -350,7 +350,7 @@ func (h *Handler) GetFunding(c *gin.Context) {
 // @Tags         market
 // @Produce      json
 // @Success      200  {object}  api.Response{data=[]Subscription}
-// @Router       /api/v1/market/subscriptions [get]
+// @Router       /v1/market/subscriptions [get]
 func (h *Handler) GetSubscriptions(c *gin.Context) {
 	subs := h.service.GetActiveSubscriptions()
 	c.JSON(http.StatusOK, api.Response{

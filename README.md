@@ -22,57 +22,57 @@ Server runs on `http://localhost:8080` by default.
 ### Auth
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/v1/auth/register` | Register new user |
-| POST | `/api/v1/auth/login` | Login |
-| POST | `/api/v1/auth/refresh` | Refresh JWT token |
-| POST | `/api/v1/auth/logout` | Logout (requires JWT) |
-| GET | `/api/v1/auth/me` | Get current user (requires JWT) |
+| POST | `/v1/auth/register` | Register new user |
+| POST | `/v1/auth/login` | Login |
+| POST | `/v1/auth/refresh` | Refresh JWT token |
+| POST | `/v1/auth/logout` | Logout (requires JWT) |
+| GET | `/v1/auth/me` | Get current user (requires JWT) |
 
 ### Auth — Web3 Wallet (EIP-4361)
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/auth/wallet/nonce` | Public | Generate nonce for wallet signing |
-| POST | `/api/v1/auth/wallet/verify` | Public | Verify SIWE signature → JWT (auto-create user) |
-| POST | `/api/v1/auth/wallet/link` | JWT | Link wallet to existing account |
-| DELETE | `/api/v1/auth/wallet/:wallet_id` | JWT | Unlink wallet from account |
-| GET | `/api/v1/auth/wallet/list` | JWT | List user's linked wallets |
+| POST | `/v1/auth/wallet/nonce` | Public | Generate nonce for wallet signing |
+| POST | `/v1/auth/wallet/verify` | Public | Verify SIWE signature → JWT (auto-create user) |
+| POST | `/v1/auth/wallet/link` | JWT | Link wallet to existing account |
+| DELETE | `/v1/auth/wallet/:wallet_id` | JWT | Unlink wallet from account |
+| GET | `/v1/auth/wallet/list` | JWT | List user's linked wallets |
 
 ### Venues (Admin only)
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/venues` | List venues |
-| POST | `/api/v1/venues` | Create venue |
-| GET | `/api/v1/venues/:id` | Get venue |
-| PUT | `/api/v1/venues/:id` | Update venue |
-| DELETE | `/api/v1/venues/:id` | Delete venue |
+| GET | `/v1/venues` | List venues |
+| POST | `/v1/venues` | Create venue |
+| GET | `/v1/venues/:id` | Get venue |
+| PUT | `/v1/venues/:id` | Update venue |
+| DELETE | `/v1/venues/:id` | Delete venue |
 
 ### Instruments
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/instruments` | List instruments |
-| GET | `/api/v1/instruments/tradable` | List tradable instruments |
-| GET | `/api/v1/instruments/:id` | Get instrument |
+| GET | `/v1/instruments` | List instruments |
+| GET | `/v1/instruments/tradable` | List tradable instruments |
+| GET | `/v1/instruments/:id` | Get instrument |
 
 ### Market Data
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/market/trades` | Recent trades |
-| GET | `/api/v1/market/ticker` | Latest ticker |
-| GET | `/api/v1/market/funding` | Latest funding rate |
+| GET | `/v1/market/trades` | Recent trades |
+| GET | `/v1/market/ticker` | Latest ticker |
+| GET | `/v1/market/funding` | Latest funding rate |
 
 ### Order Book
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/orderbook/depth` | L2 order book depth |
-| GET | `/api/v1/orderbook/health` | Order book health status |
-| GET | `/api/v1/orderbook/tradable` | Check if order book is tradable |
-| POST | `/api/v1/orderbook/resync` | Request order book resync |
-| **WS** | **`/api/v1/orderbook/ws`** | **Real-time order book updates** |
+| GET | `/v1/orderbook/depth` | L2 order book depth |
+| GET | `/v1/orderbook/health` | Order book health status |
+| GET | `/v1/orderbook/tradable` | Check if order book is tradable |
+| POST | `/v1/orderbook/resync` | Request order book resync |
+| **WS** | **`/v1/orderbook/ws`** | **Real-time order book updates** |
 
 ### Funding Arbitrage
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/funding/arbitrage` | Funding arbitrage table |
+| GET | `/v1/funding/arbitrage` | Funding arbitrage table |
 
 > Pairs appear only for instruments mapped ACTIVE on **both** venues
 > (`venue_instruments`) with **fresh** funding (<15 min, else `include_stale=true`).
@@ -109,19 +109,19 @@ Server runs on `http://localhost:8080` by default.
 ### Unified State
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/unified/instruments` | All unified instrument states |
-| GET | `/api/v1/unified/instruments/:id` | Unified state for instrument |
-| WS | `/api/v1/unified/ws` | Real-time unified state updates |
+| GET | `/v1/unified/instruments` | All unified instrument states |
+| GET | `/v1/unified/instruments/:id` | Unified state for instrument |
+| WS | `/v1/unified/ws` | Real-time unified state updates |
 
 
 ### Trader Scanner v1.1
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/traders/search` | Public (optional Bearer) | Cursor-paginated scan: `period` 1D/7D/30D/ALL, `venue` (default hyperliquid), min/max filters (roi, win_rate, pnl, volume, trade_count, profit_factor, long/short win_rate), `last_trade_after`, `group_id`, `sort_by` (indexed only) + `sort_direction`, `limit` ≤ 100, opaque `cursor` |
-| GET | `/api/v1/traders/:wallet?venue=&period=` | Public | Registry header + one period's metrics (`metrics_as_of`, `data_status` ready/syncing/stale/error); unknown wallet → 404 |
-| GET/POST | `/api/v1/trader-groups` | **JWT required** | List / create (name unique per user, GROUP-002 on dup) |
-| GET/PATCH/DELETE | `/api/v1/trader-groups/:id` | **JWT required** | Owner-scoped; delete keeps registry rows |
-| GET/POST/DELETE | `/api/v1/trader-groups/:id/members` | **JWT required** | (venue, address) + alias/note; idempotent add; unknown wallet → 404 |
+| POST | `/v1/traders/search` | Public (optional Bearer) | Cursor-paginated scan: `period` 1D/7D/30D/ALL, `venue` (default hyperliquid), min/max filters (roi, win_rate, pnl, volume, trade_count, profit_factor, long/short win_rate), `last_trade_after`, `group_id`, `sort_by` (indexed only) + `sort_direction`, `limit` ≤ 100, opaque `cursor` |
+| GET | `/v1/traders/:wallet?venue=&period=` | Public | Registry header + one period's metrics (`metrics_as_of`, `data_status` ready/syncing/stale/error); unknown wallet → 404 |
+| GET/POST | `/v1/trader-groups` | **JWT required** | List / create (name unique per user, GROUP-002 on dup) |
+| GET/PATCH/DELETE | `/v1/trader-groups/:id` | **JWT required** | Owner-scoped; delete keeps registry rows |
+| GET/POST/DELETE | `/v1/trader-groups/:id/members` | **JWT required** | (venue, address) + alias/note; idempotent add; unknown wallet → 404 |
 
 Pipeline: leaderboard discovery (top-500, every 15m) + WS trade discovery
 (234 perp feeds, hourly meta refresh; counterparties harvested continuously)
@@ -142,7 +142,7 @@ rate limiter), adaptive pacing on 429s, and hot/cold tiers (hot ≤7d trades →
 normal cycle, cold → 24h). Retention runs on boot + every 24h (market tables per
 short windows, trader daily/equity past 400d, fill buffer past 60d per sync); dead-wallet prune
 (backfilled + zero fills/trades + no group + quiet 30d; re-enters via discovery);
-manual trigger: `POST /api/v1/storage/retention/cleanup`.
+manual trigger: `POST /v1/storage/retention/cleanup`.
 
 ## WebSocket: Order Book Real-time
 
@@ -152,7 +152,7 @@ manual trigger: `POST /api/v1/storage/retention/cleanup`.
 const venueID = "your-venue-uuid";
 const instrumentID = "your-instrument-uuid";
 const ws = new WebSocket(
-  `ws://localhost:8080/api/v1/orderbook/ws?venue_id=${venueID}&instrument_id=${instrumentID}&depth=10`
+  `ws://localhost:8080/v1/orderbook/ws?venue_id=${venueID}&instrument_id=${instrumentID}&depth=10`
 );
 ```
 
@@ -196,7 +196,7 @@ Same format as above with updated sequence and price levels.
 
 ```javascript
 const ws = new WebSocket(
-  `ws://localhost:8080/api/v1/orderbook/ws?venue_id=${venueID}&instrument_id=${instrumentID}&depth=10`
+  `ws://localhost:8080/v1/orderbook/ws?venue_id=${venueID}&instrument_id=${instrumentID}&depth=10`
 );
 
 ws.onopen = () => {

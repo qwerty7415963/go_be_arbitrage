@@ -27,7 +27,7 @@ func NewHandler(service *Service) *Handler {
 // @Success      201   {object}  api.Response{data=AuthResponse}
 // @Failure      400   {object}  api.Response
 // @Failure      409   {object}  api.Response
-// @Router       /api/v1/auth/register [post]
+// @Router       /v1/auth/register [post]
 func (h *Handler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,7 +62,7 @@ func (h *Handler) Register(c *gin.Context) {
 // @Param        body  body      LoginRequest  true  "Login credentials"
 // @Success      200   {object}  api.Response{data=AuthResponse}
 // @Failure      401   {object}  api.Response
-// @Router       /api/v1/auth/login [post]
+// @Router       /v1/auth/login [post]
 func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -94,7 +94,7 @@ func (h *Handler) Login(c *gin.Context) {
 // @Param        body  body      RefreshRequest  true  "Refresh token"
 // @Success      200   {object}  api.Response{data=AuthResponse}
 // @Failure      401   {object}  api.Response
-// @Router       /api/v1/auth/refresh [post]
+// @Router       /v1/auth/refresh [post]
 func (h *Handler) Refresh(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -125,7 +125,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 // @Produce      json
 // @Success      204  "No Content"
 // @Failure      401  {object}  api.Response
-// @Router       /api/v1/auth/logout [post]
+// @Router       /v1/auth/logout [post]
 func (h *Handler) Logout(c *gin.Context) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {
@@ -158,7 +158,7 @@ func (h *Handler) Logout(c *gin.Context) {
 // @Success      204  "No Content"
 // @Failure      400   {object}  api.Response
 // @Failure      401   {object}  api.Response
-// @Router       /api/v1/auth/change-password [post]
+// @Router       /v1/auth/change-password [post]
 func (h *Handler) ChangePassword(c *gin.Context) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {
@@ -200,7 +200,7 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  api.Response{data=UserResponse}
 // @Failure      401  {object}  api.Response
-// @Router       /api/v1/auth/me [get]
+// @Router       /v1/auth/me [get]
 func (h *Handler) Me(c *gin.Context) {
 	userIDStr, exists := c.Get("user_id")
 	if !exists {

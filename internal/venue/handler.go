@@ -30,7 +30,7 @@ func NewHandler(service *Service) *Handler {
 // @Failure      401      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      409      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/venues [post]
+// @Router       /v1/venues [post]
 func (h *Handler) Create(c *gin.Context) {
 	var req CreateVenueRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -61,7 +61,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/venues/{id} [get]
+// @Router       /v1/venues/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -91,7 +91,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/venues [get]
+// @Router       /v1/venues [get]
 func (h *Handler) List(c *gin.Context) {
 	venues, err := h.service.List(c.Request.Context())
 	if err != nil {
@@ -119,7 +119,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Failure      401      {object}  api.Response{error=api.ErrorBody}
 // @Failure      403      {object}  api.Response{error=api.ErrorBody}
 // @Failure      404      {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/venues/{id} [put]
+// @Router       /v1/venues/{id} [put]
 func (h *Handler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -156,7 +156,7 @@ func (h *Handler) Update(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/venues/{id} [delete]
+// @Router       /v1/venues/{id} [delete]
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

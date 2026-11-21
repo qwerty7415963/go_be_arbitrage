@@ -45,7 +45,7 @@ func NewHandler(
 // @Param        offset     query    int    false  "Offset"     default(0)
 // @Success      200  {object}  api.Response
 // @Failure      400  {object}  api.Response
-// @Router       /api/v1/storage/opportunities [get]
+// @Router       /v1/storage/opportunities [get]
 func (h *Handler) ListOpportunities(c *gin.Context) {
 	tenantIDStr := c.Query("tenant_id")
 	if tenantIDStr == "" {
@@ -86,7 +86,7 @@ func (h *Handler) ListOpportunities(c *gin.Context) {
 // @Param        id   path      string  true  "Opportunity ID"
 // @Success      200  {object}  api.Response
 // @Failure      404  {object}  api.Response
-// @Router       /api/v1/storage/opportunities/{id} [get]
+// @Router       /v1/storage/opportunities/{id} [get]
 func (h *Handler) GetOpportunity(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -119,7 +119,7 @@ func (h *Handler) GetOpportunity(c *gin.Context) {
 // @Param        offset       query     int     false  "Offset"     default(0)
 // @Success      200  {object}  api.Response
 // @Failure      500  {object}  api.Response
-// @Router       /api/v1/storage/decisions/strategy/{instance_id} [get]
+// @Router       /v1/storage/decisions/strategy/{instance_id} [get]
 func (h *Handler) ListStrategyDecisions(c *gin.Context) {
 	instanceID, err := uuid.Parse(c.Param("instance_id"))
 	if err != nil {
@@ -153,7 +153,7 @@ func (h *Handler) ListStrategyDecisions(c *gin.Context) {
 // @Param        offset       query     int     false  "Offset"     default(0)
 // @Success      200  {object}  api.Response
 // @Failure      500  {object}  api.Response
-// @Router       /api/v1/storage/decisions/risk/{instance_id} [get]
+// @Router       /v1/storage/decisions/risk/{instance_id} [get]
 func (h *Handler) ListRiskDecisions(c *gin.Context) {
 	instanceID, err := uuid.Parse(c.Param("instance_id"))
 	if err != nil {
@@ -187,7 +187,7 @@ func (h *Handler) ListRiskDecisions(c *gin.Context) {
 // @Param        offset     query     int     false  "Offset"     default(0)
 // @Success      200  {object}  api.Response
 // @Failure      500  {object}  api.Response
-// @Router       /api/v1/storage/audit/{tenant_id} [get]
+// @Router       /v1/storage/audit/{tenant_id} [get]
 func (h *Handler) ListAuditEvents(c *gin.Context) {
 	tenantID, err := uuid.Parse(c.Param("tenant_id"))
 	if err != nil {
@@ -223,7 +223,7 @@ func (h *Handler) ListAuditEvents(c *gin.Context) {
 // @Param        limit       query     int     false  "Max events"  default(100)
 // @Success      200  {object}  api.Response
 // @Failure      400  {object}  api.Response
-// @Router       /api/v1/storage/replay/market [get]
+// @Router       /v1/storage/replay/market [get]
 func (h *Handler) ReplayMarketEvents(c *gin.Context) {
 	startTime, err := time.Parse(time.RFC3339, c.Query("start_time"))
 	if err != nil {
@@ -269,7 +269,7 @@ func (h *Handler) ReplayMarketEvents(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  api.Response
 // @Failure      500  {object}  api.Response
-// @Router       /api/v1/storage/retention/cleanup [post]
+// @Router       /v1/storage/retention/cleanup [post]
 func (h *Handler) CleanupData(c *gin.Context) {
 	config := DefaultRetentionConfig()
 	result, err := h.retentionSvc.RunFullCleanup(c.Request.Context(), config)

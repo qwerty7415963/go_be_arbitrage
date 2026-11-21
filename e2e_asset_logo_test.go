@@ -125,7 +125,7 @@ func TestE2E_AssetLogo(t *testing.T) {
 	}
 
 	// bucket detail
-	code, resp := s.doJSON(t, "GET", "/api/v1/traders/overview/buckets/pnl/profitable?venue=trader-e2e-venue", "", "")
+	code, resp := s.doJSON(t, "GET", "/v1/traders/overview/buckets/pnl/profitable?venue=trader-e2e-venue", "", "")
 	if code != http.StatusOK {
 		t.Fatalf("bucket detail: %d %v", code, resp)
 	}
@@ -150,7 +150,7 @@ func TestE2E_AssetLogo(t *testing.T) {
 	if btcMarket["asset_id"] != readyAsset.ID.String() {
 		t.Errorf("btc asset_id: %v want %v", btcMarket["asset_id"], readyAsset.ID)
 	}
-	wantLogo := "/api/v1/assets/logos/" + readyAsset.ID.String()
+	wantLogo := "/v1/assets/logos/" + readyAsset.ID.String()
 	if btcMarket["logo_url"] != wantLogo {
 		t.Errorf("btc logo_url: %v want %v", btcMarket["logo_url"], wantLogo)
 	}
@@ -163,7 +163,7 @@ func TestE2E_AssetLogo(t *testing.T) {
 
 	// serve route ready -> 200 with cache headers + etag
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/assets/logos/"+readyAsset.ID.String(), nil)
+	req, _ := http.NewRequest("GET", "/v1/assets/logos/"+readyAsset.ID.String(), nil)
 	s.router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("serve ready: %d %s", w.Code, w.Body.String())
@@ -175,7 +175,7 @@ func TestE2E_AssetLogo(t *testing.T) {
 		t.Errorf("etag: %q want %q", et, readyETag)
 	}
 	// conditional request
-	req2, _ := http.NewRequest("GET", "/api/v1/assets/logos/"+readyAsset.ID.String(), nil)
+	req2, _ := http.NewRequest("GET", "/v1/assets/logos/"+readyAsset.ID.String(), nil)
 	req2.Header.Set("If-None-Match", readyETag)
 	w2 := httptest.NewRecorder()
 	s.router.ServeHTTP(w2, req2)
@@ -185,7 +185,7 @@ func TestE2E_AssetLogo(t *testing.T) {
 
 	// missing serve -> 404
 	w3 := httptest.NewRecorder()
-	req3, _ := http.NewRequest("GET", "/api/v1/assets/logos/"+missingAsset.ID.String(), nil)
+	req3, _ := http.NewRequest("GET", "/v1/assets/logos/"+missingAsset.ID.String(), nil)
 	s.router.ServeHTTP(w3, req3)
 	if w3.Code != http.StatusNotFound {
 		t.Errorf("serve missing: %d", w3.Code)
@@ -193,7 +193,7 @@ func TestE2E_AssetLogo(t *testing.T) {
 
 	// admin refresh -> 200 with enqueued count
 	body, _ := json.Marshal(map[string]any{"all": true})
-	req4, _ := http.NewRequest("POST", "/api/v1/admin/assets/logos/refresh", bytes.NewReader(body))
+	req4, _ := http.NewRequest("POST", "/v1/admin/assets/logos/refresh", bytes.NewReader(body))
 	req4.Header.Set("Content-Type", "application/json")
 	req4.Header.Set("X-Test-User", "admin")
 	req4.Header.Set("X-Test-Role", "admin")

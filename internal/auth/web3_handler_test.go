@@ -78,7 +78,7 @@ func setupWeb3Router(handler *Web3Handler) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	authRoutes := v1.Group("/auth")
 	{
 		authRoutes.POST("/wallet/nonce", handler.GetNonce)
@@ -112,7 +112,7 @@ func TestWeb3Handler_GetNonce_Success(t *testing.T) {
 		"chain_id": 1,
 	}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/wallet/nonce", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/wallet/nonce", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -141,7 +141,7 @@ func TestWeb3Handler_GetNonce_InvalidAddress(t *testing.T) {
 		"chain_id": 1,
 	}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/wallet/nonce", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/wallet/nonce", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -160,7 +160,7 @@ func TestWeb3Handler_GetNonce_UnsupportedChain(t *testing.T) {
 		"chain_id": 42,
 	}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/wallet/nonce", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/wallet/nonce", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -174,7 +174,7 @@ func TestWeb3Handler_GetNonce_InvalidBody(t *testing.T) {
 	_, handler := setupWeb3TestDB(t)
 	router := setupWeb3Router(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/wallet/nonce", bytes.NewBuffer([]byte("invalid")))
+	req, _ := http.NewRequest("POST", "/v1/auth/wallet/nonce", bytes.NewBuffer([]byte("invalid")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -193,7 +193,7 @@ func TestWeb3Handler_Verify_InvalidMessage(t *testing.T) {
 		"signature": "0xsomething",
 	}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/wallet/verify", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/wallet/verify", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -207,7 +207,7 @@ func TestWeb3Handler_Verify_InvalidBody(t *testing.T) {
 	_, handler := setupWeb3TestDB(t)
 	router := setupWeb3Router(handler)
 
-	req, _ := http.NewRequest("POST", "/api/v1/auth/wallet/verify", bytes.NewBuffer([]byte("invalid")))
+	req, _ := http.NewRequest("POST", "/v1/auth/wallet/verify", bytes.NewBuffer([]byte("invalid")))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -222,12 +222,12 @@ func TestWeb3Handler_LinkWallet_NoAuth(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.POST("/auth/wallet/link", handler.LinkWallet)
 
 	body := map[string]string{"address": "0x1234", "message": "msg", "signature": "0xsig"}
 	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/api/v1/auth/wallet/link", bytes.NewBuffer(jsonBody))
+	req, _ := http.NewRequest("POST", "/v1/auth/wallet/link", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -242,10 +242,10 @@ func TestWeb3Handler_UnlinkWallet_NoAuth(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.DELETE("/auth/wallet/:wallet_id", handler.UnlinkWallet)
 
-	req, _ := http.NewRequest("DELETE", "/api/v1/auth/wallet/"+uuid.New().String(), nil)
+	req, _ := http.NewRequest("DELETE", "/v1/auth/wallet/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -259,10 +259,10 @@ func TestWeb3Handler_ListWallets_NoAuth(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	v1 := router.Group("/api/v1")
+	v1 := router.Group("/v1")
 	v1.GET("/auth/wallet/list", handler.ListWallets)
 
-	req, _ := http.NewRequest("GET", "/api/v1/auth/wallet/list", nil)
+	req, _ := http.NewRequest("GET", "/v1/auth/wallet/list", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -279,14 +279,14 @@ func TestWeb3Handler_ListWallets_Empty(t *testing.T) {
 	pool.QueryRow(context.Background(), "INSERT INTO users (id, auth_method, role, status) VALUES ($1, 'wallet', 'user', 'ACTIVE') RETURNING id::text", uuid.New()).Scan(&userID)
 
 	walletRouter := gin.New()
-	v1 := walletRouter.Group("/api/v1")
+	v1 := walletRouter.Group("/v1")
 	v1.GET("/auth/wallet/list", func(c *gin.Context) {
 		c.Set("user_id", userID)
 		c.Next()
 	}, handler.ListWallets)
 	_ = pool
 
-	req, _ := http.NewRequest("GET", "/api/v1/auth/wallet/list", nil)
+	req, _ := http.NewRequest("GET", "/v1/auth/wallet/list", nil)
 	w := httptest.NewRecorder()
 	walletRouter.ServeHTTP(w, req)
 

@@ -17,11 +17,11 @@ const (
 )
 
 type ExtendedWSAdapter struct {
-	venueID      uuid.UUID
-	wsClients    map[string]*WSClient
-	eventChans   map[string]chan *OrderBookEvent
-	lastSeq      map[string]int64
-	mu           sync.RWMutex
+	venueID    uuid.UUID
+	wsClients  map[string]*WSClient
+	eventChans map[string]chan *OrderBookEvent
+	lastSeq    map[string]int64
+	mu         sync.RWMutex
 }
 
 func NewExtendedWSAdapter(venueID uuid.UUID) *ExtendedWSAdapter {

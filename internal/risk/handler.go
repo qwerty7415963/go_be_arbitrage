@@ -84,7 +84,7 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/risk/policies [get]
+// @Router       /v1/risk/policies [get]
 func (h *Handler) ListPolicies(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -114,7 +114,7 @@ func (h *Handler) ListPolicies(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/risk/policies [post]
+// @Router       /v1/risk/policies [post]
 func (h *Handler) CreatePolicy(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -145,7 +145,7 @@ func (h *Handler) CreatePolicy(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
-// @Router       /api/v1/risk/policies/{id} [get]
+// @Router       /v1/risk/policies/{id} [get]
 func (h *Handler) GetPolicy(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -174,7 +174,7 @@ func (h *Handler) GetPolicy(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/risk/policies/{id} [put]
+// @Router       /v1/risk/policies/{id} [put]
 func (h *Handler) UpdatePolicy(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -206,7 +206,7 @@ func (h *Handler) UpdatePolicy(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/risk/policies/{id} [delete]
+// @Router       /v1/risk/policies/{id} [delete]
 func (h *Handler) DeletePolicy(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -231,7 +231,7 @@ func (h *Handler) DeletePolicy(c *gin.Context) {
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
-// @Router       /api/v1/risk/kill-switch/enable [post]
+// @Router       /v1/risk/kill-switch/enable [post]
 func (h *Handler) EnableKillSwitch(c *gin.Context) {
 	var req struct {
 		Reason string `json:"reason"`
@@ -253,7 +253,7 @@ func (h *Handler) EnableKillSwitch(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=map[string]string}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
-// @Router       /api/v1/risk/kill-switch/disable [post]
+// @Router       /v1/risk/kill-switch/disable [post]
 func (h *Handler) DisableKillSwitch(c *gin.Context) {
 	h.service.DisableKillSwitch()
 	api.RespondSuccess(c, gin.H{"message": "kill switch disabled"})
@@ -268,7 +268,7 @@ func (h *Handler) DisableKillSwitch(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=KillSwitch}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
-// @Router       /api/v1/risk/kill-switch [get]
+// @Router       /v1/risk/kill-switch [get]
 func (h *Handler) GetKillSwitch(c *gin.Context) {
 	api.RespondSuccess(c, h.service.GetKillSwitch())
 }
@@ -285,7 +285,7 @@ func (h *Handler) GetKillSwitch(c *gin.Context) {
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}  "COMMON-902"
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
-// @Router       /api/v1/risk/pre-trade-check [post]
+// @Router       /v1/risk/pre-trade-check [post]
 func (h *Handler) PreTradeCheck(c *gin.Context) {
 	var req PreTradeCheckRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

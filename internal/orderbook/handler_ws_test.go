@@ -208,7 +208,7 @@ func TestOrderbookWsHandler_SubscribeWS(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
@@ -248,7 +248,7 @@ func TestOrderbookWsHandler_InvalidVenueID(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=invalid&instrument_id=" + uuid.New().String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=invalid&instrument_id=" + uuid.New().String()
 
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
@@ -278,7 +278,7 @@ func TestOrderbookWsHandler_InvalidInstrumentID(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + uuid.New().String() + "&instrument_id=invalid"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + uuid.New().String() + "&instrument_id=invalid"
 
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
@@ -308,7 +308,7 @@ func TestOrderbookWsHandler_MissingParams(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws"
 
 	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
@@ -349,7 +349,7 @@ func TestOrderbookWsHandler_PingPong(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
@@ -399,7 +399,7 @@ func TestOrderbookWsHandler_NewSnapshotPushed(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
@@ -458,7 +458,7 @@ func TestOrderbookWsHandler_MultipleClients(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String()
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -534,7 +534,7 @@ func TestOrderbookWsHandler_InvalidDepth(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String() + "&depth=50"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/v1/orderbook/ws?venue_id=" + venueID.String() + "&instrument_id=" + instrumentID.String() + "&depth=50"
 
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {

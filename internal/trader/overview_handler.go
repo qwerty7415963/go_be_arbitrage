@@ -22,7 +22,7 @@ import (
 // @Param        series_days  query  int     false  "Series days 7..90" default(30)
 // @Success      200  {object}  api.Response{data=TraderOverview}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/overview [get]
+// @Router       /v1/traders/overview [get]
 func (h *Handler) Overview(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	period := strings.ToUpper(strings.TrimSpace(c.DefaultQuery("period", Period30D)))
@@ -67,7 +67,7 @@ func (h *Handler) Overview(c *gin.Context) {
 // @Param        series_days  query  int     false  "Series days 7..90" default(30)
 // @Success      200  {object}  api.Response{data=OverviewSeries}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/overview/series [get]
+// @Router       /v1/traders/overview/series [get]
 func (h *Handler) OverviewSeries(c *gin.Context) {
 	venue := c.DefaultQuery("venue", DefaultVenue)
 	period := strings.ToUpper(strings.TrimSpace(c.DefaultQuery("period", Period30D)))
@@ -112,7 +112,7 @@ func (h *Handler) OverviewSeries(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=BucketDetail}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/overview/buckets/{kind}/{id} [get]
+// @Router       /v1/traders/overview/buckets/{kind}/{id} [get]
 func (h *Handler) BucketDetail(c *gin.Context) {
 	kind := c.Param("kind")
 	id := c.Param("id")
@@ -142,7 +142,7 @@ func (h *Handler) BucketDetail(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=[]BucketWalletRow,meta=api.Meta}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/overview/buckets/{kind}/{id}/wallets [get]
+// @Router       /v1/traders/overview/buckets/{kind}/{id}/wallets [get]
 func (h *Handler) BucketWallets(c *gin.Context) {
 	kind := c.Param("kind")
 	id := c.Param("id")
@@ -200,7 +200,7 @@ func (h *Handler) BucketWallets(c *gin.Context) {
 // @Success      200  {object}  api.Response{data=[]BucketMarketRow,meta=api.Meta}
 // @Failure      400  {object}  api.Response{error=api.ErrorBody}
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}
-// @Router       /api/v1/traders/overview/buckets/{kind}/{id}/markets [get]
+// @Router       /v1/traders/overview/buckets/{kind}/{id}/markets [get]
 func (h *Handler) BucketMarkets(c *gin.Context) {
 	kind := c.Param("kind")
 	id := c.Param("id")

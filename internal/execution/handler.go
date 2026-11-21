@@ -81,7 +81,7 @@ func (h *Handler) getTenantID(c *gin.Context) (uuid.UUID, bool) {
 // @Success      200  {object}  api.Response{data=[]Execution}
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
-// @Router       /api/v1/executions [get]
+// @Router       /v1/executions [get]
 func (h *Handler) List(c *gin.Context) {
 	api.RespondList(c, []*Execution{}, nil)
 }
@@ -99,7 +99,7 @@ func (h *Handler) List(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/executions [post]
+// @Router       /v1/executions [post]
 func (h *Handler) Create(c *gin.Context) {
 	tenantID, ok := h.getTenantID(c)
 	if !ok {
@@ -130,7 +130,7 @@ func (h *Handler) Create(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      404  {object}  api.Response{error=api.ErrorBody}  "COMMON-903"
-// @Router       /api/v1/executions/{id} [get]
+// @Router       /v1/executions/{id} [get]
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -157,7 +157,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/executions/{id}/submit [post]
+// @Router       /v1/executions/{id}/submit [post]
 func (h *Handler) Submit(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -183,7 +183,7 @@ func (h *Handler) Submit(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/executions/{id}/cancel [post]
+// @Router       /v1/executions/{id}/cancel [post]
 func (h *Handler) Cancel(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -209,7 +209,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/executions/{id}/legs [get]
+// @Router       /v1/executions/{id}/legs [get]
 func (h *Handler) ListLegs(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -239,7 +239,7 @@ func (h *Handler) ListLegs(c *gin.Context) {
 // @Failure      401  {object}  api.Response{error=api.ErrorBody}  "AUTH-003"
 // @Failure      403  {object}  api.Response{error=api.ErrorBody}  "AUTH-005"
 // @Failure      500  {object}  api.Response{error=api.ErrorBody}  "COMMON-901"
-// @Router       /api/v1/executions/{id}/fills [get]
+// @Router       /v1/executions/{id}/fills [get]
 func (h *Handler) ListFills(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
