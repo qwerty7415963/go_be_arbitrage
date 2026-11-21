@@ -3,6 +3,7 @@ package trader
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -164,9 +165,12 @@ func (s *WSHarvestService) flush(ctx context.Context) error {
 		addrs = append(addrs, a)
 		times = append(times, t)
 	}
-	if _, err := s.repo.UpsertRegistryWS(ctx, s.venueID, addrs, times); err != nil {
-		s.logf("ws harvest flush failed (%d addrs): %v", len(addrs), err)
-		// Re-queue merged (bounded by pending cap via next flush cycle).
+	// Small jitter to reduce collision with sync/discovery DB writes.
+	jitter := time.Duration(10+len(addrs)%40) * time.Millisecond
+	select {
+	case <-time.After(jitter):
+	case <-ctx.Done():
+		// re-queue and return
 		s.mu.Lock()
 		for i, a := range addrs {
 			if cur, ok := s.pending[a]; !ok || times[i].After(cur) {
@@ -174,8 +178,45 @@ func (s *WSHarvestService) flush(ctx context.Context) error {
 			}
 		}
 		s.mu.Unlock()
-		return err
+		return ctx.Err()
 	}
-	s.flushes.Add(1)
-	return nil
+
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(100*(1<<uint(attempt-1))) * time.Millisecond
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				s.mu.Lock()
+				for i, a := range addrs {
+					if cur, ok := s.pending[a]; !ok || times[i].After(cur) {
+						s.pending[a] = times[i]
+					}
+				}
+				s.mu.Unlock()
+				return ctx.Err()
+			}
+		}
+		_, err = s.repo.UpsertRegistryWS(ctx, s.venueID, addrs, times)
+		if err == nil {
+			s.flushes.Add(1)
+			return nil
+		}
+		if !strings.Contains(err.Error(), "deadlock") && !strings.Contains(err.Error(), "40P01") {
+			break
+		}
+		s.logf("ws harvest: deadlock on attempt %d, retrying: %v", attempt+1, err)
+	}
+
+	s.logf("ws harvest flush failed (%d addrs): %v", len(addrs), err)
+	// Re-queue merged.
+	s.mu.Lock()
+	for i, a := range addrs {
+		if cur, ok := s.pending[a]; !ok || times[i].After(cur) {
+			s.pending[a] = times[i]
+		}
+	}
+	s.mu.Unlock()
+	return err
 }

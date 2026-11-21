@@ -57,6 +57,9 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	if _, err := pool.Exec(ctx, "DELETE FROM venue_instruments"); err != nil {
 		t.Fatalf("cleanup venue_instruments: %v", err)
 	}
+	if _, err := pool.Exec(ctx, "DELETE FROM funding_rates"); err != nil {
+		t.Fatalf("cleanup funding_rates: %v", err)
+	}
 	if _, err := pool.Exec(ctx, "DELETE FROM instruments WHERE canonical_symbol NOT IN ('BTCUSDT','ETHUSDT')"); err != nil {
 		t.Fatalf("cleanup instruments: %v", err)
 	}

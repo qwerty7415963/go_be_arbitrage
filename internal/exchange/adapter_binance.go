@@ -191,6 +191,10 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 	}
 	defer tickerResp.Body.Close()
 
+	if tickerResp.StatusCode == http.StatusTooManyRequests {
+		return nil, fmt.Errorf("binance ticker rate limited (429)")
+	}
+
 	tickerBody, err := io.ReadAll(tickerResp.Body)
 	if err != nil {
 		return nil, err
@@ -198,7 +202,26 @@ func (a *BinanceAdapter) FetchAllFunding(ctx context.Context) ([]BinanceFundingD
 
 	var tickers []BinanceTicker24h
 	if err := json.Unmarshal(tickerBody, &tickers); err != nil {
-		return nil, err
+		// Binance may return an error object instead of an array
+		var errObj struct {
+			Code int    `json:"code"`
+			Msg  string `json:"msg"`
+		}
+		if err2 := json.Unmarshal(tickerBody, &errObj); err2 == nil && errObj.Code != 0 {
+			return nil, fmt.Errorf("binance ticker error: code=%d msg=%s", errObj.Code, errObj.Msg)
+		}
+		// Binance may return a single object (if symbol param was set)
+		var single BinanceTicker24h
+		if err3 := json.Unmarshal(tickerBody, &single); err3 == nil && single.Symbol != "" {
+			tickers = []BinanceTicker24h{single}
+		} else {
+			// Truncate body for error message
+			bodyStr := string(tickerBody)
+			if len(bodyStr) > 200 {
+				bodyStr = bodyStr[:200]
+			}
+			return nil, fmt.Errorf("binance ticker unmarshal: %w (body: %s)", err, bodyStr)
+		}
 	}
 
 	tickerMap := make(map[string]BinanceTicker24h)
