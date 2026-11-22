@@ -61,6 +61,7 @@ func (s *Server) SetupRoutes(
 	s.engine.GET("/ready", healthHandler.Ready)
 
 	v1 := s.engine.Group("/v1")
+	v1.Use(middleware.LocaleMiddleware())
 	{
 		v1.GET("/ping", pingHandler)
 

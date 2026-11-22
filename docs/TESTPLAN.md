@@ -1886,3 +1886,7 @@ Table: trader_overview_snapshots (venue_id, period, pnl_metric, computed_at, pay
 |----|------|----------|
 | MD-E-01 | TestE2E_MarketDetail_Shape | shape |
 
+
+### 19.34 i18n (contract v3.3)
+
+BE localize error messages per Accept-Language (Method B). See plans/wallet-tabs/contract-v3.3.md.

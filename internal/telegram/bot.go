@@ -27,6 +27,7 @@ type LinkService interface {
 	CreateLink(ctx context.Context, userID uuid.UUID, locale interface{}) (*LinkResponse, error)
 	Status(ctx context.Context, userID uuid.UUID) (*StatusResponse, error)
 	Unlink(ctx context.Context, userID uuid.UUID) error
+	UpdateLocale(ctx context.Context, userID uuid.UUID, locale Locale) error
 }
 
 // ensure Service implements LinkService
@@ -190,9 +191,13 @@ func (b *Bot) handleStart(ctx context.Context, m *tgMessage, code string) {
 		b.reply(ctx, m.Chat.ID, "Mã không hợp lệ hoặc đã hết hạn (10 phút).")
 		return
 	}
+	locale := lc.Locale
+	if !locale.IsValid() {
+		locale = LocaleVI
+	}
 	// already connected?
 	if existing, err := b.Repo.GetBinding(ctx, lc.UserID); err == nil && existing != nil {
-		b.reply(ctx, m.Chat.ID, "Tài khoản này đã kết nối trước đó.")
+		b.reply(ctx, m.Chat.ID, replyText(locale, "Tài khoản này đã kết nối trước đó.", "This account is already connected."))
 		return
 	}
 	username := (*string)(nil)
@@ -216,12 +221,12 @@ func (b *Bot) handleStart(ctx context.Context, m *tgMessage, code string) {
 		Status:      BindingStatusActive,
 	}
 	if err := b.Repo.UpsertBinding(ctx, binding); err != nil {
-		b.reply(ctx, m.Chat.ID, "Lỗi kết nối.")
+		b.reply(ctx, m.Chat.ID, replyText(locale, "Lỗi kết nối.", "Connection error."))
 		return
 	}
 	email, _ := b.Repo.GetUserEmail(ctx, lc.UserID)
 	n, _ := b.Repo.CountEnabledGroups(ctx, lc.UserID)
-	msg := fmt.Sprintf("Đã kết nối với %s. Bạn sẽ nhận thông báo từ %d nhóm đang bật.", email, n)
+	msg := replyText(locale, fmt.Sprintf("Đã kết nối với %s. Bạn sẽ nhận thông báo từ %d nhóm đang bật.", email, n), fmt.Sprintf("Connected to %s. You will receive notifications from %d enabled groups.", email, n))
 	b.reply(ctx, m.Chat.ID, msg)
 }
 
@@ -231,12 +236,16 @@ func (b *Bot) handleStatus(ctx context.Context, m *tgMessage) {
 	}
 	binding, err := b.Repo.GetBindingByChatID(ctx, m.Chat.ID)
 	if err != nil || binding == nil {
-		b.reply(ctx, m.Chat.ID, "Chưa kết nối. Gửi /start <code> để kết nối.")
+		b.reply(ctx, m.Chat.ID, replyText(LocaleVI, "Chưa kết nối. Gửi /start <code> để kết nối.", "Not connected. Send /start <code> to connect."))
 		return
+	}
+	loc := binding.Locale
+	if !loc.IsValid() {
+		loc = LocaleVI
 	}
 	n, _ := b.Repo.CountEnabledGroups(ctx, binding.UserID)
 	wm, _ := b.Repo.CountWatchedWallets(ctx, binding.UserID)
-	b.reply(ctx, m.Chat.ID, fmt.Sprintf("Đang theo dõi %d nhóm và %d ví.", n, wm))
+	b.reply(ctx, m.Chat.ID, replyText(loc, fmt.Sprintf("Đang theo dõi %d nhóm và %d ví.", n, wm), fmt.Sprintf("Watching %d groups and %d wallets.", n, wm)))
 }
 
 func (b *Bot) handleStop(ctx context.Context, m *tgMessage) {
@@ -245,11 +254,15 @@ func (b *Bot) handleStop(ctx context.Context, m *tgMessage) {
 	}
 	binding, err := b.Repo.GetBindingByChatID(ctx, m.Chat.ID)
 	if err != nil || binding == nil {
-		b.reply(ctx, m.Chat.ID, "Chưa kết nối.")
+		b.reply(ctx, m.Chat.ID, replyText(LocaleVI, "Chưa kết nối.", "Not connected."))
 		return
 	}
+	loc2 := binding.Locale
+	if !loc2.IsValid() {
+		loc2 = LocaleVI
+	}
 	_ = b.Repo.DeleteBinding(ctx, binding.UserID)
-	b.reply(ctx, m.Chat.ID, "Đã hủy kết nối. Bạn sẽ không nhận thông báo nữa.")
+	b.reply(ctx, m.Chat.ID, replyText(loc2, "Đã hủy kết nối. Bạn sẽ không nhận thông báo nữa.", "Disconnected. You will no longer receive notifications."))
 }
 
 func (b *Bot) reply(ctx context.Context, chatID int64, html string) {
@@ -261,4 +274,11 @@ func (b *Bot) reply(ctx context.Context, chatID int64, html string) {
 			_ = b.Repo.MarkBlocked(ctx, chatID)
 		}
 	}
+}
+
+func replyText(locale Locale, vi, en string) string {
+	if locale == LocaleEN {
+		return en
+	}
+	return vi
 }

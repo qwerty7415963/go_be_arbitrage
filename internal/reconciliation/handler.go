@@ -103,7 +103,7 @@ func (h *Handler) CreateRun(c *gin.Context) {
 	}
 	run, err := h.service.StartReconciliation(c.Request.Context(), tenantID, req.VenueAccountID, req.TriggerSource)
 	if err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	c.JSON(http.StatusCreated, api.Response{Success: true, Data: run})
@@ -154,7 +154,7 @@ func (h *Handler) ListRuns(c *gin.Context) {
 	}
 	runs, err := h.service.ListRuns(c.Request.Context(), tenantID, 50, 0)
 	if err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	if runs == nil {
@@ -184,7 +184,7 @@ func (h *Handler) ListItems(c *gin.Context) {
 	}
 	items, err := h.service.ListItems(c.Request.Context(), runID)
 	if err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	if items == nil {

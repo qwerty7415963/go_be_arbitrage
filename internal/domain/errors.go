@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/qwerty7415963/go_be_arbitrage/internal/i18n"
 )
 
 type ErrorCode string
@@ -145,11 +147,13 @@ const (
 )
 
 type AppError struct {
-	Code       ErrorCode   `json:"code"`
-	Message    string      `json:"message"`
-	Details    interface{} `json:"details,omitempty"`
-	StatusCode int         `json:"-"`
-	Err        error       `json:"-"`
+	Code       ErrorCode      `json:"code"`
+	Message    string         `json:"message"`
+	MessageKey string         `json:"message_key,omitempty"`
+	Params     map[string]any `json:"params,omitempty"`
+	Details    interface{}    `json:"details,omitempty"`
+	StatusCode int            `json:"-"`
+	Err        error          `json:"-"`
 }
 
 func (e *AppError) Error() string {
@@ -167,6 +171,8 @@ func (e *AppError) WithDetails(details interface{}) *AppError {
 	return &AppError{
 		Code:       e.Code,
 		Message:    e.Message,
+		MessageKey: e.MessageKey,
+		Params:     e.Params,
 		Details:    details,
 		StatusCode: e.StatusCode,
 		Err:        e.Err,
@@ -177,6 +183,8 @@ func (e *AppError) WithErr(err error) *AppError {
 	return &AppError{
 		Code:       e.Code,
 		Message:    e.Message,
+		MessageKey: e.MessageKey,
+		Params:     e.Params,
 		Details:    e.Details,
 		StatusCode: e.StatusCode,
 		Err:        err,
@@ -343,6 +351,27 @@ func WrapError(code ErrorCode, message string, err error) *AppError {
 		StatusCode: errorStatusMap[code],
 		Err:        err,
 	}
+}
+
+func NewErrorKey(code ErrorCode, messageKey string, params map[string]any, fallbackMessage string) *AppError {
+	if messageKey == "" {
+		messageKey = string(code)
+	}
+	return &AppError{
+		Code:       code,
+		Message:    fallbackMessage,
+		MessageKey: messageKey,
+		Params:     params,
+		StatusCode: errorStatusMap[code],
+	}
+}
+
+func (e *AppError) LocalizedMessage(locale i18n.Locale) string {
+	key := e.MessageKey
+	if key == "" {
+		key = string(e.Code)
+	}
+	return i18n.Translate(locale, key, e.Params, e.Message)
 }
 
 func IsAppError(err error) bool {

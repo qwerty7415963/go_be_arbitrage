@@ -32,7 +32,7 @@ func (h *Handler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: err.Error()},
+			{Field: "body", Code: "INVALID", Message: "invalid request body"},
 		})
 		return
 	}
@@ -67,7 +67,7 @@ func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: err.Error()},
+			{Field: "body", Code: "INVALID", Message: "invalid request body"},
 		})
 		return
 	}
@@ -99,7 +99,7 @@ func (h *Handler) Refresh(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: err.Error()},
+			{Field: "body", Code: "INVALID", Message: "invalid request body"},
 		})
 		return
 	}
@@ -175,7 +175,7 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	var req ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: err.Error()},
+			{Field: "body", Code: "INVALID", Message: "invalid request body"},
 		})
 		return
 	}

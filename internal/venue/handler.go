@@ -176,7 +176,7 @@ func RespondValidationError(c *gin.Context, message string) {
 	c.JSON(http.StatusBadRequest, api.Response{
 		Success: false,
 		Error: &api.ErrorBody{
-			Code:    "VALIDATION_ERROR",
+			Code:    "COMMON-902",
 			Message: message,
 		},
 	})
@@ -185,7 +185,7 @@ func RespondValidationError(c *gin.Context, message string) {
 func RespondError(c *gin.Context, err error) {
 	appErr, ok := err.(*domain.AppError)
 	if !ok {
-		appErr = domain.WrapError(domain.ErrCodeConfigInvalid, err.Error(), err)
+		appErr = domain.WrapError(domain.ErrCodeConfigInvalid, "invalid configuration", err)
 	}
 
 	c.JSON(appErr.StatusCode, api.Response{

@@ -64,7 +64,7 @@ func (h *Handler) GetInstrument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument id",
 			},
 		})
@@ -107,7 +107,7 @@ func (h *Handler) GetExecutableDepth(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument id",
 			},
 		})
@@ -170,7 +170,7 @@ func (h *Handler) SubscribeWS(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})

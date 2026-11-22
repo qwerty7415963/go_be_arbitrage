@@ -32,7 +32,7 @@ func (h *Web3Handler) GetNonce(c *gin.Context) {
 	var req WalletNonceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: err.Error()},
+			{Field: "body", Code: "INVALID", Message: "invalid request body"},
 		})
 		return
 	}
@@ -69,7 +69,7 @@ func (h *Web3Handler) Verify(c *gin.Context) {
 	var req WalletVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: err.Error()},
+			{Field: "body", Code: "INVALID", Message: "invalid request body"},
 		})
 		return
 	}
@@ -114,7 +114,7 @@ func (h *Web3Handler) LinkWallet(c *gin.Context) {
 	var req WalletLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: err.Error()},
+			{Field: "body", Code: "INVALID", Message: "invalid request body"},
 		})
 		return
 	}

@@ -264,7 +264,7 @@ func (h *Handler) Start(c *gin.Context) {
 	}
 
 	if err := h.service.Start(c.Request.Context(), id); err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 
@@ -293,7 +293,7 @@ func (h *Handler) Stop(c *gin.Context) {
 	}
 
 	if err := h.service.Stop(c.Request.Context(), id); err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 

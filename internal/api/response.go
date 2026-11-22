@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/i18n"
 )
 
 func RespondSuccess(c *gin.Context, data interface{}) {
@@ -39,6 +40,17 @@ func RespondError(c *gin.Context, err *domain.AppError) {
 		statusCode = err.StatusCodeFromCode()
 	}
 
+	locale := i18n.Locale(c.GetString("locale"))
+	if !locale.IsValid() {
+		locale = i18n.LocaleVI
+	}
+
+	key := err.MessageKey
+	if key == "" {
+		key = string(err.Code)
+	}
+	message := i18n.Translate(locale, key, err.Params, err.Message)
+
 	requestID, _ := c.Get("request_id")
 	requestIDStr, _ := requestID.(string)
 
@@ -46,7 +58,7 @@ func RespondError(c *gin.Context, err *domain.AppError) {
 		Success: false,
 		Error: &ErrorBody{
 			Code:      string(err.Code),
-			Message:   err.Message,
+			Message:   message,
 			Details:   err.Details,
 			RequestID: requestIDStr,
 		},
@@ -54,6 +66,10 @@ func RespondError(c *gin.Context, err *domain.AppError) {
 }
 
 func RespondValidationError(c *gin.Context, fieldErrors []FieldError) {
+	locale := i18n.Locale(c.GetString("locale"))
+	if !locale.IsValid() {
+		locale = i18n.LocaleVI
+	}
 	requestID, _ := c.Get("request_id")
 	requestIDStr, _ := requestID.(string)
 
@@ -61,7 +77,7 @@ func RespondValidationError(c *gin.Context, fieldErrors []FieldError) {
 		Success: false,
 		Error: &ErrorBody{
 			Code:      string(domain.ErrCodeValidation),
-			Message:   "validation failed",
+			Message:   i18n.Translate(locale, string(domain.ErrCodeValidation), nil, "validation failed"),
 			Details:   fieldErrors,
 			RequestID: requestIDStr,
 		},

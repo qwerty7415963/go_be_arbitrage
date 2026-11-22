@@ -40,6 +40,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	g.POST("/link", h.Link)
 	g.GET("/status", h.Status)
 	g.DELETE("/link", h.Unlink)
+	g.PATCH("/settings", h.UpdateSettings)
 }
 
 func (h *Handler) CreateLink(c *gin.Context) { h.Link(c) }
@@ -128,6 +129,43 @@ func (h *Handler) Status(c *gin.Context) {
 	api.RespondSuccess(c, resp)
 }
 
+// UpdateSettings godoc
+// @Summary      Update Telegram notification locale
+// @Description  Update locale for the authenticated user's Telegram binding. Requires JWT.
+// @Tags         telegram
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      object  true  "locale: vi or en"
+// @Success      200  {object}  api.Response{data=map[string]string}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}
+// @Router       /v1/telegram/settings [patch]
+func (h *Handler) UpdateSettings(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		Locale string `json:"locale"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid request body"))
+		return
+	}
+	locale := Locale(strings.TrimSpace(req.Locale))
+	if !locale.IsValid() {
+		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid locale"))
+		return
+	}
+	if err := h.linker.UpdateLocale(c.Request.Context(), userID, locale); err != nil {
+		api.RespondError(c, h.appErr(err))
+		return
+	}
+	c.JSON(http.StatusOK, api.Response{Success: true, Data: map[string]string{"locale": string(locale)}})
+}
+
 // Unlink godoc
 // @Summary      Unlink Telegram account
 // @Description  Remove the Telegram binding for the authenticated user. Requires JWT.
@@ -148,3 +186,7 @@ func (h *Handler) Unlink(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+func (h *Handler) UpdateLocale(c *gin.Context) { h.UpdateSettings(c) }
+func (h *Handler) Settings(c *gin.Context)      { h.UpdateSettings(c) }
+func (h *Handler) PatchSettings(c *gin.Context){ h.UpdateSettings(c) }
+func (h *Handler) TelegramSettings(c *gin.Context) { h.UpdateSettings(c) }

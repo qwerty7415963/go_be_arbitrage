@@ -373,6 +373,17 @@ func (r *Repository) GetActiveCode(ctx context.Context, userID uuid.UUID) (*Link
 	return &lc, nil
 }
 
+func (r *Repository) UpdateTelegramLocale(ctx context.Context, userID uuid.UUID, locale Locale) error {
+	ct, err := r.pool.Exec(ctx, `UPDATE telegram_bindings SET locale = $1, updated_at = NOW() WHERE user_id = $2`, string(locale), userID)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return domain.NewError(domain.ErrCodeNotFound, "not linked")
+	}
+	return nil
+}
+
 func (r *Repository) CountEnabledGroups(ctx context.Context, userID uuid.UUID) (int, error) {
 	var n int
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM trader_groups WHERE user_id = $1 AND notify_enabled = TRUE`, userID).Scan(&n)
@@ -402,3 +413,4 @@ func (r *Repository) CreateCodeCtx(ctx context.Context, lc *LinkCode) error {
 func (r *Repository) ConsumeCodeCtx(ctx context.Context, code string) (*LinkCode, error) {
 	return r.ConsumeCode(ctx, code)
 }
+func (r *Repository) UpdateLocale(ctx context.Context, userID uuid.UUID, locale Locale) error { return r.UpdateTelegramLocale(ctx, userID, locale) }

@@ -54,7 +54,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -66,7 +66,7 @@ func (h *Handler) Subscribe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})
@@ -192,7 +192,7 @@ func (h *Handler) GetTrades(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -204,7 +204,7 @@ func (h *Handler) GetTrades(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})
@@ -217,7 +217,7 @@ func (h *Handler) GetTrades(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "INTERNAL_ERROR",
+				Code:    "COMMON-901",
 				Message: "failed to get trades",
 			},
 		})
@@ -250,7 +250,7 @@ func (h *Handler) GetTicker(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -262,7 +262,7 @@ func (h *Handler) GetTicker(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})
@@ -307,7 +307,7 @@ func (h *Handler) GetFunding(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -319,7 +319,7 @@ func (h *Handler) GetFunding(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})

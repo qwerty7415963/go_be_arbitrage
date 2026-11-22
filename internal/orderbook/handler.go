@@ -41,7 +41,7 @@ func (h *Handler) GetOrderBook(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -53,7 +53,7 @@ func (h *Handler) GetOrderBook(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})
@@ -70,22 +70,22 @@ func (h *Handler) GetOrderBook(c *gin.Context) {
 	depthData, err := h.service.GetDepth(venueID, instrumentID, depth)
 	if err != nil {
 		status := http.StatusInternalServerError
-		code := "INTERNAL_ERROR"
+		code := "COMMON-901"
 
 		switch err {
 		case ErrBookNotFound:
 			status = http.StatusNotFound
-			code = "ORDERBOOK-301"
+			code = "RISK-301"
 		case ErrInvalidDepth:
 			status = http.StatusBadRequest
-			code = "VALIDATION_ERROR"
+			code = "COMMON-902"
 		}
 
 		c.JSON(status, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
 				Code:    code,
-				Message: err.Error(),
+				Message: "internal error",
 			},
 		})
 		return
@@ -117,7 +117,7 @@ func (h *Handler) GetHealth(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -129,7 +129,7 @@ func (h *Handler) GetHealth(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})
@@ -141,8 +141,8 @@ func (h *Handler) GetHealth(c *gin.Context) {
 		c.JSON(http.StatusNotFound, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "ORDERBOOK-301",
-				Message: err.Error(),
+				Code:    "RISK-301",
+				Message: "internal error",
 			},
 		})
 		return
@@ -170,8 +170,8 @@ func (h *Handler) RequestResync(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
-				Message: err.Error(),
+				Code:    "COMMON-902",
+				Message: "internal error",
 			},
 		})
 		return
@@ -181,8 +181,8 @@ func (h *Handler) RequestResync(c *gin.Context) {
 		c.JSON(http.StatusNotFound, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "ORDERBOOK-301",
-				Message: err.Error(),
+				Code:    "RISK-301",
+				Message: "internal error",
 			},
 		})
 		return
@@ -213,7 +213,7 @@ func (h *Handler) GetTradable(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -225,7 +225,7 @@ func (h *Handler) GetTradable(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})
@@ -259,7 +259,7 @@ func (h *Handler) SubscribeWS(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid venue_id",
 			},
 		})
@@ -271,7 +271,7 @@ func (h *Handler) SubscribeWS(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.Response{
 			Success: false,
 			Error: &api.ErrorBody{
-				Code:    "VALIDATION_ERROR",
+				Code:    "COMMON-902",
 				Message: "invalid instrument_id",
 			},
 		})

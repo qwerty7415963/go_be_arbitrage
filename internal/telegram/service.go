@@ -167,6 +167,20 @@ func (s *Service) Unlink(ctx context.Context, userID uuid.UUID) error {
 	return s.repo.DeleteBinding(ctx, userID)
 }
 
+func (s *Service) UpdateLocale(ctx context.Context, userID uuid.UUID, locale Locale) error {
+	if !locale.IsValid() {
+		return domain.NewError(domain.ErrCodeValidation, "invalid locale")
+	}
+	if s.repo == nil {
+		return domain.NewError(domain.ErrCodeNotFound, "not linked")
+	}
+	b, err := s.repo.GetBinding(ctx, userID)
+	if err != nil || b == nil {
+		return domain.NewError(domain.ErrCodeNotFound, "not linked")
+	}
+	return s.repo.UpdateTelegramLocale(ctx, userID, locale)
+}
+
 // helpers for locale validation in handlers
 func ParseLocale(v interface{}) Locale {
 	switch val := v.(type) {
@@ -178,3 +192,4 @@ func ParseLocale(v interface{}) Locale {
 		return ""
 	}
 }
+func (s *Service) UpdateTelegramLocale(ctx context.Context, userID uuid.UUID, locale Locale) error { return s.UpdateLocale(ctx, userID, locale) }

@@ -142,6 +142,7 @@ var expectedSecured = []string{
 	"POST /v1/telegram/link",
 	"GET /v1/telegram/status",
 	"DELETE /v1/telegram/link",
+	"PATCH /v1/telegram/settings",
 	// admin telegram settings (JWT + admin role)
 	"GET /v1/admin/telegram/settings",
 	"PATCH /v1/admin/telegram/settings",

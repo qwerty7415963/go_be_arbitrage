@@ -8,6 +8,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/app"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/config"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/database"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/i18n"
 
 	_ "github.com/qwerty7415963/go_be_arbitrage/docs"
 )
@@ -36,6 +37,10 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
+		panic(err)
+	}
+
+	if err := i18n.Load(); err != nil {
 		panic(err)
 	}
 

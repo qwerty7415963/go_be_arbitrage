@@ -112,7 +112,7 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 	exec, err := h.service.CreateExecution(c.Request.Context(), tenantID, &req)
 	if err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	c.JSON(http.StatusCreated, api.Response{Success: true, Data: exec})
@@ -165,7 +165,7 @@ func (h *Handler) Submit(c *gin.Context) {
 		return
 	}
 	if err := h.service.SubmitExecution(c.Request.Context(), id); err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	api.RespondSuccess(c, gin.H{"message": "execution submitted"})
@@ -191,7 +191,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 		return
 	}
 	if err := h.service.CancelExecution(c.Request.Context(), id); err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	api.RespondSuccess(c, gin.H{"message": "execution canceled"})
@@ -218,7 +218,7 @@ func (h *Handler) ListLegs(c *gin.Context) {
 	}
 	legs, err := h.service.ListLegs(c.Request.Context(), id)
 	if err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	if legs == nil {
@@ -248,7 +248,7 @@ func (h *Handler) ListFills(c *gin.Context) {
 	}
 	fills, err := h.service.ListFills(c.Request.Context(), id)
 	if err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, err.Error()))
+		api.RespondError(c, domain.NewError(domain.ErrCodeInternal, "internal error").WithErr(err))
 		return
 	}
 	if fills == nil {
