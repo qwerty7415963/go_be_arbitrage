@@ -286,6 +286,7 @@ func New(cfg *config.Config) (*App, error) {
 			}
 			return trader.SnapshotToPositionDTO(snap, "coin", "asc", trader.DataReady), nil
 		})
+		watcherManager = watcherManager.WithService(traderService)
 		userStreamSink.Mgr = watcherManager
 		activityWS.WithWatcher(watcherManager)
 		discoverySvc = trader.NewDiscoveryService(traderRepo,

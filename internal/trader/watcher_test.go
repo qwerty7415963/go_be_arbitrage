@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -231,5 +232,57 @@ func TestWatcher_OnRawUserFill_MapsDir(t *testing.T) {
 		Coin: "BTC", Side: "B", Sz: "1", Px: "1", Time: now, Dir: "Open Long", Tid: 57,
 	}) {
 		t.Error("unwatched wallet must not emit")
+	}
+}
+
+type fakeWatcherService struct {
+	page *ActivityPage
+	err  error
+}
+
+func (f *fakeWatcherService) Activity(ctx context.Context, venue, wallet string, q ActivityQuery) (*ActivityPage, error) {
+	return f.page, f.err
+}
+
+func TestWatcher_BootstrapTrades_SkipDataErrorEmpty(t *testing.T) {
+	mgr := NewWatcherManager(NewActivityHub(), nil, nil, 4)
+	mgr.WithService(&fakeWatcherService{page: &ActivityPage{Rows: []ActivityTradeDTO{}, HasMore: false, Counts: ActivityCounts{}, DataStatus: DataError}})
+	wallet := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	c := mgr.Subscribe(wallet)
+	evs := drainRawEvents(c)
+	for _, e := range evs {
+		if e.Type == "wallet.bootstrap.trades" {
+			t.Fatalf("must not emit bootstrap trades on DataError+empty, got %+v", evs)
+		}
+	}
+}
+
+func TestWatcher_BootstrapTrades_EmitValid(t *testing.T) {
+	mgr := NewWatcherManager(NewActivityHub(), nil, nil, 4)
+	mgr.WithService(&fakeWatcherService{page: &ActivityPage{Rows: []ActivityTradeDTO{{Market: "BTC"}}, HasMore: false, Counts: ActivityCounts{}, DataStatus: DataReady}})
+	wallet := "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	c := mgr.Subscribe(wallet)
+	evs := drainRawEvents(c)
+	found := false
+	for _, e := range evs {
+		if e.Type == "wallet.bootstrap.trades" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("must emit bootstrap trades on valid page, got %+v", evs)
+	}
+}
+
+func TestWatcher_BootstrapTrades_SkipError(t *testing.T) {
+	mgr := NewWatcherManager(NewActivityHub(), nil, nil, 4)
+	mgr.WithService(&fakeWatcherService{err: context.DeadlineExceeded})
+	wallet := "0xcccccccccccccccccccccccccccccccccccccccc"
+	c := mgr.Subscribe(wallet)
+	evs := drainRawEvents(c)
+	for _, e := range evs {
+		if e.Type == "wallet.bootstrap.trades" {
+			t.Fatalf("must not emit bootstrap trades on error, got %+v", evs)
+		}
 	}
 }

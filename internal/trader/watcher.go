@@ -101,6 +101,12 @@ func (nilUpstream) Unsubscribe(string) error                { return nil }
 // PositionSnapshotProvider builds a full position snapshot DTO for a wallet.
 type PositionSnapshotProvider func(ctx context.Context, wallet string) (*PositionSnapshotDTO, error)
 
+// activityProvider is the seam for server-side bootstrap (trades); *Service
+// satisfies it. Tests may inject a fake.
+type activityProvider interface {
+	Activity(ctx context.Context, venueCode, rawAddr string, q ActivityQuery) (*ActivityPage, error)
+}
+
 // WalletWatcher is one per-watched-address upstream subscription set,
 // refcounted by browser subscribers. Positions have no WS stream → served by
 // §1.1 REST (short TTL), NOT by the watcher; the watcher emits
@@ -149,7 +155,7 @@ type WatcherManager struct {
 	positionProvider PositionSnapshotProvider
 
 	// Service for server-side bootstrap (trades) (contract v3.0).
-	service *Service
+	service activityProvider
 
 	// position refresh counters.
 	positionRefreshes      int64
@@ -198,7 +204,7 @@ func (m *WatcherManager) WithPositionProvider(p PositionSnapshotProvider) *Watch
 }
 
 // WithService attaches the trader service for server-side bootstrap (trades).
-func (m *WatcherManager) WithService(s *Service) *WatcherManager {
+func (m *WatcherManager) WithService(s activityProvider) *WatcherManager {
 	if m == nil {
 		return m
 	}
@@ -1028,7 +1034,11 @@ func (m *WatcherManager) emitBootstrapChannels(wallet string, w *WalletWatcher, 
 			}
 			cancel()
 		}
-		m.emit(wallet, "wallet.bootstrap.trades", page, w.state)
+		if page.DataStatus == DataError && len(page.Rows) == 0 {
+			// Do not emit bootstrap trades on error/empty (avoids overwriting good cache).
+		} else {
+			m.emit(wallet, "wallet.bootstrap.trades", page, w.state)
+		}
 	}
 }
 
