@@ -1,8 +1,20 @@
 # AGENTS.md — Development Workflow
 
-## Mandatory Rule: Every Feature Must Have Tests
+## Orchestration Policy (RAO v1)
 
-Before ANY code is merged, the following MUST be complete:
+See `docs/AGENT_ORCHESTRATION.md` (v1). Tiers: L1 Simple / L2 Standard / L3 Critical. Hard gates: L3 plan approval, API contract approval, commit/push approval. Workers/reviewers are read-only on policy and never self-approve. Classification is by task description AND actual diff; uncertainty escalates upward; no downgrade after critical detection.
+
+## Mandatory Rule: Tests by Tier
+
+**Classify every task (L1/L2/L3) using `docs/AGENT_ORCHESTRATION.md` before starting.**
+
+- **L1:** Targeted unit/check for touched logic + `go vet`; no TESTPLAN artifact required; full suite not required.
+- **L2:** Unit + handler tests for touched code, relevant regression, TESTPLAN updated when behavior/contract changes.
+- **L3:** Full matrix (unit/handler/integration/e2e) + TESTPLAN + swagger as applicable.
+
+Never skip invariant tests for money/execution/auth/concurrency/migrations.
+
+For L2/L3, before ANY code is merged, the following MUST be complete:
 
 ### 1. Test Plan (write FIRST)
 - File: `docs/TESTPLAN.md`
@@ -52,12 +64,13 @@ Before ANY code is merged, the following MUST be complete:
 
 ## Before Committing — Checklist
 
-- [ ] `go vet ./...` passes
-- [ ] `go test -short -race -count=1 ./...` passes
-- [ ] `go test -tags=integration -race -count=1 ./...` passes (if DB available)
-- [ ] `go test -tags=e2e -race -count=1 ./...` passes (if DB available)
-- [ ] `swag init` if endpoints changed
-- [ ] `docs/TESTPLAN.md` updated with new test cases
+- [ ] Tier recorded in Task Card/PR; checks match tier (see `docs/AGENT_ORCHESTRATION.md`).
+- [ ] `go vet ./...` passes (all tiers)
+- [ ] Targeted `go test -short` for touched packages passes (all tiers); full `go test -short -race -count=1 ./...` for L2/L3 as applicable
+- [ ] `go test -tags=integration -race -count=1 ./...` passes (L3 unless risk requires; if DB available)
+- [ ] `go test -tags=e2e -race -count=1 ./...` passes (L3 unless risk requires; if DB available)
+- [ ] `swag init` if endpoints changed (L2 when behavior/contract changes; L3 as required)
+- [ ] `docs/TESTPLAN.md` updated with new test cases (L2 when behavior/contract changes; L3 as required)
 - [ ] No secrets or keys in code
 
 ## Run All Checks
