@@ -28,17 +28,23 @@ func TestCreateGroupRequest_Validate(t *testing.T) {
 }
 
 func TestUpdateGroupRequest_Validate(t *testing.T) {
-	if _, _, err := (&UpdateGroupRequest{}).Validate(); err == nil {
+	if _, _, _, _, err := (&UpdateGroupRequest{}).Validate(); err == nil {
 		t.Error("empty update must fail")
 	}
 	name := "  New  "
-	rename, desc, err := (&UpdateGroupRequest{Name: &name}).Validate()
-	if err != nil || *rename != "New" || desc != nil {
-		t.Errorf("rename: %v %v %v", rename, desc, err)
+	rename, desc, fav, notify, err := (&UpdateGroupRequest{Name: &name}).Validate()
+	if err != nil || *rename != "New" || desc != nil || fav != nil || notify != nil {
+		t.Errorf("rename: %v %v %v %v %v", rename, desc, fav, notify, err)
 	}
 	empty := "  "
-	if _, _, err := (&UpdateGroupRequest{Name: &empty}).Validate(); err == nil {
+	if _, _, _, _, err := (&UpdateGroupRequest{Name: &empty}).Validate(); err == nil {
 		t.Error("blank name must fail")
+	}
+	// is_favorite only is valid
+	b := true
+	_, _, fav2, _, err := (&UpdateGroupRequest{IsFavorite: &b}).Validate()
+	if err != nil || fav2 == nil || *fav2 != true {
+		t.Errorf("favorite: %v", err)
 	}
 }
 

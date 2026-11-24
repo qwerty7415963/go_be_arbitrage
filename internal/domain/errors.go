@@ -129,6 +129,18 @@ const (
 	ErrCodeGroupDuplicate ErrorCode = "GROUP-002"
 	ErrCodeGroupForbidden ErrorCode = "GROUP-003"
 
+	// ALERT — Group alerts
+	ErrCodeAlertNotFound      ErrorCode = "ALERT_NOT_FOUND"
+	ErrCodeAlertDuplicate     ErrorCode = "ALERT_DUPLICATE"
+	ErrCodeAlertLimit         ErrorCode = "ALERT_LIMIT"
+	ErrCodeInvalidAlertType   ErrorCode = "INVALID_ALERT_TYPE"
+	ErrCodeInvalidAlertParams ErrorCode = "INVALID_ALERT_PARAMS"
+
+	// Trader groups analytics / compare (Batch B)
+	ErrCodeInvalidPeriod  ErrorCode = "INVALID_PERIOD"
+	ErrCodeCompareTooFew  ErrorCode = "COMPARE_TOO_FEW"
+	ErrCodeCompareTooMany ErrorCode = "COMPARE_TOO_MANY"
+
 	// TELEGRAM -- Telegram wallet cap (v1.5)
 	ErrCodeTelegramWalletCap ErrorCode = "TELEGRAM-001"
 
@@ -306,6 +318,16 @@ var errorStatusMap = map[ErrorCode]int{
 	ErrCodeGroupNotFound:  http.StatusNotFound,
 	ErrCodeGroupDuplicate: http.StatusConflict,
 	ErrCodeGroupForbidden: http.StatusForbidden,
+
+	ErrCodeAlertNotFound:      http.StatusNotFound,
+	ErrCodeAlertDuplicate:     http.StatusConflict,
+	ErrCodeAlertLimit:         http.StatusConflict,
+	ErrCodeInvalidAlertType:   http.StatusBadRequest,
+	ErrCodeInvalidAlertParams: http.StatusBadRequest,
+
+	ErrCodeInvalidPeriod:  http.StatusBadRequest,
+	ErrCodeCompareTooFew:  http.StatusBadRequest,
+	ErrCodeCompareTooMany: http.StatusBadRequest,
 
 	ErrCodeTelegramWalletCap: http.StatusConflict,
 

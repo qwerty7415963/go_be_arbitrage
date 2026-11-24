@@ -14370,16 +14370,28 @@ const docTemplate = `{
         "tradergroup.Group": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
+                "is_favorite": {
+                    "type": "boolean"
+                },
                 "member_count": {
                     "type": "integer"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "notify_enabled": {
+                    "type": "boolean"
+                },
+                "updated_at": {
                     "type": "string"
                 },
                 "user_id": {
@@ -14439,8 +14451,14 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "is_favorite": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
+                },
+                "notify_enabled": {
+                    "type": "boolean"
                 }
             }
         },

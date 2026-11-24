@@ -2,6 +2,7 @@ package trader
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -90,6 +91,96 @@ func (r *Repository) PurgeBuffer(ctx context.Context, venueID uuid.UUID, addr st
 		return 0, err
 	}
 	return tag.RowsAffected(), nil
+}
+
+// UpsertWalletEvent inserts a trader_wallet_event row, ignoring duplicates by
+// dedup_key (ON CONFLICT DO NOTHING). price and realizedPnl may be nil.
+func (r *Repository) UpsertWalletEvent(ctx context.Context, venueID uuid.UUID, addr, market, eventType string, sizeDelta, price, realizedPnl any, occurredAt time.Time, dedupKey string) error {
+	sd, err := toFloat64(sizeDelta)
+	if err != nil {
+		return err
+	}
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO trader_wallet_event
+			(venue_id, wallet_address, coin, event_type, size_delta, price, realized_pnl, occurred_at, dedup_key)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		ON CONFLICT (dedup_key) DO NOTHING`,
+		venueID, addr, market, eventType, sd, toNullableFloat(price), toNullableFloat(realizedPnl), occurredAt.UTC(), dedupKey)
+	return err
+}
+
+func toFloat64(v any) (float64, error) {
+	if v == nil {
+		return 0, nil
+	}
+	switch x := v.(type) {
+	case float64:
+		return x, nil
+	case float32:
+		return float64(x), nil
+	case int:
+		return float64(x), nil
+	case int64:
+		return float64(x), nil
+	case *float64:
+		if x == nil {
+			return 0, nil
+		}
+		return *x, nil
+	case *float32:
+		if x == nil {
+			return 0, nil
+		}
+		return float64(*x), nil
+	case *int:
+		if x == nil {
+			return 0, nil
+		}
+		return float64(*x), nil
+	case *int64:
+		if x == nil {
+			return 0, nil
+		}
+		return float64(*x), nil
+	}
+	return 0, fmt.Errorf("toFloat64: unsupported type %T", v)
+}
+
+func toNullableFloat(v any) any {
+	if v == nil {
+		return nil
+	}
+	switch x := v.(type) {
+	case float64:
+		return x
+	case float32:
+		return float64(x)
+	case int:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case *float64:
+		if x == nil {
+			return nil
+		}
+		return *x
+	case *float32:
+		if x == nil {
+			return nil
+		}
+		return float64(*x)
+	case *int:
+		if x == nil {
+			return nil
+		}
+		return float64(*x)
+	case *int64:
+		if x == nil {
+			return nil
+		}
+		return float64(*x)
+	}
+	return v
 }
 
 // backoffDelay returns the wait before the next attempt after retry failures:

@@ -4,28 +4,38 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/api"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/domain"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
 )
 
 // Store is the group persistence surface (*Repository implements it; mocked
 // in handler tests).
 type Store interface {
 	Create(ctx context.Context, userID uuid.UUID, name, desc string) (*Group, error)
-	List(ctx context.Context, userID uuid.UUID) ([]*Group, error)
+	List(ctx context.Context, userID uuid.UUID, params ListGroupsParams) ([]*GroupListItem, int, error)
 	Get(ctx context.Context, groupID, userID uuid.UUID) (*Group, error)
-	Update(ctx context.Context, groupID, userID uuid.UUID, name, desc *string) (*Group, error)
+	Update(ctx context.Context, groupID, userID uuid.UUID, name, desc *string, isFavorite, notifyEnabled *bool) (*Group, error)
 	Delete(ctx context.Context, groupID, userID uuid.UUID) error
-	AddMembers(ctx context.Context, groupID, userID uuid.UUID, items []MemberInput) (int64, error)
+	AddMembers(ctx context.Context, groupID, userID uuid.UUID, items []MemberInput) (int64, int64, error)
 	RemoveMembers(ctx context.Context, groupID, userID, venueID uuid.UUID, addrs []string) (int64, error)
 	UpdateMembers(ctx context.Context, groupID, userID uuid.UUID, items []ValidatedMemberUpdate) (int64, error)
-	ListMembers(ctx context.Context, groupID, userID uuid.UUID, period string) ([]*Member, error)
+	ListMembers(ctx context.Context, groupID, userID uuid.UUID, params ListMembersParams) ([]*MemberRow, int, error)
+	Activity(ctx context.Context, groupID, userID uuid.UUID, f ActivityFilter) (*ActivityPage, error)
+	ListAlerts(ctx context.Context, groupID, userID uuid.UUID) ([]*GroupAlert, error)
+	CreateAlert(ctx context.Context, groupID, userID uuid.UUID, req CreateAlertRequest) (*GroupAlert, error)
+	UpdateAlert(ctx context.Context, alertID, userID uuid.UUID, req UpdateAlertRequest) (*GroupAlert, error)
+	DeleteAlert(ctx context.Context, alertID, userID uuid.UUID) error
 	OwnerOf(ctx context.Context, groupID uuid.UUID) (uuid.UUID, error)
 	VenueIDByCode(ctx context.Context, code string) (uuid.UUID, error)
+	Duplicate(ctx context.Context, groupID, userID uuid.UUID, name *string) (*Group, error)
+	ToggleFavorite(ctx context.Context, groupID, userID uuid.UUID, isFavorite bool) (*Group, error)
+	Overview(ctx context.Context, userID uuid.UUID, period string) (*OverviewStats, error)
 }
 
 var _ Store = (*Repository)(nil)
@@ -44,13 +54,39 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	}
 	g.POST("", h.Create)
 	g.GET("", h.List)
+	g.GET("/overview", h.Overview)
 	g.GET("/:id", h.Get)
 	g.PATCH("/:id", h.Update)
 	g.DELETE("/:id", h.Delete)
+	g.POST("/:id/duplicate", h.Duplicate)
+	g.PATCH("/:id/favorite", h.Favorite)
 	g.POST("/:id/members", h.AddMembers)
 	g.GET("/:id/members", h.ListMembers)
+	g.GET("/:id/alerts", h.ListAlerts)
+	g.POST("/:id/alerts", h.CreateAlert)
+	g.GET("/:id/alert-events", h.ListAlertEvents)
+	g.POST("/:id/alert-events/read-all", h.MarkAllAlertEventsRead)
+	g.GET("/alerts/unread-count", h.UnreadAlertCount)
 	g.PATCH("/:id/members", h.UpdateMembers)
 	g.DELETE("/:id/members", h.RemoveMembers)
+	g.PATCH("/alerts/:alertId", h.UpdateAlert)
+	g.DELETE("/alerts/:alertId", h.DeleteAlert)
+	g.POST("/alert-events/:eventId/read", h.MarkAlertEventRead)
+	g.GET("/:id/activity", h.Activity)
+
+	alerts := router.Group("/trader-alerts")
+	if len(jwtMiddleware) > 0 {
+		alerts.Use(jwtMiddleware[0])
+	}
+	alerts.PATCH("/:alertId", h.UpdateAlert)
+	alerts.DELETE("/:alertId", h.DeleteAlert)
+	alerts.GET("/unread-count", h.UnreadAlertCount)
+
+	events := router.Group("/trader-alert-events")
+	if len(jwtMiddleware) > 0 {
+		events.Use(jwtMiddleware[0])
+	}
+	events.POST("/:eventId/read", h.MarkAlertEventRead)
 }
 
 // getUserID requires an authenticated caller (AUTH-005 anonymous, AUTH-003
@@ -156,12 +192,96 @@ func (h *Handler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	groups, err := h.store.List(c.Request.Context(), userID)
+	page := 1
+	pageSize := 20
+	if raw := c.Query("page"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page"))
+			return
+		}
+		page = n
+	}
+	if raw := c.Query("page_size"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page_size"))
+			return
+		}
+		pageSize = n
+	}
+	if page < 1 {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page"))
+		return
+	}
+	if pageSize < 1 || pageSize > 100 {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page_size"))
+		return
+	}
+	params := ListGroupsParams{
+		Search:   c.Query("search"),
+		Status:   c.Query("status"),
+		Period:   c.DefaultQuery("period", "30D"),
+		Sort:     c.DefaultQuery("sort", "name"),
+		Dir:      c.DefaultQuery("dir", "asc"),
+		Page:     page,
+		PageSize: pageSize,
+	}
+	if params.Search == "" {
+		params.Search = c.Query("q")
+	}
+	switch params.Period {
+	case trader.Period1D, trader.Period7D, trader.Period30D, trader.PeriodALL, "90D":
+	default:
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period"))
+		return
+	}
+	switch params.Sort {
+	case "name", "account_value", "unrealized_pnl", "roi", "volume", "open_positions", "win_rate", "updated_at", "created_at":
+	default:
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort"))
+		return
+	}
+	if params.Dir != "asc" && params.Dir != "desc" {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir"))
+		return
+	}
+	if params.Status != "" {
+		switch params.Status {
+		case "empty", "ready", "partial", "stale", "error":
+		default:
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid status"))
+			return
+		}
+	}
+	if raw := c.Query("favorite"); raw != "" {
+		v := strings.EqualFold(raw, "true")
+		if raw != "true" && raw != "false" && raw != "1" && raw != "0" {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid favorite"))
+			return
+		}
+		params.Favorite = &v
+	}
+	items, total, err := h.store.List(c.Request.Context(), userID, params)
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
 	}
-	api.RespondSuccess(c, groups)
+	if items == nil {
+		items = []*GroupListItem{}
+	}
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = (int(total) + pageSize - 1) / pageSize
+	}
+	hasMore := page*pageSize < int(total)
+	api.RespondList(c, items, &api.Meta{
+		Page:       page,
+		TotalPages: totalPages,
+		Total:      int64(total),
+		Limit:      pageSize,
+		HasMore:    hasMore,
+	})
 }
 
 // Get godoc
@@ -224,17 +344,86 @@ func (h *Handler) Update(c *gin.Context) {
 		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid request body"))
 		return
 	}
-	name, desc, err := req.Validate()
+	name, desc, isFav, notifyEn, err := req.Validate()
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
 	}
-	g, err := h.store.Update(c.Request.Context(), id, userID, name, desc)
+	g, err := h.store.Update(c.Request.Context(), id, userID, name, desc, isFav, notifyEn)
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
 	}
 	api.RespondSuccess(c, g)
+}
+
+// Overview godoc
+func (h *Handler) Overview(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	period := c.DefaultQuery("period", "30D")
+	stats, err := h.store.Overview(c.Request.Context(), userID, period)
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	api.RespondSuccess(c, stats)
+}
+
+// Favorite godoc
+func (h *Handler) Favorite(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	id, ok := groupID(c)
+	if !ok {
+		return
+	}
+	var req FavoriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid request body"))
+		return
+	}
+	g, err := h.store.ToggleFavorite(c.Request.Context(), id, userID, req.IsFavorite)
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	api.RespondSuccess(c, g)
+}
+
+// Duplicate godoc
+func (h *Handler) Duplicate(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	id, ok := groupID(c)
+	if !ok {
+		return
+	}
+	var req DuplicateGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req = DuplicateGroupRequest{}
+	}
+	if err := req.Validate(); err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	var name *string
+	if strings.TrimSpace(req.Name) != "" {
+		trimmed := strings.TrimSpace(req.Name)
+		name = &trimmed
+	}
+	g, err := h.store.Duplicate(c.Request.Context(), id, userID, name)
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	c.JSON(http.StatusCreated, api.Response{Success: true, Data: g})
 }
 
 // Delete godoc
@@ -304,12 +493,12 @@ func (h *Handler) AddMembers(c *gin.Context) {
 		}
 		items = append(items, norm)
 	}
-	added, err := h.store.AddMembers(c.Request.Context(), id, userID, items)
+	added, skipped, err := h.store.AddMembers(c.Request.Context(), id, userID, items)
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
 	}
-	api.RespondSuccess(c, map[string]int64{"added": added})
+	api.RespondSuccess(c, map[string]int64{"added": added, "skipped": skipped})
 }
 
 // ListMembers godoc
@@ -335,15 +524,83 @@ func (h *Handler) ListMembers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	members, err := h.store.ListMembers(c.Request.Context(), id, userID, c.DefaultQuery("period", "30D"))
+	page := 1
+	pageSize := 20
+	if raw := c.Query("page"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page"))
+			return
+		}
+		page = n
+	}
+	if raw := c.Query("page_size"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page_size"))
+			return
+		}
+		pageSize = n
+	}
+	if page < 1 {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page"))
+		return
+	}
+	if pageSize < 1 || pageSize > 100 {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid page_size"))
+		return
+	}
+	params := ListMembersParams{
+		Period:   c.DefaultQuery("period", "30D"),
+		Search:   c.Query("search"),
+		Sort:     c.DefaultQuery("sort", "wallet_address"),
+		Dir:      c.DefaultQuery("dir", "asc"),
+		Page:     page,
+		PageSize: pageSize,
+		Filter:   c.DefaultQuery("filter", "all"),
+	}
+	switch params.Period {
+	case trader.Period1D, trader.Period7D, trader.Period30D, trader.PeriodALL, "90D":
+	default:
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid period"))
+		return
+	}
+	switch params.Sort {
+	case "wallet_address", "account_value", "unrealized_pnl", "roi", "volume", "open_positions", "last_trade_at", "updated_at":
+	default:
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid sort"))
+		return
+	}
+	if params.Dir != "asc" && params.Dir != "desc" {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid dir"))
+		return
+	}
+	switch params.Filter {
+	case "all", "missing_data", "stale", "in_other_groups":
+	default:
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidFilter, "invalid filter"))
+		return
+	}
+	items, total, err := h.store.ListMembers(c.Request.Context(), id, userID, params)
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
 	}
-	if members == nil {
-		members = []*Member{}
+	if items == nil {
+		items = []*MemberRow{}
 	}
-	api.RespondSuccess(c, members)
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = (int(total) + pageSize - 1) / pageSize
+	}
+	hasMore := page*pageSize < int(total)
+	api.RespondList(c, items, &api.Meta{
+		Page:       page,
+		TotalPages: totalPages,
+		Total:      int64(total),
+		Limit:      pageSize,
+		HasMore:    hasMore,
+	})
 }
 
 // RemoveMembers godoc

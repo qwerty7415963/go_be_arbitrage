@@ -26,7 +26,12 @@ type RetentionResult struct {
 	SystemEvents            int64 `json:"system_events"`
 	TraderDaily             int64 `json:"trader_daily"`
 	TraderEquity            int64 `json:"trader_equity"`
+	TraderEquityIntraday    int64 `json:"trader_equity_intraday"`
 	TraderTrades            int64 `json:"trader_trades"`
+	TraderWalletEvent       int64 `json:"trader_wallet_event"`
+	TraderWalletEvents      int64 `json:"trader_wallet_events"`
+	GroupAlertEvent         int64 `json:"group_alert_event"`
+	GroupAlertEvents        int64 `json:"group_alert_events"`
 	TraderPositionSnapshots int64 `json:"trader_position_snapshots"`
 	DeadTraders             int64 `json:"dead_traders"`
 }
@@ -160,6 +165,36 @@ func (s *RetentionService) CleanupTraderPositionSnapshotDaily(ctx context.Contex
 	return result.RowsAffected(), nil
 }
 
+// CleanupTraderEquityIntraday deletes intraday equity samples older than maxAge.
+func (s *RetentionService) CleanupTraderEquityIntraday(ctx context.Context, maxAge time.Duration) (int64, error) {
+	query := `DELETE FROM trader_equity_intraday WHERE sampled_at < NOW() - $1::interval`
+	result, err := s.db.Exec(ctx, query, maxAge.String())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+// CleanupTraderWalletEvent deletes wallet events older than maxAge.
+func (s *RetentionService) CleanupTraderWalletEvent(ctx context.Context, maxAge time.Duration) (int64, error) {
+	query := `DELETE FROM trader_wallet_event WHERE occurred_at < NOW() - $1::interval`
+	result, err := s.db.Exec(ctx, query, maxAge.String())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+// CleanupGroupAlertEvents deletes group alert events older than maxAge.
+func (s *RetentionService) CleanupGroupAlertEvents(ctx context.Context, maxAge time.Duration) (int64, error) {
+	query := `DELETE FROM group_alert_events WHERE triggered_at < NOW() - $1::interval`
+	result, err := s.db.Exec(ctx, query, maxAge.String())
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 // RunFullCleanup runs every table cleanup, continuing past per-table
 // failures (a missing/unavailable table must not block the rest). Returns
 // partial counts plus the joined errors, if any.
@@ -191,12 +226,22 @@ func (s *RetentionService) RunFullCleanup(ctx context.Context, config RetentionC
 		func() (int64, error) { return s.CleanupTraderDaily(ctx, config.TraderDailyMaxAge) })
 	run("trader_equity", func(n int64) { result.TraderEquity = n },
 		func() (int64, error) { return s.CleanupTraderEquity(ctx, config.TraderEquityMaxAge) })
+	run("trader_equity_intraday", func(n int64) { result.TraderEquityIntraday = n },
+		func() (int64, error) { return s.CleanupTraderEquityIntraday(ctx, config.TraderEquityIntradayMaxAge) })
 	run("trader_trades", func(n int64) { result.TraderTrades = n },
 		func() (int64, error) { return s.CleanupTraderTrades(ctx, config.TraderTradesMaxAge) })
+	run("trader_wallet_event", func(n int64) {
+		result.TraderWalletEvent = n
+		result.TraderWalletEvents = n
+	}, func() (int64, error) { return s.CleanupTraderWalletEvent(ctx, config.TraderWalletEventMaxAge) })
 	run("trader_position_snapshots", func(n int64) { result.TraderPositionSnapshots = n },
 		func() (int64, error) {
 			return s.CleanupTraderPositionSnapshotDaily(ctx, config.TraderPositionSnapshotDailyMaxAge)
 		})
+	run("group_alert_events", func(n int64) {
+		result.GroupAlertEvent = n
+		result.GroupAlertEvents = n
+	}, func() (int64, error) { return s.CleanupGroupAlertEvents(ctx, config.GroupAlertEventMaxAge) })
 	if config.TraderPruneEnabled {
 		run("dead_traders", func(n int64) { result.DeadTraders = n },
 			func() (int64, error) { return s.CleanupDeadTraders(ctx, config.TraderPruneStaleAfter) })
@@ -213,7 +258,10 @@ type RetentionConfig struct {
 	SystemEventsMaxAge                time.Duration
 	TraderDailyMaxAge                 time.Duration
 	TraderEquityMaxAge                time.Duration
+	TraderEquityIntradayMaxAge        time.Duration
 	TraderTradesMaxAge                time.Duration
+	TraderWalletEventMaxAge           time.Duration
+	GroupAlertEventMaxAge             time.Duration
 	TraderPositionSnapshotDailyMaxAge time.Duration
 	TraderPruneEnabled                bool
 	TraderPruneStaleAfter             time.Duration
@@ -228,8 +276,11 @@ func DefaultRetentionConfig() RetentionConfig {
 		SystemEventsMaxAge:                90 * 24 * time.Hour,
 		TraderDailyMaxAge:                 400 * 24 * time.Hour,
 		TraderEquityMaxAge:                400 * 24 * time.Hour,
+		TraderEquityIntradayMaxAge:        14 * 24 * time.Hour,
 		TraderTradesMaxAge:                60 * 24 * time.Hour,
-		TraderPositionSnapshotDailyMaxAge: 30 * 24 * time.Hour,
+		TraderWalletEventMaxAge:           90 * 24 * time.Hour,
+		GroupAlertEventMaxAge:             365 * 24 * time.Hour,
+		TraderPositionSnapshotDailyMaxAge: 400 * 24 * time.Hour,
 		TraderPruneEnabled:                true,
 		TraderPruneStaleAfter:             30 * 24 * time.Hour,
 	}

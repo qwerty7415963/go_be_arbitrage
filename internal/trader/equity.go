@@ -3,6 +3,7 @@ package trader
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -132,6 +133,57 @@ type EquityDailyRow struct {
 	Date        time.Time
 	EndEquity   *float64
 	DailyReturn *float64
+}
+
+// EquityIntradayPoint is one stored intraday sample (migration 000040).
+type EquityIntradayPoint struct {
+	VenueID       uuid.UUID
+	WalletAddress string
+	SampledAt     time.Time
+	AccountValue  *float64
+}
+
+// UpsertEquityIntraday replaces one intraday sample (idempotent).
+func (r *Repository) UpsertEquityIntraday(ctx context.Context, venueID uuid.UUID, addr string, sampledAt time.Time, accountValue *float64) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO trader_equity_intraday (venue_id, wallet_address, sampled_at, account_value)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (venue_id, wallet_address, sampled_at) DO UPDATE SET
+			account_value = EXCLUDED.account_value`,
+		venueID, strings.ToLower(strings.TrimSpace(addr)), sampledAt.UTC(), accountValue)
+	return err
+}
+
+// ListEquityIntraday returns stored intraday samples for the given wallets in
+// [from, to], oldest-first.
+func (r *Repository) ListEquityIntraday(ctx context.Context, venueID uuid.UUID, addrs []string, from, to time.Time) ([]EquityIntradayPoint, error) {
+	if len(addrs) == 0 {
+		return nil, nil
+	}
+	norm := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		norm = append(norm, strings.ToLower(strings.TrimSpace(a)))
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT venue_id, wallet_address, sampled_at, account_value
+		FROM trader_equity_intraday
+		WHERE venue_id = $1 AND wallet_address = ANY($2)
+		  AND sampled_at >= $3 AND sampled_at <= $4
+		ORDER BY sampled_at ASC`,
+		venueID, norm, from.UTC(), to.UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []EquityIntradayPoint{}
+	for rows.Next() {
+		var p EquityIntradayPoint
+		if err := rows.Scan(&p.VenueID, &p.WalletAddress, &p.SampledAt, &p.AccountValue); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }
 
 // ListEquityDailyRows returns dated equity points in [from, to] oldest-first

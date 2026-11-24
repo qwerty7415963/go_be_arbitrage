@@ -15,51 +15,169 @@ import (
 )
 
 type mockStore struct {
-	createFn        func(ctx context.Context, userID uuid.UUID, name, desc string) (*Group, error)
-	listFn          func(ctx context.Context, userID uuid.UUID) ([]*Group, error)
-	getFn           func(ctx context.Context, gid, uid uuid.UUID) (*Group, error)
-	updateFn        func(ctx context.Context, gid, uid uuid.UUID, name, desc *string) (*Group, error)
-	deleteFn        func(ctx context.Context, gid, uid uuid.UUID) error
-	addFn           func(ctx context.Context, gid, uid uuid.UUID, items []MemberInput) (int64, error)
-	removeFn        func(ctx context.Context, gid, uid, venueID uuid.UUID, addrs []string) (int64, error)
-	updateMembersFn func(ctx context.Context, gid, uid uuid.UUID, items []ValidatedMemberUpdate) (int64, error)
-	listMembersFn   func(ctx context.Context, gid, uid uuid.UUID) ([]*Member, error)
-	ownerFn         func(ctx context.Context, gid uuid.UUID) (uuid.UUID, error)
-	venueFn         func(ctx context.Context, code string) (uuid.UUID, error)
+	createFn         func(ctx context.Context, userID uuid.UUID, name, desc string) (*Group, error)
+	listFn           func(ctx context.Context, userID uuid.UUID, params ListGroupsParams) ([]*GroupListItem, int, error)
+	getFn            func(ctx context.Context, gid, uid uuid.UUID) (*Group, error)
+	updateFn         func(ctx context.Context, gid, uid uuid.UUID, name, desc *string, isFav, notify *bool) (*Group, error)
+	deleteFn         func(ctx context.Context, gid, uid uuid.UUID) error
+	addFn            func(ctx context.Context, gid, uid uuid.UUID, items []MemberInput) (int64, int64, error)
+	removeFn         func(ctx context.Context, gid, uid, venueID uuid.UUID, addrs []string) (int64, error)
+	updateMembersFn  func(ctx context.Context, gid, uid uuid.UUID, items []ValidatedMemberUpdate) (int64, error)
+	listMembersFn    func(ctx context.Context, gid, uid uuid.UUID, params ListMembersParams) ([]*MemberRow, int, error)
+	activityFn       func(ctx context.Context, gid, uid uuid.UUID, f ActivityFilter) (*ActivityPage, error)
+	ownerFn          func(ctx context.Context, gid uuid.UUID) (uuid.UUID, error)
+	venueFn          func(ctx context.Context, code string) (uuid.UUID, error)
+	overviewFn       func(ctx context.Context, userID uuid.UUID, period string) (*OverviewStats, error)
+	toggleFavoriteFn func(ctx context.Context, gid, uid uuid.UUID, isFavorite bool) (*Group, error)
+	duplicateFn      func(ctx context.Context, gid, uid uuid.UUID, name *string) (*Group, error)
+	listAlertsFn     func(ctx context.Context, gid, uid uuid.UUID) ([]*GroupAlert, error)
+	createAlertFn    func(ctx context.Context, gid, uid uuid.UUID, req CreateAlertRequest) (*GroupAlert, error)
+	updateAlertFn    func(ctx context.Context, aid, uid uuid.UUID, req UpdateAlertRequest) (*GroupAlert, error)
+	deleteAlertFn    func(ctx context.Context, aid, uid uuid.UUID) error
+	listAlertEventsFn func(ctx context.Context, gid, uid uuid.UUID, unread bool, limit int, cursor string) (*AlertEventPage, error)
+	markAllReadFn    func(ctx context.Context, gid, uid uuid.UUID) (int, error)
+	unreadCountFn    func(ctx context.Context, uid uuid.UUID) (int, map[uuid.UUID]int, error)
+	markEventReadFn  func(ctx context.Context, eid, uid uuid.UUID) error
 }
 
 func (m *mockStore) Create(ctx context.Context, u uuid.UUID, n, d string) (*Group, error) {
+	if m.createFn == nil {
+		return nil, nil
+	}
 	return m.createFn(ctx, u, n, d)
 }
-func (m *mockStore) List(ctx context.Context, u uuid.UUID) ([]*Group, error) {
-	return m.listFn(ctx, u)
+func (m *mockStore) List(ctx context.Context, u uuid.UUID, params ListGroupsParams) ([]*GroupListItem, int, error) {
+	if m.listFn == nil {
+		return []*GroupListItem{}, 0, nil
+	}
+	return m.listFn(ctx, u, params)
 }
 func (m *mockStore) Get(ctx context.Context, g, u uuid.UUID) (*Group, error) {
+	if m.getFn == nil {
+		return nil, nil
+	}
 	return m.getFn(ctx, g, u)
 }
-func (m *mockStore) Update(ctx context.Context, g, u uuid.UUID, n, d *string) (*Group, error) {
-	return m.updateFn(ctx, g, u, n, d)
+func (m *mockStore) Update(ctx context.Context, g, u uuid.UUID, n, d *string, isFav, notify *bool) (*Group, error) {
+	if m.updateFn == nil {
+		return nil, nil
+	}
+	return m.updateFn(ctx, g, u, n, d, isFav, notify)
 }
 func (m *mockStore) Delete(ctx context.Context, g, u uuid.UUID) error {
+	if m.deleteFn == nil {
+		return nil
+	}
 	return m.deleteFn(ctx, g, u)
 }
-func (m *mockStore) AddMembers(ctx context.Context, g, u uuid.UUID, it []MemberInput) (int64, error) {
+func (m *mockStore) AddMembers(ctx context.Context, g, u uuid.UUID, it []MemberInput) (int64, int64, error) {
+	if m.addFn == nil {
+		return 0, 0, nil
+	}
 	return m.addFn(ctx, g, u, it)
 }
 func (m *mockStore) RemoveMembers(ctx context.Context, g, u, v uuid.UUID, a []string) (int64, error) {
+	if m.removeFn == nil {
+		return 0, nil
+	}
 	return m.removeFn(ctx, g, u, v, a)
 }
 func (m *mockStore) UpdateMembers(ctx context.Context, g, u uuid.UUID, it []ValidatedMemberUpdate) (int64, error) {
+	if m.updateMembersFn == nil {
+		return 0, nil
+	}
 	return m.updateMembersFn(ctx, g, u, it)
 }
-func (m *mockStore) ListMembers(ctx context.Context, g, u uuid.UUID, period string) ([]*Member, error) {
-	return m.listMembersFn(ctx, g, u)
+func (m *mockStore) ListMembers(ctx context.Context, g, u uuid.UUID, params ListMembersParams) ([]*MemberRow, int, error) {
+	if m.listMembersFn == nil {
+		return []*MemberRow{}, 0, nil
+	}
+	return m.listMembersFn(ctx, g, u, params)
 }
 func (m *mockStore) OwnerOf(ctx context.Context, g uuid.UUID) (uuid.UUID, error) {
+	if m.ownerFn == nil {
+		return uuid.Nil, nil
+	}
 	return m.ownerFn(ctx, g)
 }
 func (m *mockStore) VenueIDByCode(ctx context.Context, c string) (uuid.UUID, error) {
+	if m.venueFn == nil {
+		return uuid.Nil, nil
+	}
 	return m.venueFn(ctx, c)
+}
+func (m *mockStore) Overview(ctx context.Context, userID uuid.UUID, period string) (*OverviewStats, error) {
+	if m.overviewFn == nil {
+		return nil, nil
+	}
+	return m.overviewFn(ctx, userID, period)
+}
+func (m *mockStore) ToggleFavorite(ctx context.Context, g, u uuid.UUID, isFavorite bool) (*Group, error) {
+	if m.toggleFavoriteFn == nil {
+		return nil, nil
+	}
+	return m.toggleFavoriteFn(ctx, g, u, isFavorite)
+}
+func (m *mockStore) Duplicate(ctx context.Context, g, u uuid.UUID, name *string) (*Group, error) {
+	if m.duplicateFn == nil {
+		return nil, nil
+	}
+	return m.duplicateFn(ctx, g, u, name)
+}
+func (m *mockStore) Activity(ctx context.Context, g, u uuid.UUID, f ActivityFilter) (*ActivityPage, error) {
+	if m.activityFn == nil {
+		return nil, nil
+	}
+	return m.activityFn(ctx, g, u, f)
+}
+
+func (m *mockStore) ListAlerts(ctx context.Context, g, u uuid.UUID) ([]*GroupAlert, error) {
+	if m.listAlertsFn == nil {
+		return []*GroupAlert{}, nil
+	}
+	return m.listAlertsFn(ctx, g, u)
+}
+func (m *mockStore) CreateAlert(ctx context.Context, g, u uuid.UUID, req CreateAlertRequest) (*GroupAlert, error) {
+	if m.createAlertFn == nil {
+		return nil, nil
+	}
+	return m.createAlertFn(ctx, g, u, req)
+}
+func (m *mockStore) UpdateAlert(ctx context.Context, a, u uuid.UUID, req UpdateAlertRequest) (*GroupAlert, error) {
+	if m.updateAlertFn == nil {
+		return nil, nil
+	}
+	return m.updateAlertFn(ctx, a, u, req)
+}
+func (m *mockStore) DeleteAlert(ctx context.Context, a, u uuid.UUID) error {
+	if m.deleteAlertFn == nil {
+		return nil
+	}
+	return m.deleteAlertFn(ctx, a, u)
+}
+func (m *mockStore) ListAlertEvents(ctx context.Context, g, u uuid.UUID, unread bool, limit int, cursor string) (*AlertEventPage, error) {
+	if m.listAlertEventsFn == nil {
+		return &AlertEventPage{Items: []AlertEvent{}}, nil
+	}
+	return m.listAlertEventsFn(ctx, g, u, unread, limit, cursor)
+}
+func (m *mockStore) MarkAllAlertEventsRead(ctx context.Context, g, u uuid.UUID) (int, error) {
+	if m.markAllReadFn == nil {
+		return 0, nil
+	}
+	return m.markAllReadFn(ctx, g, u)
+}
+func (m *mockStore) UnreadAlertCount(ctx context.Context, u uuid.UUID) (int, map[uuid.UUID]int, error) {
+	if m.unreadCountFn == nil {
+		return 0, map[uuid.UUID]int{}, nil
+	}
+	return m.unreadCountFn(ctx, u)
+}
+func (m *mockStore) MarkAlertEventRead(ctx context.Context, e, u uuid.UUID) error {
+	if m.markEventReadFn == nil {
+		return nil
+	}
+	return m.markEventReadFn(ctx, e, u)
 }
 
 const authedUserID = "11111111-1111-1111-1111-111111111111"
@@ -164,9 +282,9 @@ func TestHandler_Get_Errors(t *testing.T) {
 // AddMembers: bad address 400 before reaching the store.
 func TestHandler_AddMembers_Validation(t *testing.T) {
 	called := false
-	h := NewHandler(&mockStore{addFn: func(context.Context, uuid.UUID, uuid.UUID, []MemberInput) (int64, error) {
+	h := NewHandler(&mockStore{addFn: func(context.Context, uuid.UUID, uuid.UUID, []MemberInput) (int64, int64, error) {
 		called = true
-		return 0, nil
+		return 0, 0, nil
 	}})
 	w := doReq(t, testRouter(h, true), "POST", "/v1/trader-groups/"+uuid.NewString()+"/members",
 		`{"members":[{"venue":"hyperliquid","wallet_address":"zzz"}]}`)

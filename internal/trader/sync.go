@@ -206,6 +206,10 @@ func (s *SyncService) SyncWallet(ctx context.Context, addr string, now time.Time
 		return err
 	}
 
+	if err := ProjectWalletEvents(ctx, s.repo, s.venueID, addr); err != nil {
+		s.logf("sync %s: wallet events projection failed: %v", addr, err)
+	}
+
 	maxTime, maxTID := maxFillCursor(fills)
 	cursorTime := now
 	if !maxTime.IsZero() {
@@ -286,6 +290,13 @@ func (s *SyncService) syncEquity(ctx context.Context, addr string, now time.Time
 	var points []EquityPoint
 	for _, w := range []string{"day", "week", "month", "allTime"} {
 		points = append(points, windows[w]...)
+	}
+	// Persist intraday samples from the "day" window (contract 000040).
+	for _, p := range windows["day"] {
+		v := p.Value
+		if err := s.repo.UpsertEquityIntraday(ctx, s.venueID, addr, p.Time, &v); err != nil {
+			s.logf("sync %s: intraday upsert failed: %v", addr, err)
+		}
 	}
 	cutoff := now.Add(-s.opts.PurgeRetention)
 	for _, day := range AggregateEquityDaily(points) {

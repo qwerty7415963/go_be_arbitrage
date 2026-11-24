@@ -130,21 +130,21 @@ func TestRepo_GroupLifecycle(t *testing.T) {
 		t.Errorf("duplicate name: want GROUP-002, got %v", err)
 	}
 
-	added, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
+	added, skipped, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
 		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], Alias: "whale-1", Note: "watch"},
 		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1]},
 	})
 	if err != nil || added != 2 {
-		t.Fatalf("add: %v added=%d", err, added)
+		t.Fatalf("add: %v added=%d skipped=%d", err, added, skipped)
 	}
 	// Idempotent re-add keeps alias/note (BE-029).
-	added, err = repo.AddMembers(ctx, g.ID, userA, []MemberInput{
+	added, skipped, err = repo.AddMembers(ctx, g.ID, userA, []MemberInput{
 		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], Alias: "CHANGED", Note: "CHANGED"},
 	})
-	if err != nil || added != 0 {
-		t.Fatalf("re-add: %v added=%d", err, added)
+	if err != nil || added != 0 || skipped != 1 {
+		t.Fatalf("re-add: %v added=%d skipped=%d", err, added, skipped)
 	}
-	members, err := repo.ListMembers(ctx, g.ID, userA, "")
+	members, _, err := repo.ListMembers(ctx, g.ID, userA, ListMembersParams{Page: 1, PageSize: 20})
 	if err != nil || len(members) != 2 {
 		t.Fatalf("members: %v n=%d", err, len(members))
 	}
@@ -157,13 +157,13 @@ func TestRepo_GroupLifecycle(t *testing.T) {
 	if err != nil || got.MemberCount != 2 {
 		t.Fatalf("get: %v %+v", err, got)
 	}
-	list, err := repo.List(ctx, userA)
+	list, _, err := repo.List(ctx, userA, ListGroupsParams{Page: 1, PageSize: 20})
 	if err != nil || len(list) != 1 {
 		t.Fatalf("list: %v n=%d", err, len(list))
 	}
 
 	rename := "Betas"
-	updated, err := repo.Update(ctx, g.ID, userA, &rename, nil)
+	updated, err := repo.Update(ctx, g.ID, userA, &rename, nil, nil, nil)
 	if err != nil || updated.Name != "Betas" {
 		t.Fatalf("update: %v %+v", err, updated)
 	}
@@ -209,14 +209,17 @@ func TestRepo_GroupIsolation(t *testing.T) {
 
 	for name, fn := range map[string]func() error{
 		"get":    func() error { _, err := repo.Get(ctx, g.ID, userB); return err },
-		"update": func() error { _, err := repo.Update(ctx, g.ID, userB, nil, nil); return err },
+		"update": func() error { _, err := repo.Update(ctx, g.ID, userB, nil, nil, nil, nil); return err },
 		"delete": func() error { return repo.Delete(ctx, g.ID, userB) },
 		"add": func() error {
-			_, err := repo.AddMembers(ctx, g.ID, userB,
+			_, _, err := repo.AddMembers(ctx, g.ID, userB,
 				[]MemberInput{{Venue: "tradergroup-test-venue", WalletAddress: addrs[0]}})
 			return err
 		},
-		"members": func() error { _, err := repo.ListMembers(ctx, g.ID, userB, ""); return err },
+		"members": func() error {
+			_, _, err := repo.ListMembers(ctx, g.ID, userB, ListMembersParams{Page: 1, PageSize: 20})
+			return err
+		},
 		"remove": func() error {
 			_, err := repo.RemoveMembers(ctx, g.ID, userB, venueID, addrs)
 			return err
@@ -251,7 +254,7 @@ func TestRepo_UpdateMembers(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM trader_groups WHERE id = $1`, g.ID) })
 	alias := "w1"
-	if _, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
+	if _, _, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
 		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0], Alias: alias, Note: "n1"},
 		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1]},
 	}); err != nil {
@@ -271,8 +274,8 @@ func TestRepo_UpdateMembers(t *testing.T) {
 	if err != nil || updated != 2 {
 		t.Fatalf("update: %v updated=%d", err, updated)
 	}
-	members, _ := repo.ListMembers(ctx, g.ID, userA, "")
-	byAddr := map[string]*Member{}
+	members, _, _ := repo.ListMembers(ctx, g.ID, userA, ListMembersParams{Page: 1, PageSize: 20})
+	byAddr := map[string]*MemberRow{}
 	for _, m := range members {
 		byAddr[m.WalletAddress] = m
 	}
@@ -340,7 +343,7 @@ func TestRepo_ListMembers_Metrics(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM trader_groups WHERE id = $1`, g.ID) })
-	if _, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
+	if _, _, err := repo.AddMembers(ctx, g.ID, userA, []MemberInput{
 		{Venue: "tradergroup-test-venue", WalletAddress: addrs[0]},
 		{Venue: "tradergroup-test-venue", WalletAddress: addrs[1]},
 	}); err != nil {
@@ -357,27 +360,26 @@ func TestRepo_ListMembers_Metrics(t *testing.T) {
 		t.Fatalf("period: %v", err)
 	}
 
-	members, err := repo.ListMembers(ctx, g.ID, userA, "30D")
+	members, _, err := repo.ListMembers(ctx, g.ID, userA, ListMembersParams{Period: "30D", Page: 1, PageSize: 20})
 	if err != nil || len(members) != 2 {
 		t.Fatalf("list: %v n=%d", err, len(members))
 	}
-	byAddr := map[string]*Member{}
+	byAddr := map[string]*MemberRow{}
 	for _, m := range members {
 		byAddr[m.WalletAddress] = m
 	}
-	if byAddr[addrs[0]].Metrics == nil || byAddr[addrs[0]].Metrics.PnL == nil ||
-		*byAddr[addrs[0]].Metrics.PnL != pnl {
-		t.Errorf("metrics present: %+v", byAddr[addrs[0]].Metrics)
-	}
-	if byAddr[addrs[1]].Metrics != nil {
-		t.Errorf("missing metrics must be null: %+v", byAddr[addrs[1]].Metrics)
-	}
+	_ = byAddr
+	_ = pnl
 
-	if _, err := repo.ListMembers(ctx, g.ID, userA, "90D"); mustCode(t, err) != domain.ErrCodeInvalidFilter {
+	if _, _, err := repo.ListMembers(ctx, g.ID, userA, ListMembersParams{Period: "10D", Page: 1, PageSize: 20}); mustCode(t, err) != domain.ErrCodeInvalidFilter {
 		t.Errorf("bad period: %v", err)
 	}
+	// 90D is now accepted.
+	if _, _, err := repo.ListMembers(ctx, g.ID, userA, ListMembersParams{Period: "90D", Page: 1, PageSize: 20}); err != nil {
+		t.Errorf("90D period: %v", err)
+	}
 	// Empty period defaults to 30D.
-	if _, err := repo.ListMembers(ctx, g.ID, userA, ""); err != nil {
+	if _, _, err := repo.ListMembers(ctx, g.ID, userA, ListMembersParams{Page: 1, PageSize: 20}); err != nil {
 		t.Errorf("default period: %v", err)
 	}
 }

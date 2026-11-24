@@ -64,6 +64,7 @@ type App struct {
 	discoveryService   *trader.DiscoveryService
 	traderSyncService  *trader.SyncService
 	traderService      *trader.Service
+	traderGroupRepo    *tradergroup.Repository
 	bucketProjector    *trader.BucketProjector
 	traderVenueID      uuid.UUID
 	hlClient           *hyperliquid.Client
@@ -203,6 +204,10 @@ func New(cfg *config.Config) (*App, error) {
 	traderGroupRepo := tradergroup.NewRepository(db.Pool(), appSettingsService)
 	cursorSecret := []byte("trader-cursor:v1:" + cfg.Auth.JWTSecret)
 	traderService := trader.NewService(traderRepo, traderGroupRepo, cursorSecret).WithAppSettings(appSettingsService).WithAssetLogoResolver(assetLogoResolver)
+	traderGroupRepo.WithCursorSecret(cursorSecret)
+	traderGroupRepo.WithTransferFetcher(func(ctx context.Context, venueCode, addr string, days int) (*trader.TransfersPage, error) {
+		return traderService.Transfers(ctx, venueCode, addr, days, 100, "")
+	})
 	bucketProjector := trader.NewBucketProjector(traderRepo, traderService)
 	traderService.WithBucketProjector(bucketProjector)
 	traderHandler := trader.NewHandler(traderService)
@@ -222,6 +227,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// Notify (contract v1.4 phase C)
 	notifyRepo := notify.NewRepository(db.Pool())
+	traderGroupRepo.WithNotifyRepo(notifyRepo)
 	var notifySupervisor *notify.Supervisor
 	var notifyDispatcher *notify.Dispatcher
 	var notifyWorker *notify.Worker
@@ -357,6 +363,7 @@ func New(cfg *config.Config) (*App, error) {
 		discoveryService:   discoverySvc,
 		traderSyncService:  traderSyncSvc,
 		traderService:      traderService,
+		traderGroupRepo:    traderGroupRepo,
 		bucketProjector:    bucketProjector,
 		traderVenueID:      hyperliquidVenueID,
 		hlClient:           hlClient,
@@ -548,6 +555,21 @@ func (a *App) Run() error {
 	}
 	if a.traderSyncService != nil {
 		go a.traderSyncService.Start(ctx, traderSyncInterval)
+	}
+	if a.traderGroupRepo != nil {
+		go func() {
+			ticker := time.NewTicker(60 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					_ = a.traderGroupRepo.EvaluateAll(ctx)
+					_ = a.traderGroupRepo.EvaluateEventAlerts(ctx)
+				}
+			}
+		}()
 	}
 
 	// Start WS trade discovery (V1.1): harvest trade counterparties into the
