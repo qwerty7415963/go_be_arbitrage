@@ -193,7 +193,7 @@ Data status (group): `empty` (0 members) · `error` (no member has usable data) 
 
 Ordering: `is_favorite DESC` always first, then requested sort, then `name ASC` tiebreak.
 
-`data`: `{ items: GroupListItem[], as_of }`
+`data`: `GroupListItem[]` (array), with `meta: { page, total_pages, total, limit }` pagination.
 
 ```json
 {
@@ -205,6 +205,8 @@ Ordering: `is_favorite DESC` always first, then requested sort, then `name ASC` 
   "data_status": "ready", "partial": false, "missing_wallets": 0
 }
 ```
+
+List response follows the standard envelope: data is an array; pagination is in meta. No top-level as_of on list (per-row updated_at + overview endpoint provide freshness).
 
 `GET /v1/trader-groups/overview?period=30D` → `{ total_groups, unique_wallets, account_value, unrealized_pnl, partial, missing_wallets, stale_groups, empty_groups, as_of }`
 
