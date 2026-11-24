@@ -1,0 +1,11 @@
+# Impl checkpoint — go_be_arbitrage
+- Feature: wallet-groups
+- Contract version: v1.0
+- Branch: dev
+- Commit SHA: 55cf9e5 (later docs commits a5f0b33/f72a92d/b42498f/1891122)
+- Files changed: migrations 000039/000040; internal/tradergroup/**; internal/trader/{equity,sync,fills,wallet_event_projector}.go; internal/storage/retention_service.go; internal/app/app.go; internal/domain/errors.go; docs/swagger.*
+- Endpoints implemented: groups CRUD/favorite/duplicate/overview; members; stats; positions; performance; compare; activity; alerts CRUD/events/read/unread
+- Tests run: go build ./... PASS; go vet ./... PASS; go test -short (tradergroup/trader/storage) PASS; go test -tags=integration (tradergroup/trader) PASS
+- Evidence: migrations apply/down/up verified (version 40)
+- Known risks: alert events handler type-asserts *Repository; activity filters in Go; alert evaluation N+1 (MVP)
+- Open questions: none
