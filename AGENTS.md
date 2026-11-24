@@ -82,3 +82,23 @@ make test-integration  # integration tests (needs DB)
 make test-e2e        # e2e tests (needs DB)
 make ci              # full CI: fmt + vet + lint + unit + build
 ```
+
+## Workflow & Allowlist (RAO v1)
+- Allowlist: BE agent edits only `go_be_arbitrage/`; FE agent edits only `FE_arbitrage/`. Contract: `plans/wallet-groups/contract-v1.0.md` (BE) / `docs/contracts/wallet-groups-v1.0.md` (FE mirror) — owned by BE, frozen; FE mocks against it, never edits it.
+- Brief template per batch: Goal / Allowlist / Acceptance criteria / Test commands / Contract link / Self-check.
+- Worker report: `Batch | Agent | Files changed | Tests (cmd → result) | Deviations | Open questions`.
+- Review: code-reviewer after each batch, max 2 fix rounds, then escalate to human.
+- Gates: plan approval (done), contract approval (done), final commit+push approval (pending).
+
+## Workflow (multi-agent, RAO v1)
+Roles: Orchestrator plans/dispatches/reviews; BE agent edits only backend repo; FE agent edits only frontend repo; code-reviewer read-only.
+Gates: HUMAN GATE 1 (plan/batch), HUMAN GATE 2 (contract, if API), final gate (commit+push). No API work before contract approved.
+Brief per batch (required): Goal / Allowlist (files) / Acceptance criteria / Test commands / Contract link / Self-check checklist.
+Worker report: `Batch | Agent | Files changed | Tests (cmd → result) | Deviations | Open questions`.
+Review: code-reviewer after each batch, max 2 fix rounds then escalate to human.
+Safety: no secrets in code; .env gitignored, only .env.example tracked; do not edit tests to make them green unless behavior intentionally changed (document reason).
+FE-specific: mock against contract; do not edit contract; new interactive UI component needs e2e (unit cannot catch rendering); update docs/test-cases.md when tests/behavior change.
+
+## Workflow Reference
+See `docs/WORKFLOW.md` for the OpenCode parallel FE/BE agent workflow (roles, batch schema, gates, sync points, dispatch/verify). State: `docs/WORKFLOW_STATE.md`.
+Lead may write plan/docs/state; FE/BE agents write source only within their repo allowlist. Contract is frozen in `plans/wallet-groups/contract-v1.0.md` (BE) + `docs/contracts/wallet-groups-v1.0.md` (FE mirror).
