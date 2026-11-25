@@ -15,29 +15,33 @@ import (
 )
 
 type mockStore struct {
-	createFn         func(ctx context.Context, userID uuid.UUID, name, desc string) (*Group, error)
-	listFn           func(ctx context.Context, userID uuid.UUID, params ListGroupsParams) ([]*GroupListItem, int, error)
-	getFn            func(ctx context.Context, gid, uid uuid.UUID) (*Group, error)
-	updateFn         func(ctx context.Context, gid, uid uuid.UUID, name, desc *string, isFav, notify *bool) (*Group, error)
-	deleteFn         func(ctx context.Context, gid, uid uuid.UUID) error
-	addFn            func(ctx context.Context, gid, uid uuid.UUID, items []MemberInput) (int64, int64, error)
-	removeFn         func(ctx context.Context, gid, uid, venueID uuid.UUID, addrs []string) (int64, error)
-	updateMembersFn  func(ctx context.Context, gid, uid uuid.UUID, items []ValidatedMemberUpdate) (int64, error)
-	listMembersFn    func(ctx context.Context, gid, uid uuid.UUID, params ListMembersParams) ([]*MemberRow, int, error)
-	activityFn       func(ctx context.Context, gid, uid uuid.UUID, f ActivityFilter) (*ActivityPage, error)
-	ownerFn          func(ctx context.Context, gid uuid.UUID) (uuid.UUID, error)
-	venueFn          func(ctx context.Context, code string) (uuid.UUID, error)
-	overviewFn       func(ctx context.Context, userID uuid.UUID, period string) (*OverviewStats, error)
-	toggleFavoriteFn func(ctx context.Context, gid, uid uuid.UUID, isFavorite bool) (*Group, error)
-	duplicateFn      func(ctx context.Context, gid, uid uuid.UUID, name *string) (*Group, error)
-	listAlertsFn     func(ctx context.Context, gid, uid uuid.UUID) ([]*GroupAlert, error)
-	createAlertFn    func(ctx context.Context, gid, uid uuid.UUID, req CreateAlertRequest) (*GroupAlert, error)
-	updateAlertFn    func(ctx context.Context, aid, uid uuid.UUID, req UpdateAlertRequest) (*GroupAlert, error)
-	deleteAlertFn    func(ctx context.Context, aid, uid uuid.UUID) error
+	createFn          func(ctx context.Context, userID uuid.UUID, name, desc string) (*Group, error)
+	listFn            func(ctx context.Context, userID uuid.UUID, params ListGroupsParams) ([]*GroupListItem, int, error)
+	getFn             func(ctx context.Context, gid, uid uuid.UUID) (*Group, error)
+	updateFn          func(ctx context.Context, gid, uid uuid.UUID, name, desc *string, isFav, notify *bool) (*Group, error)
+	deleteFn          func(ctx context.Context, gid, uid uuid.UUID) error
+	addFn             func(ctx context.Context, gid, uid uuid.UUID, items []MemberInput) (int64, int64, error)
+	removeFn          func(ctx context.Context, gid, uid, venueID uuid.UUID, addrs []string) (int64, error)
+	updateMembersFn   func(ctx context.Context, gid, uid uuid.UUID, items []ValidatedMemberUpdate) (int64, error)
+	listMembersFn     func(ctx context.Context, gid, uid uuid.UUID, params ListMembersParams) ([]*MemberRow, int, error)
+	activityFn        func(ctx context.Context, gid, uid uuid.UUID, f ActivityFilter) (*ActivityPage, error)
+	ownerFn           func(ctx context.Context, gid uuid.UUID) (uuid.UUID, error)
+	venueFn           func(ctx context.Context, code string) (uuid.UUID, error)
+	overviewFn        func(ctx context.Context, userID uuid.UUID, period string) (*OverviewStats, error)
+	toggleFavoriteFn  func(ctx context.Context, gid, uid uuid.UUID, isFavorite bool) (*Group, error)
+	duplicateFn       func(ctx context.Context, gid, uid uuid.UUID, name *string) (*Group, error)
+	listAlertsFn      func(ctx context.Context, gid, uid uuid.UUID) ([]*GroupAlert, error)
+	createAlertFn     func(ctx context.Context, gid, uid uuid.UUID, req CreateAlertRequest) (*GroupAlert, error)
+	updateAlertFn     func(ctx context.Context, aid, uid uuid.UUID, req UpdateAlertRequest) (*GroupAlert, error)
+	deleteAlertFn     func(ctx context.Context, aid, uid uuid.UUID) error
 	listAlertEventsFn func(ctx context.Context, gid, uid uuid.UUID, unread bool, limit int, cursor string) (*AlertEventPage, error)
-	markAllReadFn    func(ctx context.Context, gid, uid uuid.UUID) (int, error)
-	unreadCountFn    func(ctx context.Context, uid uuid.UUID) (int, map[uuid.UUID]int, error)
-	markEventReadFn  func(ctx context.Context, eid, uid uuid.UUID) error
+	markAllReadFn     func(ctx context.Context, gid, uid uuid.UUID) (int, error)
+	unreadCountFn     func(ctx context.Context, uid uuid.UUID) (int, map[uuid.UUID]int, error)
+	markEventReadFn   func(ctx context.Context, eid, uid uuid.UUID) error
+	statsFn           func(ctx context.Context, gid, uid uuid.UUID, period string) (*GroupStats, error)
+	positionsFn       func(ctx context.Context, gid, uid uuid.UUID) (*PositionsResponse, error)
+	performanceFn     func(ctx context.Context, gid, uid uuid.UUID, period string) (*PerformanceResponse, error)
+	compareFn         func(ctx context.Context, uid uuid.UUID, gids []uuid.UUID, period string) (*CompareResponse, error)
 }
 
 func (m *mockStore) Create(ctx context.Context, u uuid.UUID, n, d string) (*Group, error) {
@@ -129,6 +133,31 @@ func (m *mockStore) Activity(ctx context.Context, g, u uuid.UUID, f ActivityFilt
 		return nil, nil
 	}
 	return m.activityFn(ctx, g, u, f)
+}
+
+func (m *mockStore) Stats(ctx context.Context, g, u uuid.UUID, period string) (*GroupStats, error) {
+	if m.statsFn == nil {
+		return &GroupStats{}, nil
+	}
+	return m.statsFn(ctx, g, u, period)
+}
+func (m *mockStore) Positions(ctx context.Context, g, u uuid.UUID) (*PositionsResponse, error) {
+	if m.positionsFn == nil {
+		return &PositionsResponse{}, nil
+	}
+	return m.positionsFn(ctx, g, u)
+}
+func (m *mockStore) Performance(ctx context.Context, g, u uuid.UUID, period string) (*PerformanceResponse, error) {
+	if m.performanceFn == nil {
+		return &PerformanceResponse{}, nil
+	}
+	return m.performanceFn(ctx, g, u, period)
+}
+func (m *mockStore) Compare(ctx context.Context, u uuid.UUID, gids []uuid.UUID, period string) (*CompareResponse, error) {
+	if m.compareFn == nil {
+		return &CompareResponse{}, nil
+	}
+	return m.compareFn(ctx, u, gids, period)
 }
 
 func (m *mockStore) ListAlerts(ctx context.Context, g, u uuid.UUID) ([]*GroupAlert, error) {

@@ -307,6 +307,12 @@ type FavoriteRequest struct {
 	IsFavorite bool `json:"is_favorite"`
 }
 
+// CompareRequest is POST /v1/trader-groups/compare (contract §6.8).
+type CompareRequest struct {
+	GroupIDs []string `json:"group_ids"`
+	Period   string   `json:"period"`
+}
+
 // AddMembersRequest is POST /v1/trader-groups/{id}/members.
 type AddMembersRequest struct {
 	Members []MemberInput `json:"members"`

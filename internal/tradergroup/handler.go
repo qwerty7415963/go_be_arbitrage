@@ -36,6 +36,10 @@ type Store interface {
 	Duplicate(ctx context.Context, groupID, userID uuid.UUID, name *string) (*Group, error)
 	ToggleFavorite(ctx context.Context, groupID, userID uuid.UUID, isFavorite bool) (*Group, error)
 	Overview(ctx context.Context, userID uuid.UUID, period string) (*OverviewStats, error)
+	Stats(ctx context.Context, groupID, userID uuid.UUID, period string) (*GroupStats, error)
+	Positions(ctx context.Context, groupID, userID uuid.UUID) (*PositionsResponse, error)
+	Performance(ctx context.Context, groupID, userID uuid.UUID, period string) (*PerformanceResponse, error)
+	Compare(ctx context.Context, userID uuid.UUID, groupIDs []uuid.UUID, period string) (*CompareResponse, error)
 }
 
 var _ Store = (*Repository)(nil)
@@ -55,6 +59,8 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	g.POST("", h.Create)
 	g.GET("", h.List)
 	g.GET("/overview", h.Overview)
+	// Static /compare must be registered before the /:id wildcard routes.
+	g.POST("/compare", h.Compare)
 	g.GET("/:id", h.Get)
 	g.PATCH("/:id", h.Update)
 	g.DELETE("/:id", h.Delete)
@@ -73,6 +79,9 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	g.DELETE("/alerts/:alertId", h.DeleteAlert)
 	g.POST("/alert-events/:eventId/read", h.MarkAlertEventRead)
 	g.GET("/:id/activity", h.Activity)
+	g.GET("/:id/stats", h.Stats)
+	g.GET("/:id/positions", h.Positions)
+	g.GET("/:id/performance", h.Performance)
 
 	alerts := router.Group("/trader-alerts")
 	if len(jwtMiddleware) > 0 {
