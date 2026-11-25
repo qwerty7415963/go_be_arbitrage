@@ -7,10 +7,10 @@
   - type-check: PASS
   - lint: PASS
   - format: N/A
-  - unit: PASS (targeted BE/FE)
+  - unit: PASS (targeted BE/FE; 9 analytics handler tests)
   - build: PASS
-  - e2e: 154/155 (1 order-dependent flake, passes isolated 3/3)
-- Product: PASS for implemented scope (FE-1 + detail tabs partial)
+  - e2e: groups 38/38 PASS; full 154/155 (1 order-dependent flake, passes isolated 3/3)
+- Product: PASS for implemented scope (FE-1 + FE-2a/2b/2c/2d)
 - Env: OK (BE 8080, FE 3000, Postgres 5433)
 - Failed tests: header click sorts desc then asc (flake)
 - Raw logs: temp logs
