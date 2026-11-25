@@ -2425,6 +2425,79 @@ definitions:
           $ref: '#/definitions/tradergroup.MemberInput'
         type: array
     type: object
+  tradergroup.CompareGroup:
+    properties:
+      id:
+        type: string
+      member_count:
+        type: integer
+      name:
+        type: string
+      stats:
+        $ref: '#/definitions/tradergroup.GroupStats'
+    type: object
+  tradergroup.CompareOverlap:
+    properties:
+      pairwise:
+        items:
+          $ref: '#/definitions/tradergroup.CompareOverlapPair'
+        type: array
+    type: object
+  tradergroup.CompareOverlapPair:
+    properties:
+      a:
+        type: string
+      b:
+        type: string
+      shared_wallets:
+        type: integer
+    type: object
+  tradergroup.ComparePoint:
+    properties:
+      roi_index:
+        type: number
+      t:
+        type: string
+    type: object
+  tradergroup.CompareRequest:
+    properties:
+      group_ids:
+        items:
+          type: string
+        type: array
+      period:
+        type: string
+    type: object
+  tradergroup.CompareResponse:
+    properties:
+      as_of:
+        type: string
+      groups:
+        items:
+          $ref: '#/definitions/tradergroup.CompareGroup'
+        type: array
+      overlap:
+        $ref: '#/definitions/tradergroup.CompareOverlap'
+      period:
+        type: string
+      series:
+        items:
+          $ref: '#/definitions/tradergroup.CompareSeries'
+        type: array
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  tradergroup.CompareSeries:
+    properties:
+      group_id:
+        type: string
+      points:
+        items:
+          $ref: '#/definitions/tradergroup.ComparePoint'
+        type: array
+    type: object
   tradergroup.CreateGroupRequest:
     properties:
       description:
@@ -2452,6 +2525,51 @@ definitions:
         type: string
       user_id:
         type: string
+    type: object
+  tradergroup.GroupStats:
+    properties:
+      account_value:
+        type: number
+      as_of:
+        type: string
+      data_status:
+        type: string
+      definitions_version:
+        type: integer
+      from:
+        type: string
+      max_drawdown_pct:
+        type: number
+      members_total:
+        type: integer
+      members_with_data:
+        type: integer
+      missing_wallets:
+        type: integer
+      open_positions:
+        type: integer
+      partial:
+        type: boolean
+      period:
+        type: string
+      profit_factor:
+        type: number
+      realized_pnl:
+        type: number
+      roi:
+        type: number
+      to:
+        type: string
+      total_notional:
+        type: number
+      trade_count:
+        type: integer
+      unrealized_pnl:
+        type: number
+      volume:
+        type: number
+      win_rate:
+        type: number
     type: object
   tradergroup.Member:
     properties:
@@ -2482,6 +2600,123 @@ definitions:
         type: string
       wallet_address:
         type: string
+    type: object
+  tradergroup.PerformanceMetricAvailability:
+    properties:
+      account_value:
+        type: boolean
+      cumulative_realized_pnl:
+        type: boolean
+      roi:
+        type: boolean
+    type: object
+  tradergroup.PerformancePoint:
+    properties:
+      account_value:
+        type: number
+      cumulative_realized_pnl:
+        type: number
+      roi_index:
+        type: number
+      t:
+        type: string
+    type: object
+  tradergroup.PerformanceResponse:
+    properties:
+      from:
+        type: string
+      granularity:
+        type: string
+      insufficient_data:
+        type: boolean
+      metric_availability:
+        $ref: '#/definitions/tradergroup.PerformanceMetricAvailability'
+      missing_wallets:
+        type: integer
+      partial:
+        type: boolean
+      period:
+        type: string
+      points:
+        items:
+          $ref: '#/definitions/tradergroup.PerformancePoint'
+        type: array
+      to:
+        type: string
+    type: object
+  tradergroup.PositionRow:
+    properties:
+      coin:
+        type: string
+      gross_ntl:
+        type: number
+      long_ntl:
+        type: number
+      net_ntl:
+        type: number
+      short_ntl:
+        type: number
+      unrealized_pnl:
+        type: number
+      wallet_count:
+        type: integer
+      wallets:
+        items:
+          $ref: '#/definitions/tradergroup.PositionWallet'
+        type: array
+    type: object
+  tradergroup.PositionTotals:
+    properties:
+      gross_ntl:
+        type: number
+      long_ntl:
+        type: number
+      net_ntl:
+        type: number
+      open_positions:
+        type: integer
+      short_ntl:
+        type: number
+    type: object
+  tradergroup.PositionWallet:
+    properties:
+      as_of:
+        type: string
+      entry_price:
+        type: number
+      leverage:
+        type: number
+      mark_price:
+        type: number
+      position_value:
+        type: number
+      side:
+        type: string
+      size:
+        type: number
+      stale:
+        type: boolean
+      unrealized_pnl:
+        type: number
+      wallet_address:
+        type: string
+    type: object
+  tradergroup.PositionsResponse:
+    properties:
+      as_of:
+        type: string
+      data_status:
+        type: string
+      missing_wallets:
+        type: integer
+      partial:
+        type: boolean
+      positions:
+        items:
+          $ref: '#/definitions/tradergroup.PositionRow'
+        type: array
+      totals:
+        $ref: '#/definitions/tradergroup.PositionTotals'
     type: object
   tradergroup.UpdateGroupRequest:
     properties:
@@ -7186,6 +7421,283 @@ paths:
       security:
       - BearerAuth: []
       summary: Add group members
+      tags:
+      - trader-groups
+  /v1/trader-groups/{id}/performance:
+    get:
+      description: Account value, cumulative realized PnL and ROI-index series for
+        one owned group (contract §6.5). Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 30D
+        description: Metric window
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - 90D
+        - ALL
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/tradergroup.PerformanceResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Group performance series
+      tags:
+      - trader-groups
+  /v1/trader-groups/{id}/positions:
+    get:
+      description: Current open positions aggregated by coin for one owned group (contract
+        §6.6). Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/tradergroup.PositionsResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Group positions
+      tags:
+      - trader-groups
+  /v1/trader-groups/{id}/stats:
+    get:
+      description: Aggregated analytics for one owned group over a period (contract
+        §6.4). Requires JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 30D
+        description: Metric window
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - 90D
+        - ALL
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/tradergroup.GroupStats'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Group stats
+      tags:
+      - trader-groups
+  /v1/trader-groups/compare:
+    post:
+      consumes:
+      - application/json
+      description: Compares 2..10 owned groups over the same period (contract §6.8).
+        Requires JWT.
+      parameters:
+      - description: Groups to compare
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/tradergroup.CompareRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/tradergroup.CompareResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Compare trader groups
       tags:
       - trader-groups
   /v1/traders/{wallet}:

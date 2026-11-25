@@ -1890,3 +1890,12 @@ Table: trader_overview_snapshots (venue_id, period, pnl_metric, computed_at, pay
 ### 19.34 i18n (contract v3.3)
 
 BE localize error messages per Accept-Language (Method B). See plans/wallet-tabs/contract-v3.3.md.
+
+# Wallet Groups analytics handlers (v1.0)
+
+| ID | Case | Input | Expected |
+|----|------|-------|----------|
+| H-TG-23 | GET /v1/trader-groups/{id}/stats period validation | `?period=7D` / `?period=bogus` | 200 for valid period; 400 `INVALID_PERIOD` for invalid |
+| H-TG-24 | GET /v1/trader-groups/{id}/positions | owned group id | 200 with aggregated positions payload |
+| H-TG-25 | GET /v1/trader-groups/{id}/performance period validation | `?period=30D` / `?period=bogus` | 200 for valid period; 400 `INVALID_PERIOD` for invalid |
+| H-TG-26 | POST /v1/trader-groups/compare group count bounds | 2..10 ids / 1 id / 11 ids / malformed body | 200 for 2..10; `COMPARE_TOO_FEW` for 1; `COMPARE_TOO_MANY` for >10; 400 for bad body |
