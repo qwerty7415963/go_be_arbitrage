@@ -176,3 +176,18 @@ Nguyên tắc cốt lõi: **contract freeze trước khi code, worker không đo
   - BE: `go vet ./...`, `golangci-lint run ./...`, `go test -short -race -count=1 ./internal/<pkg>/...`, `go test -tags=integration -race -count=1 ./internal/<pkg>/...`, `go test -tags=e2e -race -count=1 ./...`.
   - FE: `pnpm type-check`, `pnpm lint`, `pnpm vitest run <path>`, `pnpm test`, `npx playwright test <spec>`, `pnpm test:e2e` (cần BE `:8080` + FE `:3000`).
 - QA gate bổ sung: mirror hash, `git status` (M-commit-gate), contract version trong checkpoint.
+
+## 14. v2.1 — Session reuse & rate-limit policy
+
+Mục tiêu: giảm số subagent/request, tránh 429/502.
+
+- **1 session/role/feature**: `FE-impl`, `BE-impl`, `QA`. Tạo một lần, lưu `sessionID` vào `plans/<feature>/sessions.md`. Batch sau = follow-up bằng `sessionID` thật, không tạo session mới.
+- **Orchestrator tự viết docs** (plan/contract/mock/checkpoint/queue); không dùng subagent cho docs.
+- **Tối đa 2 subagent song song** (FE + BE). QA sau khi cả hai xong. Risk reviewer chỉ khi bị flag.
+- **Coalesce batch**: một dispatch chứa nhiều file/thay đổi liên quan; worker tự chạy test trong cùng lượt.
+- **Prompt ngắn**: tham chiếu file (`plans/<feature>/contract.md`, `queue.md`), không paste nội dung dài.
+- **Rate-limit**: gặp 429/502 → dừng dispatch mới, backoff, retry tối đa 2; vẫn lỗi → `BLOCKED: rate-limit`, báo human. Không tạo thêm session.
+- **Session mới** chỉ khi: session hỏng context (tối đa 1 lần/role/feature, ghi lý do) hoặc đổi contract version lớn.
+- **Queue**: `plans/<feature>/queue.md` cập nhật bởi orchestrator sau mỗi batch.
+
+Xem `plans/supervisor/SESSION_POLICY.md`.

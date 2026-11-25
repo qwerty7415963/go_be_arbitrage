@@ -32,3 +32,11 @@ Contract version | Conformance mock vs real BE | Gates (type-check/lint/format/u
 - Env BLOCKED → report environment fix needed; rerun QA.
 - No code edits, no commits.
 - Report file exists, no U+FFFD. Do not commit.
+
+## Session policy (v2.1)
+- This role uses ONE long-lived session per feature. Orchestrator stores the sessionID in `plans/<feature>/sessions.md`.
+- Read the current batch from `plans/<feature>/queue.md`; do not wait for a new session.
+- Read the contract from `plans/<feature>/contract.md`; do not rely on pasted contract text.
+- Run targeted tests inside this batch; report the impl/QA checkpoint.
+- Do not spawn subagents yourself. Do not commit or push.
+- If the provider returns 429/502: stop, report `BLOCKED: rate-limit`; do not retry more than 2 times.
