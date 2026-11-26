@@ -87,3 +87,31 @@ func TestFavoriteOrdering(t *testing.T) {
 }
 
 func ptr(v float64) *float64 { return &v }
+
+func TestWinRate(t *testing.T) {
+	if WinRate(0, 0) != nil {
+		t.Error("denom 0 should be nil")
+	}
+	got := WinRate(3, 1)
+	if got == nil || *got < 0.74 || *got > 0.76 {
+		t.Errorf("got %v", got)
+	}
+	// breakeven excluded
+	got2 := WinRate(2, 2)
+	if got2 == nil || *got2 != 0.5 {
+		t.Errorf("got %v", got2)
+	}
+}
+
+func TestProfitFactor(t *testing.T) {
+	if ProfitFactor(10, 5, 0, 10) != nil {
+		t.Error("no losses should be nil")
+	}
+	if ProfitFactor(10, 5, 2, 9) != nil {
+		t.Error("trade_count<10 should be nil")
+	}
+	got := ProfitFactor(10, -5, 2, 10)
+	if got == nil || *got < 1.99 || *got > 2.01 {
+		t.Errorf("got %v", got)
+	}
+}

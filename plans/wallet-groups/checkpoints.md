@@ -55,3 +55,14 @@
 - Raw logs: temp logs
 - Risk review files: alerts (money/concurrency) pending; projector (concurrency) pending
 
+
+## BE
+
+### Impl checkpoint - go_be_arbitrage (v1.1)
+- Feature: wallet-groups
+- Contract version: v1.1
+- Branch: dev
+- Files changed: internal/tradergroup/*, internal/trader/equity_test.go, docs/*
+- Endpoints added: GET /v1/trader-groups/{id}/exposure
+- Tests run: go build ./... PASS; go vet PASS; go test -short tradergroup/trader PASS
+- Known risks: ROI uses transfer fetcher when configured; ledger failures make ROI null.

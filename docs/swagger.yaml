@@ -2505,6 +2505,42 @@ definitions:
       name:
         type: string
     type: object
+  tradergroup.ExposureResponse:
+    properties:
+      as_of:
+        type: string
+      data_status:
+        type: string
+      missing_wallets:
+        type: integer
+      partial:
+        type: boolean
+      period:
+        type: string
+      rows:
+        items:
+          $ref: '#/definitions/tradergroup.ExposureRow'
+        type: array
+    type: object
+  tradergroup.ExposureRow:
+    properties:
+      avg_leverage:
+        type: number
+      coin:
+        type: string
+      gross_ntl:
+        type: number
+      long_ntl:
+        type: number
+      long_wallets:
+        type: integer
+      net_ntl:
+        type: number
+      short_ntl:
+        type: number
+      short_wallets:
+        type: integer
+    type: object
   tradergroup.Group:
     properties:
       created_at:
@@ -2526,18 +2562,41 @@ definitions:
       user_id:
         type: string
     type: object
+  tradergroup.GroupStatWallet:
+    properties:
+      as_of:
+        type: string
+      data_status:
+        type: string
+      has_equity:
+        type: boolean
+      has_positions:
+        type: boolean
+      missing_reason:
+        type: string
+      venue:
+        type: string
+      wallet_address:
+        type: string
+    type: object
   tradergroup.GroupStats:
     properties:
       account_value:
         type: number
       as_of:
         type: string
+      breakeven_count:
+        type: integer
       data_status:
         type: string
       definitions_version:
         type: integer
+      evaluated_at:
+        type: string
       from:
         type: string
+      loss_count:
+        type: integer
       max_drawdown_pct:
         type: number
       members_total:
@@ -2568,6 +2627,12 @@ definitions:
         type: number
       volume:
         type: number
+      wallets:
+        items:
+          $ref: '#/definitions/tradergroup.GroupStatWallet'
+        type: array
+      win_count:
+        type: integer
       win_rate:
         type: number
     type: object
@@ -2680,11 +2745,19 @@ definitions:
     type: object
   tradergroup.PositionWallet:
     properties:
+      alias:
+        type: string
       as_of:
         type: string
+      display_name:
+        type: string
+      distance_to_liquidation_pct:
+        type: number
       entry_price:
         type: number
       leverage:
+        type: number
+      liquidation_price:
         type: number
       mark_price:
         type: number
@@ -7126,6 +7199,80 @@ paths:
       security:
       - BearerAuth: []
       summary: Update trader group
+      tags:
+      - trader-groups
+  /v1/trader-groups/{id}/exposure:
+    get:
+      description: Per-coin exposure for one owned group (contract A6.6.1). Requires
+        JWT.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 30D
+        description: Metric window
+        enum:
+        - 1D
+        - 7D
+        - 30D
+        - 90D
+        - ALL
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/tradergroup.ExposureResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Group exposure
       tags:
       - trader-groups
   /v1/trader-groups/{id}/members:

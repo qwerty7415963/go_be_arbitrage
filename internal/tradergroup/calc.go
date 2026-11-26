@@ -1,6 +1,7 @@
 package tradergroup
 
 import (
+	"math"
 	"sort"
 	"time"
 )
@@ -168,4 +169,27 @@ func floatPtrEqual(a, b *float64) bool {
 		return a == nil && b == nil
 	}
 	return *a == *b
+}
+
+// WinRate returns 100*... fraction: wins/(wins+losses) (breakeven excluded).
+// Returns nil when denominator is 0.
+func WinRate(wins, losses int64) *float64 {
+	if wins+losses == 0 {
+		return nil
+	}
+	v := float64(wins) / float64(wins+losses)
+	return &v
+}
+
+// ProfitFactor returns grossProfit/abs(grossLoss). Returns nil when lossCount==0
+// or tradeCount<10 (min sample 10).
+func ProfitFactor(grossProfit, grossLoss float64, lossCount, tradeCount int64) *float64 {
+	if lossCount == 0 || tradeCount < 10 {
+		return nil
+	}
+	if grossLoss == 0 {
+		return nil
+	}
+	v := grossProfit / math.Abs(grossLoss)
+	return &v
 }

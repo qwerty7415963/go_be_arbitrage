@@ -176,3 +176,39 @@ func (h *Handler) Compare(c *gin.Context) {
 	}
 	api.RespondSuccess(c, resp)
 }
+
+// Exposure godoc
+// @Summary      Group exposure
+// @Description  Per-coin exposure for one owned group (contract A6.6.1). Requires JWT.
+// @Tags         trader-groups
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id       path      string  true   "Group ID"
+// @Param        period   query     string  false  "Metric window" enums(1D,7D,30D,90D,ALL) default(30D)
+// @Success      200  {object}  api.Response{data=ExposureResponse}
+// @Failure      400  {object}  api.Response{error=api.ErrorBody}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
+// @Failure      404  {object}  api.Response{error=api.ErrorBody}
+// @Router       /v1/trader-groups/{id}/exposure [get]
+func (h *Handler) Exposure(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	id, ok := groupID(c)
+	if !ok {
+		return
+	}
+	period := c.DefaultQuery("period", "30D")
+	if !validPeriod(period) {
+		api.RespondError(c, domain.NewError(domain.ErrCodeInvalidPeriod, "invalid period"))
+		return
+	}
+	resp, err := h.store.Exposure(c.Request.Context(), id, userID, period)
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	api.RespondSuccess(c, resp)
+}

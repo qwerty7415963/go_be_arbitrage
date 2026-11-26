@@ -38,6 +38,7 @@ type Store interface {
 	Overview(ctx context.Context, userID uuid.UUID, period string) (*OverviewStats, error)
 	Stats(ctx context.Context, groupID, userID uuid.UUID, period string) (*GroupStats, error)
 	Positions(ctx context.Context, groupID, userID uuid.UUID) (*PositionsResponse, error)
+	Exposure(ctx context.Context, groupID, userID uuid.UUID, period string) (*ExposureResponse, error)
 	Performance(ctx context.Context, groupID, userID uuid.UUID, period string) (*PerformanceResponse, error)
 	Compare(ctx context.Context, userID uuid.UUID, groupIDs []uuid.UUID, period string) (*CompareResponse, error)
 }
@@ -81,6 +82,7 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	g.GET("/:id/activity", h.Activity)
 	g.GET("/:id/stats", h.Stats)
 	g.GET("/:id/positions", h.Positions)
+	g.GET("/:id/exposure", h.Exposure)
 	g.GET("/:id/performance", h.Performance)
 
 	alerts := router.Group("/trader-alerts")

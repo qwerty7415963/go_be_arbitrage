@@ -1,9 +1,9 @@
-# Wallet Groups — API & Data Contract v1.0
+# Wallet Groups — API & Data Contract v1.1
 
-> **Status:** Approved — v1.0
-> **Date:** 2026-11-23
-> **Canonical:** `go_be_arbitrage/plans/wallet-groups/contract-v1.0.md`
-> **Mirror:** `FE_arbitrage/docs/contracts/wallet-groups-v1.0.md` (byte-identical)
+> **Status:** Approved — v1.1
+> **Date:** 2026-11-26
+> **Canonical:** `go_be_arbitrage/plans/wallet-groups/contract.md`
+> **Mirror:** `FE_arbitrage/plans/wallet-groups/contract.md` (byte-identical)
 > **Change control:** any change requires human approval + version bump + mirror sync. Workers are read-only on this file.
 
 ## 1. Scope & precedence
@@ -148,20 +148,25 @@ Let `W_g` = distinct `(venue_id, wallet_address)` members of group `g`. Period `
 | `realized_pnl` | `Σ trader_daily_stats.realized_pnl` over P | `null` if no rows |
 | `volume` | `Σ trader_daily_stats.volume` over P | `null` if no rows |
 | `trade_count` | `Σ trade_count` | `null` if no rows |
-| `win_rate` | `Σ win_count / (Σ win+loss+breakeven)` | `null` if denominator 0 |
-| `profit_factor` | `Σ gross_profit / abs(Σ gross_loss)` | `null` if no losses |
-| `r_t` | `Σ end_equity_t / Σ start_equity_t − 1` (wallets with both) | skipped day if denominator ≤ 0 |
-| `roi` | `Π(1+r_t) − 1` (TWR chain) | `null` if no valid day |
+| `win_count` | `Σ win_count` over P | `0` is valid |
+| `loss_count` | `Σ loss_count` over P | `0` is valid |
+| `breakeven_count` | `Σ breakeven_count` over P | `0` is valid |
+| `win_rate` | `100 · Σ win_count / (Σ win_count + Σ loss_count)` (breakeven excluded) | `null` if denominator 0 |
+| `profit_factor` | `Σ gross_profit / abs(Σ gross_loss)` | `null` if `loss_count == 0` or `trade_count < 10` (min sample 10) |
+| `r_t` | per-wallet TWR day return `end/start − 1` (wallets with both start/end > 0); member missing from a day excluded from that day's aggregate | skipped day if no wallet has both |
+| `roi` | money-weighted/IRR over combined daily equity + ledger cash flows; per-wallet TWR aggregate weighted by start equity; flow-adjusted using `userNonFundingLedgerUpdates` (deposit/withdraw/internal/subaccount/vault/spot/account-class transfers) | `null` if no valid day or ledger/equity unavailable |
 | `roi_index` | `100 · Π(1+r_s)` rebased at window start | `null` if no valid day |
 | `max_drawdown_pct` | peak-to-trough on `roi_index` | `null` if no index |
+| `as_of` | newest wallet data timestamp in group | `null` if no member has data |
+| `evaluated_at` | request evaluation time (UTC) | always present |
 | `cumulative_realized_pnl_t` | `Σ_{d≤t} realized_pnl(d)` | `null` when no daily rows |
 | `open_positions` | `COUNT(trader_positions)` | `0` is valid |
 | `global unique wallets` | `COUNT(DISTINCT (venue_id, wallet_address))` over all user groups | — |
 | `global account_value` | `Σ latest` over distinct wallets | not sum of group totals |
 
-Rules: never average per-wallet ROI; never double-count a wallet in a group; never return `0` for unavailable; include `partial`, `missing_wallets`, `as_of`, `data_status`.
+Rules: never average per-wallet ROI naively; use capital-weighted aggregate; never double-count a wallet in a group; never return `0` for unavailable; include `partial`, `missing_wallets`, `as_of`, `evaluated_at`, `data_status`.
 
-Cash-flow limitation: `trader_equity_daily.net_cash_flow` is always NULL (upstream limitation). ROI is flow-unadjusted: day-boundary flows are handled by TWR, intraday flows can distort. Must be shown in API docs and chart caption.
+ROI v1.1: money-weighted/IRR using deposits/withdrawals from `userNonFundingLedgerUpdates`; cash flows are normalized to UTC day boundaries; member changes mid-period exclude the missing wallet from affected days and set `partial=true`; `net_cash_flow` remains NULL in `trader_equity_daily` (upstream limitation) but ledger flows are tracked separately for ROI.
 
 Data status (group): `empty` (0 members) · `error` (no member has usable data) · `stale` (newest member data > 24h) · `partial` (some members not fresh/complete) · `ready` (all members ready). Member ready = `sync_status='ready'` and positions synced ≤ 15 min.
 
@@ -251,13 +256,18 @@ Group: `{id, user_id, name, description, is_favorite, notify_enabled, member_cou
 ```json
 {
   "period": "30D", "from": "2026-10-25", "to": "2026-11-23",
-  "as_of": "…", "data_status": "partial", "partial": true,
+  "as_of": "…", "evaluated_at": "…", "data_status": "partial", "partial": true,
   "members_total": 12, "members_with_data": 10, "missing_wallets": 2,
   "account_value": 1234.5, "total_notional": 800.0,
   "unrealized_pnl": -12.3, "realized_pnl": 44.0, "roi": 0.0431,
-  "win_rate": 0.53, "volume": 5000.0, "profit_factor": 1.8,
-  "max_drawdown_pct": 7.2, "open_positions": 4, "trade_count": 120,
-  "definitions_version": 1
+  "win_count": 21, "loss_count": 5, "breakeven_count": 2, "trade_count": 28,
+  "win_rate": 0.8077, "volume": 5000.0, "profit_factor": 1.8,
+  "max_drawdown_pct": 7.2, "open_positions": 4,
+  "definitions_version": 2,
+  "wallets": [
+    { "wallet_address": "0x…", "venue": "hyperliquid", "data_status": "ready",
+      "as_of": "…", "has_positions": true, "has_equity": true, "missing_reason": null }
+  ]
 }
 ```
 
@@ -294,8 +304,10 @@ Group: `{id, user_id, name, description, is_favorite, notify_enabled, member_cou
     "coin": "BTC", "long_ntl": 500, "short_ntl": 0, "net_ntl": 500, "gross_ntl": 500,
     "wallet_count": 2, "unrealized_pnl": 12.0,
     "wallets": [{
-      "wallet_address": "0x…", "side": "LONG", "size": 1.2,
+      "wallet_address": "0x…", "display_name": "string|null", "alias": "string|null",
+      "side": "LONG", "size": 1.2,
       "entry_price": 60000, "mark_price": 61000, "leverage": 3,
+      "liquidation_price": 55000, "distance_to_liquidation_pct": 9.84,
       "position_value": 73200, "unrealized_pnl": 1200,
       "as_of": "…", "stale": false
     }]
@@ -304,6 +316,25 @@ Group: `{id, user_id, name, description, is_favorite, notify_enabled, member_cou
 ```
 
 `net_ntl = long_ntl − short_ntl` (signed); `gross_ntl = long + short`. Aggregated by coin over distinct wallets.
+
+### 6.6.1 Exposure
+
+`GET /v1/trader-groups/{id}/exposure?period=1D|7D|30D|90D|ALL`
+
+```json
+{
+  "period": "30D", "as_of": "…", "data_status": "ready", "partial": false,
+  "missing_wallets": 0,
+  "rows": [{
+    "coin": "BTC",
+    "long_ntl": 500.0, "short_ntl": 300.0, "net_ntl": 200.0, "gross_ntl": 800.0,
+    "long_wallets": 2, "short_wallets": 1,
+    "avg_leverage": 3.5
+  }]
+}
+```
+
+`net_ntl = long_ntl − short_ntl` (signed); `gross_ntl = long + short`. `avg_leverage` is position-value-weighted average leverage over distinct wallets with leverage; `null` if no leverage data. Aggregated by coin over distinct wallets. `period` affects only as_of/freshness, not position notional.
 
 ### 6.7 Activity
 
@@ -391,7 +422,7 @@ Evaluation:
 ## 9. Frontend contract (in `/groups`)
 
 - `/groups`: header (title, Create, Compare), 4 compact stats, toolbar (search/status/sort), favorites block, all-groups table with actions menu.
-- `/groups/[groupId]`: header (favorite, status, actions: edit/add wallets/export/settings/delete) + tabs `Overview | Positions | Members | Activity | Alerts`.
+- `/groups/[groupId]`: header (favorite, status, actions: edit/add wallets/export/settings/delete) + tabs `Overview | Positions | Members | Activity | Alerts` (deep-link via `?tab=overview|positions|members|activity|alerts`).
 - `/groups/compare`: multi-select (2–10), range `7D|30D|90D|ALL`, comparative ROI-index chart, metrics table, remove group, best/worst highlight.
 - Reuse `TraderTable` patterns, `Pagination`, `ScannerToolbar`, skeletons, dialogs, tooltips. Charts: hand-rolled SVG following `portfolio-chart.tsx`; no new chart dependency.
 - Export CSV is client-side from already-loaded data (no API).
@@ -399,10 +430,10 @@ Evaluation:
 
 ## 10. Testing requirements
 
-Unit (Go): TWR chain, ROI, max drawdown, win rate, profit factor, favorite ordering, membership idempotency, overlap aggregation, alert threshold crossing, dedup, cooldown, comparison.
+Unit (Go): TWR chain, money-weighted ROI, max drawdown, win rate, profit factor, favorite ordering, membership idempotency, overlap aggregation, alert threshold crossing, dedup, cooldown, comparison, exposure aggregation, liquidation distance, ledger parsing.
 Handler (Go): every endpoint: auth, validation, 404/403, invalid period/sort/alert params, pagination.
 Integration (Go): migrations; CRUD; many-to-many; wallet shared by 2 groups reflects updates in both; remove membership keeps registry; analytics SQL; alert persistence/idempotency; authz.
-FE unit: table rendering, favorite ordering, chart empty/insufficient, alert form validation, compare selection.
+FE unit: table rendering, favorite ordering, chart empty/insufficient, alert form validation, compare selection, net exposure rendering, liquidation warning, win-rate/PF formatting.
 E2E: create group → add wallets → same wallet in 2 groups → favorite persist/order → detail stats → chart range → compare → create alert + seeded trigger → delete group leaves wallets → partial/stale states.
 Critical: Wallet A in Group 1 and Group 2; update A → both groups reflect; A collected once; global unique count = 1.
 
@@ -441,3 +472,4 @@ Critical: Wallet A in Group 1 and Group 2; update A → both groups reflect; A c
 ## 14. Changelog
 
 - v1.0 (2026-11-23): initial approved draft.
+- v1.1 (2026-11-26): ROI money-weighted/IRR with ledger cash flows; per-wallet TWR aggregate; win/loss/breakeven counts; PF null rules; freshness fields; exposure endpoint; positions liquidation fields; definitions_version=2. Pending approval.

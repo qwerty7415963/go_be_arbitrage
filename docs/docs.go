@@ -7431,6 +7431,138 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/trader-groups/{id}/exposure": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Per-coin exposure for one owned group (contract A6.6.1). Requires JWT.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "trader-groups"
+                ],
+                "summary": "Group exposure",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "1D",
+                            "7D",
+                            "30D",
+                            "90D",
+                            "ALL"
+                        ],
+                        "type": "string",
+                        "default": "30D",
+                        "description": "Metric window",
+                        "name": "period",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tradergroup.ExposureResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/api.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/api.ErrorBody"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/v1/trader-groups/{id}/members": {
             "get": {
                 "security": [
@@ -14985,6 +15117,61 @@ const docTemplate = `{
                 }
             }
         },
+        "tradergroup.ExposureResponse": {
+            "type": "object",
+            "properties": {
+                "as_of": {
+                    "type": "string"
+                },
+                "data_status": {
+                    "type": "string"
+                },
+                "missing_wallets": {
+                    "type": "integer"
+                },
+                "partial": {
+                    "type": "boolean"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tradergroup.ExposureRow"
+                    }
+                }
+            }
+        },
+        "tradergroup.ExposureRow": {
+            "type": "object",
+            "properties": {
+                "avg_leverage": {
+                    "type": "number"
+                },
+                "coin": {
+                    "type": "string"
+                },
+                "gross_ntl": {
+                    "type": "number"
+                },
+                "long_ntl": {
+                    "type": "number"
+                },
+                "long_wallets": {
+                    "type": "integer"
+                },
+                "net_ntl": {
+                    "type": "number"
+                },
+                "short_ntl": {
+                    "type": "number"
+                },
+                "short_wallets": {
+                    "type": "integer"
+                }
+            }
+        },
         "tradergroup.Group": {
             "type": "object",
             "properties": {
@@ -15017,6 +15204,32 @@ const docTemplate = `{
                 }
             }
         },
+        "tradergroup.GroupStatWallet": {
+            "type": "object",
+            "properties": {
+                "as_of": {
+                    "type": "string"
+                },
+                "data_status": {
+                    "type": "string"
+                },
+                "has_equity": {
+                    "type": "boolean"
+                },
+                "has_positions": {
+                    "type": "boolean"
+                },
+                "missing_reason": {
+                    "type": "string"
+                },
+                "venue": {
+                    "type": "string"
+                },
+                "wallet_address": {
+                    "type": "string"
+                }
+            }
+        },
         "tradergroup.GroupStats": {
             "type": "object",
             "properties": {
@@ -15026,14 +15239,23 @@ const docTemplate = `{
                 "as_of": {
                     "type": "string"
                 },
+                "breakeven_count": {
+                    "type": "integer"
+                },
                 "data_status": {
                     "type": "string"
                 },
                 "definitions_version": {
                     "type": "integer"
                 },
+                "evaluated_at": {
+                    "type": "string"
+                },
                 "from": {
                     "type": "string"
+                },
+                "loss_count": {
+                    "type": "integer"
                 },
                 "max_drawdown_pct": {
                     "type": "number"
@@ -15079,6 +15301,15 @@ const docTemplate = `{
                 },
                 "volume": {
                     "type": "number"
+                },
+                "wallets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tradergroup.GroupStatWallet"
+                    }
+                },
+                "win_count": {
+                    "type": "integer"
                 },
                 "win_rate": {
                     "type": "number"
@@ -15252,13 +15483,25 @@ const docTemplate = `{
         "tradergroup.PositionWallet": {
             "type": "object",
             "properties": {
+                "alias": {
+                    "type": "string"
+                },
                 "as_of": {
                     "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "distance_to_liquidation_pct": {
+                    "type": "number"
                 },
                 "entry_price": {
                     "type": "number"
                 },
                 "leverage": {
+                    "type": "number"
+                },
+                "liquidation_price": {
                     "type": "number"
                 },
                 "mark_price": {

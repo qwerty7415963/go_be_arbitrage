@@ -299,3 +299,44 @@ func TestHandler_Compare_Errors(t *testing.T) {
 		t.Errorf("foreign: got %d", w.Code)
 	}
 }
+
+// EXP-01: happy path.
+func TestHandler_Exposure(t *testing.T) {
+	id := uuid.New()
+	h := NewHandler(&mockStore{exposureFn: func(_ context.Context, g, u uuid.UUID, period string) (*ExposureResponse, error) {
+		if g != id || u.String() != authedUserID {
+			t.Errorf("args: %v %v", g, u)
+		}
+		if period != "7D" {
+			t.Errorf("period: %q", period)
+		}
+		return &ExposureResponse{Period: period, Rows: []ExposureRow{}}, nil
+	}})
+	w := doReq(t, testRouter(h, true), "GET", "/v1/trader-groups/"+id.String()+"/exposure?period=7D", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d %s", w.Code, w.Body.String())
+	}
+}
+
+// EXP-02: auth, unknown, foreign and malformed id.
+func TestHandler_Exposure_Errors(t *testing.T) {
+	id := uuid.New()
+	if w := doReq(t, testRouter(NewHandler(&mockStore{}), false), "GET", "/v1/trader-groups/"+id.String()+"/exposure", ""); w.Code != http.StatusForbidden {
+		t.Errorf("anon: got %d", w.Code)
+	}
+	if w := doReq(t, testRouter(NewHandler(&mockStore{}), true), "GET", "/v1/trader-groups/nope/exposure", ""); w.Code != http.StatusBadRequest {
+		t.Errorf("bad uuid: got %d", w.Code)
+	}
+	h404 := NewHandler(&mockStore{exposureFn: func(context.Context, uuid.UUID, uuid.UUID, string) (*ExposureResponse, error) {
+		return nil, domain.NewError(domain.ErrCodeNotFound, "nope")
+	}})
+	if w := doReq(t, testRouter(h404, true), "GET", "/v1/trader-groups/"+id.String()+"/exposure", ""); w.Code != http.StatusNotFound {
+		t.Errorf("unknown: got %d", w.Code)
+	}
+	h403 := NewHandler(&mockStore{exposureFn: func(context.Context, uuid.UUID, uuid.UUID, string) (*ExposureResponse, error) {
+		return nil, domain.NewError(domain.ErrCodeGroupForbidden, "nope")
+	}})
+	if w := doReq(t, testRouter(h403, true), "GET", "/v1/trader-groups/"+id.String()+"/exposure", ""); w.Code != http.StatusForbidden {
+		t.Errorf("foreign: got %d", w.Code)
+	}
+}

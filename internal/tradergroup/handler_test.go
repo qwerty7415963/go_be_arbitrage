@@ -40,6 +40,7 @@ type mockStore struct {
 	markEventReadFn   func(ctx context.Context, eid, uid uuid.UUID) error
 	statsFn           func(ctx context.Context, gid, uid uuid.UUID, period string) (*GroupStats, error)
 	positionsFn       func(ctx context.Context, gid, uid uuid.UUID) (*PositionsResponse, error)
+	exposureFn        func(ctx context.Context, gid, uid uuid.UUID, period string) (*ExposureResponse, error)
 	performanceFn     func(ctx context.Context, gid, uid uuid.UUID, period string) (*PerformanceResponse, error)
 	compareFn         func(ctx context.Context, uid uuid.UUID, gids []uuid.UUID, period string) (*CompareResponse, error)
 }
@@ -146,6 +147,12 @@ func (m *mockStore) Positions(ctx context.Context, g, u uuid.UUID) (*PositionsRe
 		return &PositionsResponse{}, nil
 	}
 	return m.positionsFn(ctx, g, u)
+}
+func (m *mockStore) Exposure(ctx context.Context, g, u uuid.UUID, period string) (*ExposureResponse, error) {
+	if m.exposureFn == nil {
+		return &ExposureResponse{}, nil
+	}
+	return m.exposureFn(ctx, g, u, period)
 }
 func (m *mockStore) Performance(ctx context.Context, g, u uuid.UUID, period string) (*PerformanceResponse, error) {
 	if m.performanceFn == nil {

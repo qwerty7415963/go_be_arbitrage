@@ -1899,3 +1899,28 @@ BE localize error messages per Accept-Language (Method B). See plans/wallet-tabs
 | H-TG-24 | GET /v1/trader-groups/{id}/positions | owned group id | 200 with aggregated positions payload |
 | H-TG-25 | GET /v1/trader-groups/{id}/performance period validation | `?period=30D` / `?period=bogus` | 200 for valid period; 400 `INVALID_PERIOD` for invalid |
 | H-TG-26 | POST /v1/trader-groups/compare group count bounds | 2..10 ids / 1 id / 11 ids / malformed body | 200 for 2..10; `COMPARE_TOO_FEW` for 1; `COMPARE_TOO_MANY` for >10; 400 for bad body |
+
+
+## Wallet Groups v1.1 (internal/tradergroup/)
+
+### Unit (calc)
+| Case | Function | Scenario | Expected |
+|------|----------|----------|----------|
+| TG-C-01 | WinRate | no trades | nil |
+| TG-C-02 | WinRate | wins=3 losses=1 | 0.75 |
+| TG-C-03 | ProfitFactor | no losses | nil |
+| TG-C-04 | ProfitFactor | trade_count<10 | nil |
+| TG-C-05 | ProfitFactor | gp=10 gl=-5 | 2.0 |
+| TG-C-06 | MaxDrawdownPct | peak-to-trough | correct |
+
+### Handler
+| Case | Endpoint | Scenario | Expected |
+|------|----------|----------|----------|
+| TG-H-EXP-01 | GET /exposure | happy path | 200 |
+| TG-H-EXP-02 | GET /exposure | auth/404/403 | correct status |
+
+### Integration
+| Case | Scenario | Expected |
+|------|----------|----------|
+| TG-I-01 | GroupStats freshness + win/loss counts | populated |
+| TG-I-02 | Positions wallet liquidation fields | populated |

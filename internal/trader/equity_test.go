@@ -46,3 +46,9 @@ func TestMaxDrawdownPct(t *testing.T) {
 		t.Error("zero curve must not be nil")
 	}
 }
+
+func TestMaxDrawdownPct_ZeroPeak(t *testing.T) {
+	if got := MaxDrawdownPct([]float64{0, 0}); got == nil {
+		t.Error("zero curve must not be nil")
+	}
+}

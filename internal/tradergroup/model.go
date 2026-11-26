@@ -109,28 +109,43 @@ type OverviewStats struct {
 }
 
 // GroupStats is the group stats response (contract A6.4).
+type GroupStatWallet struct {
+	WalletAddress string     `json:"wallet_address"`
+	Venue         string     `json:"venue"`
+	DataStatus    string     `json:"data_status"`
+	AsOf          *time.Time `json:"as_of"`
+	HasPositions  bool       `json:"has_positions"`
+	HasEquity     bool       `json:"has_equity"`
+	MissingReason *string    `json:"missing_reason"`
+}
+
 type GroupStats struct {
-	Period             string    `json:"period"`
-	From               time.Time `json:"from"`
-	To                 time.Time `json:"to"`
-	AsOf               time.Time `json:"as_of"`
-	DataStatus         string    `json:"data_status"`
-	Partial            bool      `json:"partial"`
-	MembersTotal       int       `json:"members_total"`
-	MembersWithData    int       `json:"members_with_data"`
-	MissingWallets     int       `json:"missing_wallets"`
-	AccountValue       *float64  `json:"account_value"`
-	TotalNotional      *float64  `json:"total_notional"`
-	UnrealizedPnL      *float64  `json:"unrealized_pnl"`
-	RealizedPnL        *float64  `json:"realized_pnl"`
-	ROI                *float64  `json:"roi"`
-	WinRate            *float64  `json:"win_rate"`
-	Volume             *float64  `json:"volume"`
-	ProfitFactor       *float64  `json:"profit_factor"`
-	MaxDrawdownPct     *float64  `json:"max_drawdown_pct"`
-	OpenPositions      int       `json:"open_positions"`
-	TradeCount         *int64    `json:"trade_count"`
-	DefinitionsVersion int       `json:"definitions_version"`
+	Period             string            `json:"period"`
+	From               time.Time         `json:"from"`
+	To                 time.Time         `json:"to"`
+	AsOf               *time.Time        `json:"as_of"`
+	EvaluatedAt        time.Time         `json:"evaluated_at"`
+	DataStatus         string            `json:"data_status"`
+	Partial            bool              `json:"partial"`
+	MembersTotal       int               `json:"members_total"`
+	MembersWithData    int               `json:"members_with_data"`
+	MissingWallets     int               `json:"missing_wallets"`
+	AccountValue       *float64          `json:"account_value"`
+	TotalNotional      *float64          `json:"total_notional"`
+	UnrealizedPnL      *float64          `json:"unrealized_pnl"`
+	RealizedPnL        *float64          `json:"realized_pnl"`
+	ROI                *float64          `json:"roi"`
+	WinCount           *int64            `json:"win_count"`
+	LossCount          *int64            `json:"loss_count"`
+	BreakevenCount     *int64            `json:"breakeven_count"`
+	TradeCount         *int64            `json:"trade_count"`
+	WinRate            *float64          `json:"win_rate"`
+	Volume             *float64          `json:"volume"`
+	ProfitFactor       *float64          `json:"profit_factor"`
+	MaxDrawdownPct     *float64          `json:"max_drawdown_pct"`
+	OpenPositions      int               `json:"open_positions"`
+	DefinitionsVersion int               `json:"definitions_version"`
+	Wallets            []GroupStatWallet `json:"wallets"`
 }
 
 // PositionTotals aggregates position notional across a group.
@@ -144,16 +159,20 @@ type PositionTotals struct {
 
 // PositionWallet is one wallet's contribution to a coin position.
 type PositionWallet struct {
-	WalletAddress string    `json:"wallet_address"`
-	Side          string    `json:"side"`
-	Size          float64   `json:"size"`
-	EntryPrice    *float64  `json:"entry_price"`
-	MarkPrice     *float64  `json:"mark_price"`
-	Leverage      *float64  `json:"leverage"`
-	PositionValue *float64  `json:"position_value"`
-	UnrealizedPnL *float64  `json:"unrealized_pnl"`
-	AsOf          time.Time `json:"as_of"`
-	Stale         bool      `json:"stale"`
+	WalletAddress            string    `json:"wallet_address"`
+	DisplayName              *string   `json:"display_name"`
+	Alias                    *string   `json:"alias"`
+	Side                     string    `json:"side"`
+	Size                     float64   `json:"size"`
+	EntryPrice               *float64  `json:"entry_price"`
+	MarkPrice                *float64  `json:"mark_price"`
+	Leverage                 *float64  `json:"leverage"`
+	LiquidationPrice         *float64  `json:"liquidation_price"`
+	DistanceToLiquidationPct *float64  `json:"distance_to_liquidation_pct"`
+	PositionValue            *float64  `json:"position_value"`
+	UnrealizedPnL            *float64  `json:"unrealized_pnl"`
+	AsOf                     time.Time `json:"as_of"`
+	Stale                    bool      `json:"stale"`
 }
 
 // PositionRow aggregates positions by coin.
@@ -176,6 +195,28 @@ type PositionsResponse struct {
 	MissingWallets int            `json:"missing_wallets"`
 	Totals         PositionTotals `json:"totals"`
 	Positions      []PositionRow  `json:"positions"`
+}
+
+// ExposureRow is one coin's exposure aggregation (contract A6.6.1).
+type ExposureRow struct {
+	Coin         string   `json:"coin"`
+	LongNtl      float64  `json:"long_ntl"`
+	ShortNtl     float64  `json:"short_ntl"`
+	NetNtl       float64  `json:"net_ntl"`
+	GrossNtl     float64  `json:"gross_ntl"`
+	LongWallets  int      `json:"long_wallets"`
+	ShortWallets int      `json:"short_wallets"`
+	AvgLeverage  *float64 `json:"avg_leverage"`
+}
+
+// ExposureResponse is GET .../exposure.
+type ExposureResponse struct {
+	Period         string        `json:"period"`
+	AsOf           *time.Time    `json:"as_of"`
+	DataStatus     string        `json:"data_status"`
+	Partial        bool          `json:"partial"`
+	MissingWallets int           `json:"missing_wallets"`
+	Rows           []ExposureRow `json:"rows"`
 }
 
 // PerformancePoint is one point in a performance series.

@@ -1633,10 +1633,11 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 		Period:             period,
 		From:               fromDay,
 		To:                 toDay,
-		AsOf:               now,
+		EvaluatedAt:        now,
 		MembersTotal:       memberCount,
 		OpenPositions:      0,
-		DefinitionsVersion: 1,
+		DefinitionsVersion: 2,
+		Wallets:            []GroupStatWallet{},
 	}
 	if memberCount == 0 {
 		stats.DataStatus = "empty"
@@ -1681,10 +1682,10 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 	hasVolume := false
 	var tradeCountSum int64
 	hasTradeCount := false
-	var winSum, denomSum int64
+	var winSum, lossSum, beSum int64
 	hasWinDen := false
+	hasUnrealized := false
 	var gpSum, glSum float64
-	hasGP := false
 	hasGL := false
 
 	vids, addrs := splitKeys(wallets)
@@ -1813,11 +1814,11 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 					tradeCountSum += trades
 					hasTradeCount = true
 					winSum += wins
-					denomSum += wins + losses + be
+					lossSum += losses
+					beSum += be
 					hasWinDen = true
 					if gp != nil {
 						gpSum += *gp
-						hasGP = true
 					}
 					if gl != nil {
 						glSum += *gl
@@ -1897,12 +1898,28 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 	hasTS := false
 	anyStale := false
 
+	venueCodes := map[uuid.UUID]string{}
+	if vrows, err := r.pool.Query(ctx, `SELECT id, code FROM venues`); err == nil {
+		for vrows.Next() {
+			var vid uuid.UUID
+			var code string
+			if err := vrows.Scan(&vid, &code); err == nil {
+				venueCodes[vid] = code
+			}
+		}
+		vrows.Close()
+	}
+
+	walletFreshness := []GroupStatWallet{}
+
 	// TWR day aggregation across wallets
 	dayAgg := map[time.Time]struct {
 		start float64
 		end   float64
 		has   bool
 	}{}
+	dayFlow := map[time.Time]float64{}
+	flowsOK := true
 
 	for _, wl := range wallets {
 		k := wl
@@ -1919,6 +1936,7 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 		upnl := positionsUPNL[k]
 		if upnl != nil {
 			unrealizedSum += *upnl
+			hasUnrealized = true
 			hasWalletData = true
 		}
 		if hasPositionRows[k] {
@@ -1967,6 +1985,49 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 		} else {
 			membersWithData++
 		}
+		// freshness
+		hasPos := hasPositionRows[k]
+		hasEq := equityInWindow[k]
+		reason := (*string)(nil)
+		if !fullData {
+			r := "incomplete data"
+			reason = &r
+			if !hasWalletData {
+				r := "no wallet data"
+				reason = &r
+			}
+		}
+		vc := venueCodes[k.venueID]
+		if vc == "" {
+			vc = "unknown"
+		}
+		wf := GroupStatWallet{
+			WalletAddress: k.addr,
+			Venue:         vc,
+			DataStatus:    "ready",
+			HasPositions:  hasPos,
+			HasEquity:     hasEq,
+			MissingReason: reason,
+		}
+		if !fullData {
+			wf.DataStatus = "partial"
+		}
+		if ss != "ready" || !fullData {
+			if ss == "error" {
+				wf.DataStatus = "error"
+			} else if !fullData {
+				wf.DataStatus = "partial"
+			}
+		}
+		if syncLast[k] != nil {
+			tt := *syncLast[k]
+			wf.AsOf = &tt
+			if time.Since(tt) > 24*time.Hour {
+				wf.DataStatus = "stale"
+			}
+		}
+		walletFreshness = append(walletFreshness, wf)
+
 		// TWR
 		if equityDays[k] != nil {
 			for d, v := range equityDays[k] {
@@ -1980,6 +2041,17 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 				dayAgg[d] = entry
 			}
 		}
+		// ledger cash flows
+		if r.transferFetcher != nil {
+			cf, ok := r.walletCashFlows(ctx, k, days)
+			if !ok {
+				flowsOK = false
+			} else {
+				for d, v := range cf {
+					dayFlow[d] += v
+				}
+			}
+		}
 	}
 
 	// anyStale: if newest data >24h
@@ -1987,7 +2059,12 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 		if !hasTS || time.Since(newest) > 24*time.Hour {
 			anyStale = true
 		}
+		if hasTS {
+			tt := newest
+			stats.AsOf = &tt
+		}
 	}
+	stats.Wallets = walletFreshness
 
 	// TWR chain + roi_index series
 	var points []TWREquityPoint
@@ -1998,7 +2075,8 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 		if !v.has {
 			continue
 		}
-		pt := TWREquityPoint{Date: d, Start: v.start, End: v.end, Valid: v.start > 0}
+		end := v.end - dayFlow[d]
+		pt := TWREquityPoint{Date: d, Start: v.start, End: end, Valid: v.start > 0}
 		points = append(points, pt)
 	}
 	// sort points by date for index
@@ -2031,6 +2109,8 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 	if hasPositionData {
 		v := totalNotionalSum
 		stats.TotalNotional = &v
+	}
+	if hasUnrealized {
 		v2 := unrealizedSum
 		stats.UnrealizedPnL = &v2
 	}
@@ -2045,27 +2125,30 @@ func (r *Repository) Stats(ctx context.Context, groupID, userID uuid.UUID, perio
 			break
 		}
 	}
-	if allHaveEquity {
+	if allHaveEquity && flowsOK {
 		stats.ROI = roi
 		stats.MaxDrawdownPct = maxDD
 	} else {
 		stats.ROI = nil
 		stats.MaxDrawdownPct = nil
 	}
-	if hasWinDen && denomSum > 0 {
-		v := float64(winSum) / float64(denomSum)
+	if hasWinDen && (winSum+lossSum) > 0 {
+		v := float64(winSum) / float64(winSum+lossSum)
 		stats.WinRate = &v
 	}
 	if hasVolume {
 		v := volumeSum
 		stats.Volume = &v
 	}
-	if hasGL && glSum != 0 {
+	if hasGL && glSum != 0 && lossSum > 0 && tradeCountSum >= 10 {
 		v := gpSum / math.Abs(glSum)
 		stats.ProfitFactor = &v
-	} else if hasGP && !hasGL {
-		// no losses -> null (contract: null if no losses)
 	}
+	// win/loss/breakeven counts
+	wcs, lcs, bcs := winSum, lossSum, beSum
+	stats.WinCount = &wcs
+	stats.LossCount = &lcs
+	stats.BreakevenCount = &bcs
 	stats.OpenPositions = openPosSum
 	if hasTradeCount {
 		v := tradeCountSum
@@ -2130,12 +2213,13 @@ func (r *Repository) Positions(ctx context.Context, groupID, userID uuid.UUID) (
 		posValue *float64
 		upnl     *float64
 		leverage *float64
+		liq      *float64
 		asOf     time.Time
 	}
 	var positions []posRow
 	if len(vids) > 0 {
 		prows, err := r.pool.Query(ctx, `
-			SELECT venue_id, wallet_address, coin, side, size, entry_price, mark_price, position_value, unrealized_pnl, leverage, as_of
+			SELECT venue_id, wallet_address, coin, side, size, entry_price, mark_price, position_value, unrealized_pnl, leverage, liquidation_price, as_of
 			FROM trader_positions
 			WHERE (venue_id, wallet_address) IN (SELECT unnest($1::uuid[]), unnest($2::text[]))`, vids, addrs)
 		if err != nil {
@@ -2143,7 +2227,7 @@ func (r *Repository) Positions(ctx context.Context, groupID, userID uuid.UUID) (
 		}
 		for prows.Next() {
 			var pr posRow
-			if err := prows.Scan(&pr.venueID, &pr.addr, &pr.coin, &pr.side, &pr.size, &pr.entry, &pr.mark, &pr.posValue, &pr.upnl, &pr.leverage, &pr.asOf); err != nil {
+			if err := prows.Scan(&pr.venueID, &pr.addr, &pr.coin, &pr.side, &pr.size, &pr.entry, &pr.mark, &pr.posValue, &pr.upnl, &pr.leverage, &pr.liq, &pr.asOf); err != nil {
 				prows.Close()
 				return nil, err
 			}
@@ -2173,6 +2257,41 @@ func (r *Repository) Positions(ctx context.Context, groupID, userID uuid.UUID) (
 				}
 			}
 			ssrows.Close()
+		}
+	}
+
+	// display name + alias maps
+	displayNameMap := map[walletKey]*string{}
+	aliasMap := map[walletKey]*string{}
+	if len(vids) > 0 {
+		drows, _ := r.pool.Query(ctx, `SELECT venue_id, wallet_address, display_name FROM trader_registry WHERE (venue_id, wallet_address) IN (SELECT unnest($1::uuid[]), unnest($2::text[]))`, vids, addrs)
+		if drows != nil {
+			for drows.Next() {
+				var vid uuid.UUID
+				var addr string
+				var dn *string
+				if err := drows.Scan(&vid, &addr, &dn); err == nil {
+					displayNameMap[walletKey{venueID: vid, addr: strings.ToLower(strings.TrimSpace(addr))}] = dn
+				}
+			}
+			drows.Close()
+		}
+		arows, _ := r.pool.Query(ctx, `SELECT venue_id, wallet_address, alias FROM trader_group_members WHERE group_id = $1`, groupID)
+		if arows != nil {
+			for arows.Next() {
+				var vid uuid.UUID
+				var addr string
+				var alias string
+				if err := arows.Scan(&vid, &addr, &alias); err == nil {
+					a := alias
+					if strings.TrimSpace(a) == "" {
+						aliasMap[walletKey{venueID: vid, addr: strings.ToLower(strings.TrimSpace(addr))}] = nil
+					} else {
+						aliasMap[walletKey{venueID: vid, addr: strings.ToLower(strings.TrimSpace(addr))}] = &a
+					}
+				}
+			}
+			arows.Close()
 		}
 	}
 
@@ -2215,17 +2334,26 @@ func (r *Repository) Positions(ctx context.Context, groupID, userID uuid.UUID) (
 		if time.Since(pr.asOf) > 15*time.Minute {
 			stale = true
 		}
+		var dist *float64
+		if pr.mark != nil && pr.liq != nil && *pr.mark != 0 {
+			v := math.Abs(*pr.mark-*pr.liq) / math.Abs(*pr.mark) * 100.0
+			dist = &v
+		}
 		row.Wallets = append(row.Wallets, PositionWallet{
-			WalletAddress: pr.addr,
-			Side:          pr.side,
-			Size:          pr.size,
-			EntryPrice:    pr.entry,
-			MarkPrice:     pr.mark,
-			Leverage:      pr.leverage,
-			PositionValue: pr.posValue,
-			UnrealizedPnL: pr.upnl,
-			AsOf:          pr.asOf.UTC(),
-			Stale:         stale,
+			WalletAddress:            pr.addr,
+			DisplayName:              displayNameMap[k],
+			Alias:                    aliasMap[k],
+			Side:                     pr.side,
+			Size:                     pr.size,
+			EntryPrice:               pr.entry,
+			MarkPrice:                pr.mark,
+			Leverage:                 pr.leverage,
+			LiquidationPrice:         pr.liq,
+			DistanceToLiquidationPct: dist,
+			PositionValue:            pr.posValue,
+			UnrealizedPnL:            pr.upnl,
+			AsOf:                     pr.asOf.UTC(),
+			Stale:                    stale,
 		})
 	}
 	// fix wallet_count distinct per coin
@@ -2473,7 +2601,9 @@ func (r *Repository) Performance(ctx context.Context, groupID, userID uuid.UUID,
 			} else {
 				prevAV = nil
 			}
-			resp.Points = append(resp.Points, pt)
+			if pt.AccountValue != nil || pt.ROIIndex != nil {
+				resp.Points = append(resp.Points, pt)
+			}
 		}
 		resp.MissingWallets = missing
 		resp.Partial = missing > 0
@@ -2631,7 +2761,9 @@ func (r *Repository) Performance(ctx context.Context, groupID, userID uuid.UUID,
 				// carry? Contract null when no valid day. We'll leave null for invalid day.
 			}
 		}
-		resp.Points = append(resp.Points, pt)
+		if pt.AccountValue != nil || pt.CumulativeRealizedPnL != nil || pt.ROIIndex != nil {
+			resp.Points = append(resp.Points, pt)
+		}
 	}
 
 	resp.MissingWallets = missing
@@ -2866,4 +2998,257 @@ func (r *Repository) WithCursorSecret(secret []byte) *Repository {
 func (r *Repository) WithTransferFetcher(fn func(ctx context.Context, venueCode, addr string, days int) (*trader.TransfersPage, error)) *Repository {
 	r.transferFetcher = fn
 	return r
+}
+
+// walletCashFlows fetches ledger (deposit/withdraw) cash flows for a wallet over
+// the period and returns them keyed by UTC day. Returns ok=false on fetch failure.
+func (r *Repository) walletCashFlows(ctx context.Context, wl walletKey, days int) (map[time.Time]float64, bool) {
+	out := map[time.Time]float64{}
+	if r.transferFetcher == nil {
+		return out, true
+	}
+	var code string
+	if err := r.pool.QueryRow(ctx, `SELECT code FROM venues WHERE id = $1`, wl.venueID).Scan(&code); err != nil {
+		return nil, false
+	}
+	page, err := r.transferFetcher(ctx, code, wl.addr, days)
+	if err != nil || page == nil {
+		return nil, false
+	}
+	for _, tr := range page.Rows {
+		amt := 0.0
+		if tr.UsdcValue != nil {
+			amt = *tr.UsdcValue
+		} else if tr.Amount != nil {
+			amt = *tr.Amount
+		}
+		cf := amt
+		if tr.IsDeposit != nil {
+			if !*tr.IsDeposit {
+				cf = -amt
+			}
+		} else {
+			switch tr.Type {
+			case "withdraw":
+				cf = -amt
+			}
+		}
+		day := tr.Time.UTC().Truncate(24 * time.Hour)
+		out[day] += cf
+	}
+	return out, true
+}
+
+// Exposure computes per-coin exposure (contract A6.6.1).
+func (r *Repository) Exposure(ctx context.Context, groupID, userID uuid.UUID, period string) (*ExposureResponse, error) {
+	if err := r.requireOwner(ctx, groupID, userID); err != nil {
+		return nil, err
+	}
+	if period == "" {
+		period = trader.Period30D
+	}
+	now := time.Now().UTC()
+	mrows, err := r.pool.Query(ctx, `SELECT venue_id, wallet_address FROM trader_group_members WHERE group_id = $1`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	var wallets []walletKey
+	for mrows.Next() {
+		var vid uuid.UUID
+		var addr string
+		if err := mrows.Scan(&vid, &addr); err != nil {
+			mrows.Close()
+			return nil, err
+		}
+		wallets = append(wallets, walletKey{venueID: vid, addr: strings.ToLower(strings.TrimSpace(addr))})
+	}
+	mrows.Close()
+	if err := mrows.Err(); err != nil {
+		return nil, err
+	}
+	wallets = uniqueKeys(wallets)
+	memberCount := len(wallets)
+
+	resp := &ExposureResponse{
+		Period: period,
+		AsOf:   &now,
+		Rows:   []ExposureRow{},
+	}
+	if memberCount == 0 {
+		resp.DataStatus = "empty"
+		resp.Partial = false
+		resp.MissingWallets = 0
+		return resp, nil
+	}
+
+	vids, addrs := splitKeys(wallets)
+	type posRow struct {
+		venueID  uuid.UUID
+		addr     string
+		coin     string
+		side     string
+		posValue *float64
+		leverage *float64
+		asOf     time.Time
+	}
+	var positions []posRow
+	if len(vids) > 0 {
+		prows, err := r.pool.Query(ctx, `
+			SELECT venue_id, wallet_address, coin, side, position_value, leverage, as_of
+			FROM trader_positions
+			WHERE (venue_id, wallet_address) IN (SELECT unnest($1::uuid[]), unnest($2::text[]))`, vids, addrs)
+		if err != nil {
+			return nil, err
+		}
+		for prows.Next() {
+			var pr posRow
+			if err := prows.Scan(&pr.venueID, &pr.addr, &pr.coin, &pr.side, &pr.posValue, &pr.leverage, &pr.asOf); err != nil {
+				prows.Close()
+				return nil, err
+			}
+			pr.addr = strings.ToLower(strings.TrimSpace(pr.addr))
+			positions = append(positions, pr)
+		}
+		prows.Close()
+		if err := prows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	// sync state for freshness
+	syncLast := map[walletKey]*time.Time{}
+	syncStatus := map[walletKey]string{}
+	if len(vids) > 0 {
+		ssrows, _ := r.pool.Query(ctx, `
+			SELECT venue_id, wallet_address, sync_status, last_positions_sync_at
+			FROM trader_sync_state
+			WHERE (venue_id, wallet_address) IN (SELECT unnest($1::uuid[]), unnest($2::text[]))`, vids, addrs)
+		if ssrows != nil {
+			for ssrows.Next() {
+				var vid uuid.UUID
+				var addr string
+				var status string
+				var last *time.Time
+				if err := ssrows.Scan(&vid, &addr, &status, &last); err == nil {
+					k := walletKey{venueID: vid, addr: strings.ToLower(strings.TrimSpace(addr))}
+					syncStatus[k] = status
+					syncLast[k] = last
+				}
+			}
+			ssrows.Close()
+		}
+	}
+
+	// aggregate by coin
+	type coinAgg struct {
+		longNtl      float64
+		shortNtl     float64
+		longWallets  map[string]bool
+		shortWallets map[string]bool
+		levNum       float64
+		levDen       float64
+		hasLev       bool
+	}
+	coinMap := map[string]*coinAgg{}
+	coinOrder := []string{}
+	walletHasPos := map[walletKey]bool{}
+	for _, pr := range positions {
+		k := walletKey{venueID: pr.venueID, addr: pr.addr}
+		walletHasPos[k] = true
+		ntl := 0.0
+		if pr.posValue != nil {
+			ntl = math.Abs(*pr.posValue)
+		}
+		ca, ok := coinMap[pr.coin]
+		if !ok {
+			ca = &coinAgg{longWallets: map[string]bool{}, shortWallets: map[string]bool{}}
+			coinMap[pr.coin] = ca
+			coinOrder = append(coinOrder, pr.coin)
+		}
+		if pr.side == "LONG" {
+			ca.longNtl += ntl
+			ca.longWallets[pr.addr] = true
+		} else {
+			ca.shortNtl += ntl
+			ca.shortWallets[pr.addr] = true
+		}
+		if pr.leverage != nil && pr.posValue != nil {
+			ca.levNum += *pr.leverage * ntl
+			ca.levDen += ntl
+			ca.hasLev = true
+		}
+	}
+
+	for _, coin := range coinOrder {
+		ca := coinMap[coin]
+		row := ExposureRow{
+			Coin:         coin,
+			LongNtl:      ca.longNtl,
+			ShortNtl:     ca.shortNtl,
+			NetNtl:       ca.longNtl - ca.shortNtl,
+			GrossNtl:     ca.longNtl + ca.shortNtl,
+			LongWallets:  len(ca.longWallets),
+			ShortWallets: len(ca.shortWallets),
+		}
+		if ca.hasLev && ca.levDen > 0 {
+			v := ca.levNum / ca.levDen
+			row.AvgLeverage = &v
+		}
+		resp.Rows = append(resp.Rows, row)
+	}
+
+	// freshness
+	missing := 0
+	membersWithData := 0
+	allReady := true
+	var newest time.Time
+	hasTS := false
+	anyStale := false
+	for _, wl := range wallets {
+		k := wl
+		if !walletHasPos[k] {
+			// could still be synced with zero positions; check sync
+		}
+		hasData := walletHasPos[k] || syncStatus[k] != ""
+		if !hasData {
+			missing++
+			continue
+		}
+		membersWithData++
+		last := syncLast[k]
+		ready := syncStatus[k] == "ready"
+		if last != nil {
+			if time.Since(*last) > 15*time.Minute {
+				ready = false
+			}
+			if !hasTS || last.After(newest) {
+				newest = *last
+				hasTS = true
+			}
+		} else {
+			ready = false
+		}
+		if syncStatus[k] != "ready" {
+			ready = false
+		}
+		if !ready {
+			allReady = false
+		}
+		if last != nil && time.Since(*last) > 24*time.Hour {
+			anyStale = true
+		}
+	}
+	if membersWithData > 0 {
+		if !hasTS || time.Since(newest) > 24*time.Hour {
+			anyStale = true
+		}
+		if hasTS {
+			tt := newest
+			resp.AsOf = &tt
+		}
+	}
+	resp.MissingWallets = missing
+	resp.Partial = missing > 0
+	resp.DataStatus = DeriveGroupStatus(memberCount, membersWithData, allReady, anyStale)
+	return resp, nil
 }
