@@ -114,34 +114,30 @@ plans/
     BE_WORKER_PROMPT.md
     FE_WORKER_PROMPT.md
     QA_AGENT_PROMPT.md
-    CHECKPOINT_SCHEMA.md
-    contract-template.md
+    SESSION_POLICY.md
   <feature>/
     contract.md
-    checkpoints/
-      BE.md
-      FE.md
-      QA.md
+    checkpoints.md
 ```
 
 Canonical ở `go_be_arbitrage/plans/`; mirror byte-identical ở `FE_arbitrage/plans/` (verify SHA-256).
 
 ## 8. Contract template
 
-Dùng `plans/supervisor/contract-template.md` (9 mục: Scope, Endpoints, DTOs, Validation, Pagination, Caching, Permissions, Test expectations, Version).
+Dùng `plans/supervisor/ORCHESTRATOR_V2.md (Appendix B)` (9 mục: Scope, Endpoints, DTOs, Validation, Pagination, Caching, Permissions, Test expectations, Version).
 
 Contract không có API → ghi rõ "No API changes" và bỏ qua mock/conformance.
 
 ## 9. Impl checkpoint
 
-Format: `plans/supervisor/CHECKPOINT_SCHEMA.md` (mục Impl checkpoint). Lưu tại `plans/<feature>/checkpoints/BE.md` và `FE.md`.
+Format: `plans/supervisor/ORCHESTRATOR_V2.md (Appendix A)` (mục Impl checkpoint). Lưu tại `plans/<feature>/checkpoints.md`.
 
 Bắt buộc có:
 - Feature, Contract version, Branch, Commit SHA (human commit sau), Files changed, Endpoints implemented, Tests run, Evidence (`git diff --stat`, file paths), Known risks.
 
 ## 10. QA checkpoint
 
-Format: `plans/supervisor/CHECKPOINT_SCHEMA.md` (mục QA checkpoint). Lưu tại `plans/<feature>/checkpoints/QA.md`.
+Format: `plans/supervisor/ORCHESTRATOR_V2.md (Appendix A)` (mục QA checkpoint). Lưu tại `plans/<feature>/checkpoints.md`.
 
 Bắt buộc có:
 - Contract version
@@ -153,7 +149,7 @@ Bắt buộc có:
 
 ## 11. Acceptance report
 
-Format: `plans/supervisor/CHECKPOINT_SCHEMA.md` (mục Acceptance report). Orchestrator tạo sau QA pass.
+Format: `plans/supervisor/ORCHESTRATOR_V2.md (Appendix A)` (mục Acceptance report). Orchestrator tạo sau QA pass.
 
 ## 12. Cách dùng cho dự án khác
 
@@ -191,3 +187,107 @@ Mục tiêu: giảm số subagent/request, tránh 429/502.
 - **Queue**: `plans/<feature>/queue.md` cập nhật bởi orchestrator sau mỗi batch.
 
 Xem `plans/supervisor/SESSION_POLICY.md`.
+---
+
+## Appendix A — Checkpoint schema
+
+### Checkpoint Schema
+
+#### Impl checkpoint
+
+### Impl checkpoint ΓÇö <repo>
+
+- Feature:
+- Contract version:
+- Branch:
+- Commit SHA:            # human commits later; worker writes "pending"
+- Files changed:
+- Endpoints implemented:
+- Screens/components (FE):
+- Tests run:             # command ΓåÆ result
+- Evidence:              # git diff --stat, file paths
+- Known risks:
+- Open questions:
+
+#### QA checkpoint
+
+### QA checkpoint ΓÇö <feature>
+
+- Contract version:
+- Conformance mock vs real BE: PASS/FAIL
+- Gates:
+  - mirror hash:
+  - m-commit-gate:
+  - type-check:
+  - lint:
+  - format:
+  - unit:
+  - build:
+  - e2e:
+- Product: PASS/FAIL
+- Env: OK/BLOCKED
+- Failed tests:
+- Raw logs:
+- Risk review files:     # concurrency/money/migrations/auth
+
+#### Acceptance report
+
+### Acceptance report ΓÇö <feature>
+
+- Contract version:
+- BE commit:
+- FE commit:
+- QA result:
+- Risk review:
+- Open issues:
+- Recommendation: approve commit / needs fix
+
+## Appendix B — Contract template
+
+### Contract v1 ΓÇö <feature>
+
+> Status: Draft / Approved
+> Canonical: `go_be_arbitrage/plans/<feature>/contract.md`
+> Mirror: `FE_arbitrage/plans/<feature>/contract.md`
+> Change control: human approval + version bump + mirror sync.
+
+#### 1. Scope
+- Backend owns API.
+- Frontend follows contract.
+- No API work starts before this file is approved.
+
+#### 2. Endpoints
+- Method:
+- Path:
+- Auth:
+- Request:
+- Response:
+- Error codes:
+
+#### 3. DTOs
+- Field name:
+- Type:
+- Required/optional:
+- Meaning:
+
+#### 4. Validation
+- ...
+
+#### 5. Pagination / filtering / sorting
+- ...
+
+#### 6. Caching / freshness
+- ...
+
+#### 7. Permissions
+- ...
+
+#### 8. Test expectations
+- Unit:
+- Handler:
+- Integration:
+- E2E:
+- Conformance (mock vs real BE):
+
+#### 9. Version
+- v1

@@ -10,7 +10,7 @@ Verify the implementation of `<feature>` against `plans/<feature>/contract.md` (
 
 ## Inputs
 - Contract: `plans/<feature>/contract.md` (version vX).
-- Impl checkpoints: `plans/<feature>/checkpoints/BE.md`, `FE.md`.
+- Impl checkpoints: `plans/<feature>/checkpoints.md`, `FE.md`.
 - Mock/fixtures + conformance harness.
 
 ## Steps
@@ -24,7 +24,7 @@ Verify the implementation of `<feature>` against `plans/<feature>/contract.md` (
 6. **Risk handoff**: if the diff touches concurrency, money, migrations, or auth, list the exact files for `code-reviewer`; do not review business logic yourself.
 
 ## Output (QA checkpoint)
-Use `plans/supervisor/CHECKPOINT_SCHEMA.md` (QA checkpoint):
+Use `plans/supervisor/ORCHESTRATOR_V2.md (Appendix A)` (QA checkpoint):
 Contract version | Conformance mock vs real BE | Gates (type-check/lint/format/unit/build/e2e) | Product PASS/FAIL | Env OK/BLOCKED | Failed tests | Raw logs.
 
 ## Rules

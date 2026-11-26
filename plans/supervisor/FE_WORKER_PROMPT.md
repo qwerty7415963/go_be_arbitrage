@@ -28,7 +28,7 @@ Implement the frontend for `<feature>` strictly against `plans/<feature>/contrac
 - [ ] Files exist and `git diff --stat` reviewed.
 
 ## Report (impl checkpoint)
-Use `plans/supervisor/CHECKPOINT_SCHEMA.md` (Impl checkpoint). Include:
+Use `plans/supervisor/ORCHESTRATOR_V2.md (Appendix A)` (Impl checkpoint). Include:
 Feature | Contract version | Branch | Commit SHA (human later) | Files changed | Screens/endpoints wired | Tests run | Evidence | Known risks.
 
 ## Stop conditions
