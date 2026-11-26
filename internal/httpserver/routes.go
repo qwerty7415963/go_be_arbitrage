@@ -202,6 +202,13 @@ func (s *Server) SetupRoutes(
 				adminPerpDexes.GET("", appSettingsHandler.GetPerpDexes)
 				adminPerpDexes.PATCH("", appSettingsHandler.UpdatePerpDexes)
 			}
+			adminSettings := v1.Group("/admin/settings")
+			adminSettings.Use(middleware.JWT(authService))
+			adminSettings.Use(middleware.RequireRole("admin"))
+			{
+				adminSettings.GET("", appSettingsHandler.GetAdminSettings)
+				adminSettings.PATCH("", appSettingsHandler.UpdateAdminSettings)
+			}
 		}
 		// Asset Logos
 		if assetLogoHandler != nil {

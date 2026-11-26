@@ -25,6 +25,12 @@ type updatePerpDexesRequest struct {
 	Dexes []string `json:"dexes"`
 }
 
+type updateAdminSettingsRequest struct {
+	MaxWalletsPerUser              *int      `json:"max_wallets_per_user"`
+	PerpDexes                      *[]string `json:"perp_dexes"`
+	OverviewSnapshotIntervalSeconds *int      `json:"overview_snapshot_interval_seconds"`
+}
+
 // GetSettings godoc
 // @Summary      Get Telegram settings
 // @Description  Get admin-configurable Telegram settings. Requires JWT + admin role.
@@ -151,5 +157,73 @@ func (h *Handler) UpdatePerpDexes(c *gin.Context) {
 	c.JSON(http.StatusOK, api.Response{
 		Success: true,
 		Data:    PerpDexSettings{Dexes: req.Dexes},
+	})
+}
+// GetAdminSettings godoc
+// @Summary      Get admin settings
+// @Description  Get all admin-configurable settings. Requires JWT + admin role.
+// @Tags         admin-settings
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  api.Response{data=appsettings.AdminSettings}
+// @Failure      401  {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
+// @Router       /v1/admin/settings [get]
+func (h *Handler) GetAdminSettings(c *gin.Context) {
+	settings, err := h.service.GetAdminSettings(c.Request.Context())
+	if err != nil {
+		api.RespondError(c, domain.GetAppError(err))
+		return
+	}
+	c.JSON(http.StatusOK, api.Response{
+		Success: true,
+		Data:    settings,
+	})
+}
+
+// UpdateAdminSettings godoc
+// @Summary      Update admin settings
+// @Description  Partial update of admin-configurable settings. Requires JWT + admin role.
+// @Tags         admin-settings
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      updateAdminSettingsRequest  true  "Settings to update"
+// @Success      200      {object}  api.Response{data=appsettings.AdminSettings}
+// @Failure      400      {object}  api.Response{error=api.ErrorBody}
+// @Failure      401      {object}  api.Response{error=api.ErrorBody}
+// @Failure      403  {object}  api.Response{error=api.ErrorBody}
+// @Router       /v1/admin/settings [patch]
+func (h *Handler) UpdateAdminSettings(c *gin.Context) {
+	var req updateAdminSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid request body"))
+		return
+	}
+
+	raw, ok := c.Get("user_id")
+	if !ok {
+		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "authentication required"))
+		return
+	}
+	userID, err := uuid.Parse(raw.(string))
+	if err != nil {
+		api.RespondError(c, domain.NewError(domain.ErrCodeAuthTokenInvalid, "invalid token identity"))
+		return
+	}
+
+	if err := h.service.SetAdminSettings(c.Request.Context(), req, userID); err != nil {
+		api.RespondError(c, domain.GetAppError(err))
+		return
+	}
+
+	settings, err := h.service.GetAdminSettings(c.Request.Context())
+	if err != nil {
+		api.RespondError(c, domain.GetAppError(err))
+		return
+	}
+	c.JSON(http.StatusOK, api.Response{
+		Success: true,
+		Data:    settings,
 	})
 }

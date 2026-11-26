@@ -93,10 +93,10 @@ func (s *Service) Overview(ctx context.Context, venueCode, period, pnlMetric str
 	// L2 snapshot lookup
 	venueID, _ := s.repo.VenueIDByCode(ctx, venue)
 	if venueID != uuid.Nil {
-		snap, serr := s.repo.GetOverviewSnapshot(ctx, venueID, period, pnlMetric)
-		if serr == nil && snap != nil {
-			threshold := time.Now().Add(-240 * time.Second)
-			if snap.ComputedAt.After(threshold) {
+	snap, serr := s.repo.GetOverviewSnapshot(ctx, venueID, period, pnlMetric)
+	if serr == nil && snap != nil {
+		threshold := time.Now().Add(-45 * time.Minute)
+		if snap.ComputedAt.After(threshold) {
 				var ov TraderOverview
 				if uerr := json.Unmarshal(snap.Payload, &ov); uerr == nil {
 					s.overviewMu.Lock()
@@ -197,6 +197,10 @@ func (s *Service) OverviewSeries(ctx context.Context, venueCode, period, pnlMetr
 }
 
 func (s *Service) computeOverview(ctx context.Context, venue, period, pnlMetric string, seriesDays int) (*TraderOverview, error) {
+	return s.computeOverviewWithAccount(ctx, venue, period, pnlMetric, seriesDays, nil, 0, false)
+}
+
+func (s *Service) computeOverviewWithAccount(ctx context.Context, venue, period, pnlMetric string, seriesDays int, accountAggs []AccountBucketAgg, accountWallets int, hasAccount bool) (*TraderOverview, error) {
 	venueID, err := s.repo.VenueIDByCode(ctx, venue)
 	if err != nil {
 		return nil, domain.NewError(domain.ErrCodeInvalidFilter, "unknown venue")
@@ -206,9 +210,11 @@ func (s *Service) computeOverview(ctx context.Context, venue, period, pnlMetric 
 	if err != nil {
 		return nil, err
 	}
-	accountAggs, accountWallets, err := s.repo.AggregateAccountBuckets(ctx, venueID, period)
-	if err != nil {
-		return nil, err
+	if !hasAccount {
+		accountAggs, accountWallets, err = s.repo.AggregateAccountBuckets(ctx, venueID, period)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	pnlMap := map[string]PnLBucketAgg{}
@@ -306,8 +312,12 @@ func (s *Service) RefreshOverviewSnapshots(ctx context.Context, venueID uuid.UUI
 	periods := []string{Period1D, Period7D, Period30D, PeriodALL}
 	metrics := []string{"pnl", "realized_pnl"}
 	for _, period := range periods {
+		accountAggs, accountWallets, err := s.repo.AggregateAccountBuckets(ctx, venueID, period)
+		if err != nil {
+			continue
+		}
 		for _, metric := range metrics {
-			res, err := s.computeOverview(ctx, venueCode, period, metric, 30)
+			res, err := s.computeOverviewWithAccount(ctx, venueCode, period, metric, 30, accountAggs, accountWallets, true)
 			if err != nil || res == nil {
 				continue
 			}

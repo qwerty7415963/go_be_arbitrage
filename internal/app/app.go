@@ -65,6 +65,7 @@ type App struct {
 	traderSyncService  *trader.SyncService
 	traderService      *trader.Service
 	traderGroupRepo    *tradergroup.Repository
+	appSettingsService *appsettings.Service
 	bucketProjector    *trader.BucketProjector
 	traderVenueID      uuid.UUID
 	hlClient           *hyperliquid.Client
@@ -196,6 +197,9 @@ func New(cfg *config.Config) (*App, error) {
 		log.Warn("failed to seed app_settings", "error", err)
 	}
 	if err := appSettingsRepo.SeedIfNotExists(ctx, appsettings.SettingKeyPerpDexes, "xyz"); err != nil {
+		log.Warn("failed to seed app_settings", "error", err)
+	}
+	if err := appSettingsRepo.SeedIfNotExists(ctx, appsettings.SettingKeyOverviewSnapshotInterval, "900"); err != nil {
 		log.Warn("failed to seed app_settings", "error", err)
 	}
 	appSettingsService := appsettings.NewService(appSettingsRepo, log)
@@ -364,6 +368,7 @@ func New(cfg *config.Config) (*App, error) {
 		traderSyncService:  traderSyncSvc,
 		traderService:      traderService,
 		traderGroupRepo:    traderGroupRepo,
+		appSettingsService: appSettingsService,
 		bucketProjector:    bucketProjector,
 		traderVenueID:      hyperliquidVenueID,
 		hlClient:           hlClient,
@@ -579,7 +584,7 @@ func (a *App) Run() error {
 	}
 
 	if a.traderService != nil && a.traderVenueID != uuid.Nil {
-		go runOverviewSnapshotWorker(ctx, a.logger, a.traderService, a.traderVenueID)
+		go runOverviewSnapshotWorker(ctx, a.logger, a.traderService, a.traderVenueID, a.appSettingsService)
 	}
 	if a.bucketProjector != nil && a.traderVenueID != uuid.Nil {
 		go func() {
@@ -660,18 +665,25 @@ func (a *App) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func runOverviewSnapshotWorker(ctx context.Context, log *logger.Logger, svc *trader.Service, venueID uuid.UUID) {
+func runOverviewSnapshotWorker(ctx context.Context, log *logger.Logger, svc *trader.Service, venueID uuid.UUID, settings *appsettings.Service) {
+	interval := func() time.Duration {
+		if settings != nil {
+			if d, err := settings.OverviewSnapshotInterval(ctx); err == nil && d > 0 {
+				return d
+			}
+		}
+		return 15 * time.Minute
+	}
 	run := func() {
 		svc.RefreshOverviewSnapshots(ctx, venueID)
 	}
 	run()
-	ticker := time.NewTicker(120 * time.Second)
-	defer ticker.Stop()
 	for {
+		d := interval()
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-time.After(d):
 			run()
 		}
 	}

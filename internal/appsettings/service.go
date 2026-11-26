@@ -34,15 +34,21 @@ type Service struct {
 	perpCacheVal []string
 	perpCacheAt  time.Time
 	perpCacheTTL time.Duration
+
+	overviewCacheVal int
+	overviewCacheAt  time.Time
+	overviewCacheTTL time.Duration
 }
 
 func NewService(repo RepositoryInterface, loggers ...*logger.Logger) *Service {
 	s := &Service{
-		repo:         repo,
-		cacheTTL:     5 * time.Minute,
-		cacheVal:     DefaultMaxWallets,
-		perpCacheTTL: 5 * time.Minute,
-		perpCacheVal: []string{"xyz"},
+		repo:             repo,
+		cacheTTL:         5 * time.Minute,
+		cacheVal:         DefaultMaxWallets,
+		perpCacheTTL:     5 * time.Minute,
+		perpCacheVal:     []string{"xyz"},
+		overviewCacheTTL: 5 * time.Minute,
+		overviewCacheVal:  DefaultOverviewSnapshotInterval,
 	}
 	if len(loggers) > 0 {
 		s.log = loggers[0]
@@ -215,5 +221,85 @@ func (s *Service) SetPerpDexes(ctx context.Context, dexes []string, userID uuid.
 	s.mu.Lock()
 	s.perpCacheAt = time.Time{}
 	s.mu.Unlock()
+	return nil
+}
+// OverviewSnapshotInterval returns the configured interval.
+func (s *Service) OverviewSnapshotInterval(ctx context.Context) (time.Duration, error) {
+	s.mu.Lock()
+	if !s.overviewCacheAt.IsZero() && time.Since(s.overviewCacheAt) < s.overviewCacheTTL {
+		v := s.overviewCacheVal
+		s.mu.Unlock()
+		return time.Duration(v) * time.Second, nil
+	}
+	s.mu.Unlock()
+
+	raw, err := s.repo.Get(ctx, SettingKeyOverviewSnapshotInterval)
+	if err != nil {
+		s.logWarn("appsettings: failed to read overview snapshot interval, falling back to default", "error", err)
+		s.mu.Lock()
+		s.overviewCacheVal = DefaultOverviewSnapshotInterval
+		s.overviewCacheAt = time.Now()
+		s.mu.Unlock()
+		return time.Duration(DefaultOverviewSnapshotInterval) * time.Second, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < MinOverviewSnapshotInterval || v > MaxOverviewSnapshotInterval {
+		s.logWarn("appsettings: invalid overview snapshot interval, falling back to default", "value", raw)
+		s.mu.Lock()
+		s.overviewCacheVal = DefaultOverviewSnapshotInterval
+		s.overviewCacheAt = time.Now()
+		s.mu.Unlock()
+		return time.Duration(DefaultOverviewSnapshotInterval) * time.Second, nil
+	}
+	s.mu.Lock()
+	s.overviewCacheVal = v
+	s.overviewCacheAt = time.Now()
+	s.mu.Unlock()
+	return time.Duration(v) * time.Second, nil
+}
+
+// SetOverviewSnapshotInterval persists and invalidates cache.
+func (s *Service) SetOverviewSnapshotInterval(ctx context.Context, seconds int, userID uuid.UUID) error {
+	if seconds < MinOverviewSnapshotInterval || seconds > MaxOverviewSnapshotInterval {
+		return domain.NewError(domain.ErrCodeValidation, fmt.Sprintf("overview_snapshot_interval_seconds must be between %d and %d", MinOverviewSnapshotInterval, MaxOverviewSnapshotInterval))
+	}
+	if err := s.repo.Set(ctx, SettingKeyOverviewSnapshotInterval, strconv.Itoa(seconds), &userID); err != nil {
+		return fmt.Errorf("persist setting: %w", err)
+	}
+	s.mu.Lock()
+	s.overviewCacheAt = time.Time{}
+	s.mu.Unlock()
+	return nil
+}
+
+// GetAdminSettings returns all admin settings.
+func (s *Service) GetAdminSettings(ctx context.Context) (AdminSettings, error) {
+	maxWallets, _ := s.MaxWalletsPerUser(ctx)
+	dexes, _ := s.GetPerpDexes(ctx)
+	interval, _ := s.OverviewSnapshotInterval(ctx)
+	return AdminSettings{
+		MaxWalletsPerUser:              maxWallets,
+		PerpDexes:                     dexes,
+		OverviewSnapshotIntervalSeconds: int(interval.Seconds()),
+	}, nil
+}
+
+// SetAdminSettings applies partial updates.
+func (s *Service) SetAdminSettings(ctx context.Context, req updateAdminSettingsRequest, userID uuid.UUID) error {
+	if req.MaxWalletsPerUser != nil {
+		if err := s.SetMaxWalletsPerUser(ctx, *req.MaxWalletsPerUser, userID); err != nil {
+			return err
+		}
+	}
+	if req.PerpDexes != nil {
+		if err := s.SetPerpDexes(ctx, *req.PerpDexes, userID); err != nil {
+			return err
+		}
+	}
+	if req.OverviewSnapshotIntervalSeconds != nil {
+		if err := s.SetOverviewSnapshotInterval(ctx, *req.OverviewSnapshotIntervalSeconds, userID); err != nil {
+			return err
+		}
+	}
 	return nil
 }

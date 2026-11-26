@@ -27,6 +27,13 @@ type PerpDexSettings struct {
 	Dexes []string `json:"dexes"`
 }
 
+// AdminSettings is the typed view of all admin-configurable settings.
+type AdminSettings struct {
+	MaxWalletsPerUser             int      `json:"max_wallets_per_user"`
+	PerpDexes                     []string `json:"perp_dexes"`
+	OverviewSnapshotIntervalSeconds int     `json:"overview_snapshot_interval_seconds"`
+}
+
 const (
 	MinMaxWallets                = 1
 	MaxMaxWallets                = 1000
@@ -35,11 +42,27 @@ const (
 
 	SettingKeyPerpDexes = "perp_dexes"
 	MaxPerpDexes        = 1000
+
+	SettingKeyOverviewSnapshotInterval = "overview_snapshot_interval_seconds"
+	DefaultOverviewSnapshotInterval    = 900
+	MinOverviewSnapshotInterval        = 300
+	MaxOverviewSnapshotInterval        = 3600
 )
 
 // Validate checks range 1..1000.
 func (t TelegramSettings) Validate() error {
 	if t.MaxWalletsPerUser < MinMaxWallets || t.MaxWalletsPerUser > MaxMaxWallets {
+		return domain.NewError(domain.ErrCodeValidation, "max_wallets_per_user must be between 1 and 1000")
+	}
+	return nil
+}
+
+// Validate checks the overview snapshot interval range.
+func (a AdminSettings) Validate() error {
+	if a.OverviewSnapshotIntervalSeconds < MinOverviewSnapshotInterval || a.OverviewSnapshotIntervalSeconds > MaxOverviewSnapshotInterval {
+		return domain.NewError(domain.ErrCodeValidation, fmt.Sprintf("overview_snapshot_interval_seconds must be between %d and %d", MinOverviewSnapshotInterval, MaxOverviewSnapshotInterval))
+	}
+	if a.MaxWalletsPerUser < MinMaxWallets || a.MaxWalletsPerUser > MaxMaxWallets {
 		return domain.NewError(domain.ErrCodeValidation, "max_wallets_per_user must be between 1 and 1000")
 	}
 	return nil

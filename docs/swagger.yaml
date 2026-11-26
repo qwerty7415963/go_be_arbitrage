@@ -53,6 +53,17 @@ definitions:
       success:
         type: boolean
     type: object
+  appsettings.AdminSettings:
+    properties:
+      max_wallets_per_user:
+        type: integer
+      overview_snapshot_interval_seconds:
+        type: integer
+      perp_dexes:
+        items:
+          type: string
+        type: array
+    type: object
   appsettings.PerpDexSettings:
     properties:
       dexes:
@@ -64,6 +75,17 @@ definitions:
     properties:
       max_wallets_per_user:
         type: integer
+    type: object
+  appsettings.updateAdminSettingsRequest:
+    properties:
+      max_wallets_per_user:
+        type: integer
+      overview_snapshot_interval_seconds:
+        type: integer
+      perp_dexes:
+        items:
+          type: string
+        type: array
     type: object
   appsettings.updatePerpDexesRequest:
     properties:
@@ -3353,6 +3375,100 @@ paths:
       summary: Update perp dex list
       tags:
       - admin-perp-dexes
+  /v1/admin/settings:
+    get:
+      description: Get all admin-configurable settings. Requires JWT + admin role.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/appsettings.AdminSettings'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get admin settings
+      tags:
+      - admin-settings
+    patch:
+      consumes:
+      - application/json
+      description: Partial update of admin-configurable settings. Requires JWT + admin
+        role.
+      parameters:
+      - description: Settings to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/appsettings.updateAdminSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/appsettings.AdminSettings'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/api.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/api.ErrorBody'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update admin settings
+      tags:
+      - admin-settings
   /v1/admin/telegram/settings:
     get:
       description: Get admin-configurable Telegram settings. Requires JWT + admin
