@@ -55,11 +55,18 @@ func (r *Repository) WatchedWallets(ctx context.Context) ([]string, error) {
 		return nil, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		SELECT DISTINCT m.wallet_address
-		FROM trader_group_members m
-		JOIN trader_groups g ON g.id = m.group_id
-		JOIN telegram_bindings b ON b.user_id = g.user_id
-		WHERE g.notify_enabled = TRUE AND b.status = 'active'`)
+		SELECT DISTINCT wallet_address FROM (
+			SELECT m.wallet_address
+			FROM trader_group_members m
+			JOIN trader_groups g ON g.id = m.group_id
+			JOIN telegram_bindings b ON b.user_id = g.user_id
+			WHERE g.notify_enabled = TRUE AND b.status = 'active'
+			UNION
+			SELECT f.wallet_address
+			FROM trader_follows f
+			JOIN telegram_bindings b ON b.user_id = f.user_id
+			WHERE f.notify_enabled = TRUE AND b.status = 'active'
+		) x`)
 	if err != nil {
 		return nil, err
 	}
@@ -81,12 +88,24 @@ func (r *Repository) TargetsForWallet(ctx context.Context, wallet string) ([]Not
 	}
 	wallet = strings.ToLower(strings.TrimSpace(wallet))
 	rows, err := r.pool.Query(ctx, `
-		SELECT g.user_id, g.name, COALESCE(m.alias, m.display_name, m.wallet_address) AS who,
-		       b.chat_id, b.locale, m.wallet_address
-		FROM trader_group_members m
-		JOIN trader_groups g ON g.id = m.group_id
-		JOIN telegram_bindings b ON b.user_id = g.user_id
-		WHERE m.wallet_address = $1 AND g.notify_enabled = TRUE AND b.status = 'active'`, wallet)
+		SELECT user_id, group_name, who, chat_id, locale, wallet_address FROM (
+			SELECT g.user_id, g.name AS group_name,
+			       COALESCE(m.alias, f.alias, r.display_name, m.wallet_address) AS who,
+			       b.chat_id, b.locale, m.wallet_address
+			FROM trader_group_members m
+			JOIN trader_groups g ON g.id = m.group_id
+			JOIN telegram_bindings b ON b.user_id = g.user_id
+			LEFT JOIN trader_registry r ON r.venue_id = m.venue_id AND r.wallet_address = m.wallet_address
+			LEFT JOIN trader_follows f ON f.user_id = g.user_id AND f.venue_id = m.venue_id AND f.wallet_address = m.wallet_address
+			WHERE m.wallet_address = $1 AND g.notify_enabled = TRUE AND b.status = 'active'
+			UNION ALL
+			SELECT f.user_id, 'Following' AS group_name, COALESCE(f.alias, r.display_name, f.wallet_address) AS who,
+			       b.chat_id, b.locale, f.wallet_address
+			FROM trader_follows f
+			JOIN telegram_bindings b ON b.user_id = f.user_id
+			LEFT JOIN trader_registry r ON r.venue_id = f.venue_id AND r.wallet_address = f.wallet_address
+			WHERE f.wallet_address = $1 AND f.notify_enabled = TRUE AND b.status = 'active'
+		) x`, wallet)
 	if err != nil {
 		return nil, err
 	}

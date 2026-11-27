@@ -2569,6 +2569,8 @@ definitions:
         type: string
       description:
         type: string
+      followed_count:
+        type: integer
       id:
         type: string
       is_favorite:

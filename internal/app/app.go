@@ -32,6 +32,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/telegram"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/traderfollow"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
@@ -217,6 +218,8 @@ func New(cfg *config.Config) (*App, error) {
 	traderHandler := trader.NewHandler(traderService)
 	go traderService.WarmOverviewCache(context.Background())
 	traderGroupHandler := tradergroup.NewHandler(traderGroupRepo)
+	traderFollowRepo := traderfollow.NewRepository(db.Pool())
+	traderFollowHandler := traderfollow.NewHandler(traderFollowRepo)
 
 	// Telegram notifications (contract v1.4 phase B)
 	telegramRepo := telegram.NewRepository(db.Pool())
@@ -345,7 +348,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, telegramHandler, appSettingsHandler, assetLogoHandler)
+	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, traderFollowHandler, telegramHandler, appSettingsHandler, assetLogoHandler)
 
 	return &App{
 		config:             cfg,

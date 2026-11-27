@@ -25,6 +25,7 @@ import (
 	"github.com/qwerty7415963/go_be_arbitrage/internal/strategy"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/telegram"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/trader"
+	"github.com/qwerty7415963/go_be_arbitrage/internal/traderfollow"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/tradergroup"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/unifiedstate"
 	"github.com/qwerty7415963/go_be_arbitrage/internal/venue"
@@ -49,6 +50,7 @@ func (s *Server) SetupRoutes(
 	reconciliationHandler *reconciliation.Handler,
 	traderHandler *trader.Handler,
 	traderGroupHandler *tradergroup.Handler,
+	traderFollowHandler *traderfollow.Handler,
 	telegramHandler *telegram.Handler,
 	appSettingsHandler *appsettings.Handler,
 	assetLogoHandler *assetlogo.Handler,
@@ -180,6 +182,9 @@ func (s *Server) SetupRoutes(
 		// are public; trader-groups require JWT.
 		traderHandler.RegisterRoutes(v1, Timeout(55*time.Second))
 		traderGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		if traderFollowHandler != nil {
+			traderFollowHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		}
 		adminTraders := v1.Group("/admin/traders")
 		adminTraders.Use(middleware.JWT(authService))
 		adminTraders.Use(middleware.RequireRole("admin"))

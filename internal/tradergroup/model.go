@@ -31,6 +31,7 @@ type Group struct {
 	IsFavorite    bool      `json:"is_favorite"`
 	NotifyEnabled bool      `json:"notify_enabled"`
 	MemberCount   int       `json:"member_count"`
+	FollowedCount int       `json:"followed_count"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -49,6 +50,7 @@ type GroupListItem struct {
 	IsFavorite     bool      `json:"is_favorite"`
 	NotifyEnabled  bool      `json:"notify_enabled"`
 	MemberCount    int       `json:"member_count"`
+	FollowedCount  int       `json:"followed_count"`
 	AccountValue   *float64  `json:"account_value"`
 	UnrealizedPnL  *float64  `json:"unrealized_pnl"`
 	ROI            *float64  `json:"roi"`
@@ -93,6 +95,7 @@ type MemberRow struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 	DataStatus    string     `json:"data_status"`
 	InGroups      []GroupRef `json:"in_groups"`
+	IsFollowed    bool       `json:"is_followed"`
 }
 
 // OverviewStats is the groups overview aggregate (contract §6.1).

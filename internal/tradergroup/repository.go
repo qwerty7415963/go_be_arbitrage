@@ -96,6 +96,7 @@ func (r *Repository) Create(ctx context.Context, userID uuid.UUID, name, descrip
 		return nil, err
 	}
 	g.MemberCount = 0
+	g.FollowedCount = 0
 	return &g, nil
 }
 
@@ -211,6 +212,28 @@ func (r *Repository) List(ctx context.Context, userID uuid.UUID, params ListGrou
 	groupIDs := make([]uuid.UUID, 0, len(groups))
 	for _, g := range groups {
 		groupIDs = append(groupIDs, g.id)
+	}
+
+	// batch followed counts
+	groupFollowedCount := map[uuid.UUID]int{}
+	if len(groupIDs) > 0 {
+		frows, err := r.pool.Query(ctx, `
+			SELECT m.group_id, COUNT(DISTINCT f.wallet_address)::int
+			FROM trader_group_members m
+			LEFT JOIN trader_follows f
+			  ON f.venue_id = m.venue_id AND f.wallet_address = m.wallet_address AND f.user_id = $2
+			WHERE m.group_id = ANY($1)
+			GROUP BY m.group_id`, groupIDs, userID)
+		if err == nil {
+			for frows.Next() {
+				var gid uuid.UUID
+				var n int
+				if err := frows.Scan(&gid, &n); err == nil {
+					groupFollowedCount[gid] = n
+				}
+			}
+			frows.Close()
+		}
 	}
 
 	// batch membership
@@ -448,6 +471,7 @@ func (r *Repository) List(ctx context.Context, userID uuid.UUID, params ListGrou
 			IsFavorite:    g.isFavorite,
 			NotifyEnabled: g.notifyEnabled,
 			MemberCount:   memberCount,
+			FollowedCount: groupFollowedCount[g.id],
 			UpdatedAt:     g.updatedAt,
 			OpenPositions: 0,
 		}
@@ -660,6 +684,7 @@ func (r *Repository) Get(ctx context.Context, groupID, userID uuid.UUID) (*Group
 	if err != nil {
 		return nil, err
 	}
+	_ = r.pool.QueryRow(ctx, `SELECT COUNT(DISTINCT f.wallet_address)::int FROM trader_group_members m LEFT JOIN trader_follows f ON f.venue_id=m.venue_id AND f.wallet_address=m.wallet_address AND f.user_id=$2 WHERE m.group_id=$1`, groupID, userID).Scan(&g.FollowedCount)
 	return &g, nil
 }
 
@@ -687,6 +712,7 @@ func (r *Repository) Update(ctx context.Context, groupID, userID uuid.UUID, name
 		return nil, err
 	}
 	_ = r.pool.QueryRow(ctx, `SELECT COUNT(*)::int FROM trader_group_members WHERE group_id = $1`, groupID).Scan(&g.MemberCount)
+	_ = r.pool.QueryRow(ctx, `SELECT COUNT(DISTINCT f.wallet_address)::int FROM trader_group_members m LEFT JOIN trader_follows f ON f.venue_id=m.venue_id AND f.wallet_address=m.wallet_address AND f.user_id=$2 WHERE m.group_id=$1`, groupID, userID).Scan(&g.FollowedCount)
 	return &g, nil
 }
 
@@ -951,22 +977,25 @@ func (r *Repository) ListMembers(ctx context.Context, groupID, userID uuid.UUID,
 
 	// fetch members
 	mrows, err := r.pool.Query(ctx, `
-		SELECT m.venue_id, v.code, m.wallet_address, r.display_name, m.alias, m.note, m.updated_at
+		SELECT m.venue_id, v.code, m.wallet_address, COALESCE(f.alias, r.display_name), m.alias, m.note, m.updated_at,
+		       CASE WHEN f.user_id IS NOT NULL THEN TRUE ELSE FALSE END
 		FROM trader_group_members m
 		JOIN venues v ON v.id = m.venue_id
 		LEFT JOIN trader_registry r ON r.venue_id = m.venue_id AND r.wallet_address = m.wallet_address
-		WHERE m.group_id = $1`, groupID)
+		LEFT JOIN trader_follows f ON f.venue_id = m.venue_id AND f.wallet_address = m.wallet_address AND f.user_id = $2
+		WHERE m.group_id = $1`, groupID, userID)
 	if err != nil {
 		return nil, 0, err
 	}
 	type memberBase struct {
-		venueID uuid.UUID
-		venue   string
-		addr    string
-		display *string
-		alias   *string
-		note    *string
-		updated time.Time
+		venueID    uuid.UUID
+		venue      string
+		addr       string
+		display    *string
+		alias      *string
+		note       *string
+		updated    time.Time
+		isFollowed bool
 	}
 	var bases []memberBase
 	for mrows.Next() {
@@ -1019,6 +1048,7 @@ func (r *Repository) ListMembers(ctx context.Context, groupID, userID uuid.UUID,
 			Alias:         b.alias,
 			Note:          b.note,
 			UpdatedAt:     b.updated,
+			IsFollowed:    b.isFollowed,
 			InGroups:      groupsByWallet[b.venueID.String()+"|"+strings.ToLower(strings.TrimSpace(b.addr))],
 		}
 		if mr.InGroups == nil {
@@ -1246,6 +1276,7 @@ func (r *Repository) Duplicate(ctx context.Context, groupID, userID uuid.UUID, n
 			return nil, err
 		}
 		g.MemberCount = 0
+		g.FollowedCount = 0
 		return &g, nil
 	}
 

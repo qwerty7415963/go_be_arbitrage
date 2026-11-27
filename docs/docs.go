@@ -15391,6 +15391,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "followed_count": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
                 },

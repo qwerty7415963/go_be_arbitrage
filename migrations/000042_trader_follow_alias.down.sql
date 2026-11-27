@@ -1,0 +1,1 @@
+ALTER TABLE trader_follows DROP COLUMN IF EXISTS alias;

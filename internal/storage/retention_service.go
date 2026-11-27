@@ -112,6 +112,8 @@ func (s *RetentionService) CleanupDeadTraders(ctx context.Context, staleAfter ti
 				  AND d.trade_count > 0)
 			  AND NOT EXISTS (SELECT 1 FROM trader_group_members m
 				WHERE m.venue_id = r.venue_id AND m.wallet_address = r.wallet_address)
+			  AND NOT EXISTS (SELECT 1 FROM trader_follows f
+				WHERE f.venue_id = r.venue_id AND f.wallet_address = r.wallet_address)
 			RETURNING venue_id, wallet_address
 		),
 		del_members AS (
