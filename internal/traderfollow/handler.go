@@ -36,10 +36,12 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup, jwtMiddleware ...gin.H
 	g.GET("", h.List)
 	g.GET("/keys", h.Keys)
 	g.GET("/overview", h.Overview)
-	g.GET("/status", h.Status)
 	g.POST("", h.Follow)
 	g.DELETE("", h.Unfollow)
-	g.PATCH("/:venue/:address", h.SetNotify)
+	g.GET("/:venue/:address", h.Status)
+	g.PUT("/:venue/:address", h.FollowOne)
+	g.DELETE("/:venue/:address", h.UnfollowOne)
+	g.PATCH("/:venue/:address/preferences", h.UpdatePreferences)
 }
 
 func (h *Handler) getUserID(c *gin.Context) (uuid.UUID, bool) {
@@ -192,13 +194,7 @@ func (h *Handler) Status(c *gin.Context) {
 	if !ok {
 		return
 	}
-	venue := c.Query("venue")
-	wallet := c.Query("wallet")
-	if venue == "" || wallet == "" {
-		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "venue and wallet are required"))
-		return
-	}
-	st, err := h.store.Status(c.Request.Context(), userID, venue, wallet)
+	st, err := h.store.Status(c.Request.Context(), userID, c.Param("venue"), c.Param("address"))
 	if err != nil {
 		api.RespondError(c, appErr(err))
 		return
@@ -206,7 +202,39 @@ func (h *Handler) Status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": st})
 }
 
-func (h *Handler) SetNotify(c *gin.Context) {
+func (h *Handler) FollowOne(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	added, skipped, err := h.store.Follow(c.Request.Context(), userID, []MemberInput{{
+		Venue:         c.Param("venue"),
+		WalletAddress: c.Param("address"),
+	}})
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"followed": added, "skipped": skipped}})
+}
+
+func (h *Handler) UnfollowOne(c *gin.Context) {
+	userID, ok := h.getUserID(c)
+	if !ok {
+		return
+	}
+	n, err := h.store.Unfollow(c.Request.Context(), userID, []MemberInput{{
+		Venue:         c.Param("venue"),
+		WalletAddress: c.Param("address"),
+	}})
+	if err != nil {
+		api.RespondError(c, appErr(err))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"unfollowed": n}})
+}
+
+func (h *Handler) UpdatePreferences(c *gin.Context) {
 	userID, ok := h.getUserID(c)
 	if !ok {
 		return
