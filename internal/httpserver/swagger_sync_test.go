@@ -149,6 +149,15 @@ var expectedSecured = []string{
 	// admin perp-dexes (JWT + admin role) v1.6
 	"GET /v1/admin/perp-dexes",
 	"PATCH /v1/admin/perp-dexes",
+	// admin settings (JWT + admin role)
+	"GET /v1/admin/settings",
+	"PATCH /v1/admin/settings",
+	// trader groups analytics (JWT)
+	"POST /v1/trader-groups/compare",
+	"GET /v1/trader-groups/{id}/positions",
+	"GET /v1/trader-groups/{id}/stats",
+	"GET /v1/trader-groups/{id}/exposure",
+	"GET /v1/trader-groups/{id}/performance",
 	// admin traders (JWT + admin role)
 	"POST /v1/admin/traders/sync-positions",
 	// admin asset logos (JWT + admin role)

@@ -13,6 +13,7 @@ import (
 type tgMember struct {
 	venueID uuid.UUID
 	addr    string
+	alias   string
 }
 
 func (r *Repository) EvaluateEventAlerts(ctx context.Context) error {
@@ -133,7 +134,7 @@ func (r *Repository) evaluateEvents(ctx context.Context, alert *GroupAlert) erro
 			dedupKey := fmt.Sprintf("%s|%s|%d", alert.ID, subject, e.id)
 			r.createAlertEvent(ctx, alert, alert.Type, payload, dedupKey)
 			if alert.NotifyTelegram {
-				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: %s %s", alert.Name, alert.Type, e.coin), dedupKey)
+				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: %s %s — %s", alert.Name, alert.Type, e.coin, aliasFor(members, subject)), dedupKey)
 			}
 			triggeredAny = true
 		}
@@ -196,7 +197,7 @@ func (r *Repository) evaluateEvents(ctx context.Context, alert *GroupAlert) erro
 			dedupKey := fmt.Sprintf("%s|%s|%s", alert.ID, subject, eventID)
 			r.createAlertEvent(ctx, alert, alert.Type, payload, dedupKey)
 			if alert.NotifyTelegram {
-				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: %s %s", alert.Name, alert.Type, t.market), dedupKey)
+				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: %s %s — %s", alert.Name, alert.Type, t.market, aliasFor(members, subject)), dedupKey)
 			}
 			triggeredAny = true
 		}
@@ -248,7 +249,7 @@ func (r *Repository) evaluateEvents(ctx context.Context, alert *GroupAlert) erro
 			dedupKey := fmt.Sprintf("%s|%s|%d", alert.ID, subject, m.id)
 			r.createAlertEvent(ctx, alert, alert.Type, payload, dedupKey)
 			if alert.NotifyTelegram {
-				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: %s %s", alert.Name, alert.Type, subject), dedupKey)
+				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: %s — %s", alert.Name, alert.Type, aliasFor(members, subject)), dedupKey)
 			}
 			triggeredAny = true
 		}
@@ -279,7 +280,7 @@ func (r *Repository) evaluateEvents(ctx context.Context, alert *GroupAlert) erro
 			dedupKey := fmt.Sprintf("%s|%s|%d", alert.ID, subject, now.Unix())
 			r.createAlertEvent(ctx, alert, alert.Type, payload, dedupKey)
 			if alert.NotifyTelegram {
-				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: wallet inactive %s", alert.Name, subject), dedupKey)
+				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: wallet inactive — %s", alert.Name, aliasFor(members, subject)), dedupKey)
 			}
 			triggeredAny = true
 		}
@@ -315,7 +316,7 @@ func (r *Repository) evaluateEvents(ctx context.Context, alert *GroupAlert) erro
 			dedupKey := fmt.Sprintf("%s|%s|%d", alert.ID, subject, now.Unix())
 			r.createAlertEvent(ctx, alert, alert.Type, payload, dedupKey)
 			if alert.NotifyTelegram {
-				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: wallet stale %s", alert.Name, subject), dedupKey)
+				_ = r.enqueueTelegram(ctx, alert, fmt.Sprintf("Alert %s: wallet stale — %s", alert.Name, aliasFor(members, subject)), dedupKey)
 			}
 			triggeredAny = true
 		}
@@ -338,7 +339,11 @@ func (r *Repository) evaluateEvents(ctx context.Context, alert *GroupAlert) erro
 }
 
 func (r *Repository) groupMembers(ctx context.Context, groupID uuid.UUID) ([]tgMember, error) {
-	rows, err := r.pool.Query(ctx, `SELECT venue_id, wallet_address FROM trader_group_members WHERE group_id = $1`, groupID)
+	rows, err := r.pool.Query(ctx, `SELECT m.venue_id, m.wallet_address, COALESCE(m.alias, f.alias, r.display_name, m.wallet_address)
+		FROM trader_group_members m
+		LEFT JOIN trader_follows f ON f.venue_id = m.venue_id AND f.wallet_address = m.wallet_address AND f.user_id = (SELECT user_id FROM trader_groups WHERE id = $1)
+		LEFT JOIN trader_registry r ON r.venue_id = m.venue_id AND r.wallet_address = m.wallet_address
+		WHERE m.group_id = $1`, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +351,7 @@ func (r *Repository) groupMembers(ctx context.Context, groupID uuid.UUID) ([]tgM
 	var out []tgMember
 	for rows.Next() {
 		var m tgMember
-		if err := rows.Scan(&m.venueID, &m.addr); err != nil {
+		if err := rows.Scan(&m.venueID, &m.addr, &m.alias); err != nil {
 			return nil, err
 		}
 		m.addr = strings.ToLower(strings.TrimSpace(m.addr))
@@ -370,4 +375,20 @@ func (r *Repository) subjectCooldownOK(ctx context.Context, alert *GroupAlert, s
 		return true
 	}
 	return now.Sub(*last) >= time.Duration(alert.CooldownSeconds)*time.Second
+}
+
+func aliasFor(members []tgMember, addr string) string {
+	addr = strings.ToLower(strings.TrimSpace(addr))
+	for _, m := range members {
+		if strings.ToLower(strings.TrimSpace(m.addr)) == addr && m.alias != "" {
+			return m.alias
+		}
+	}
+	if addr == "" {
+		return "unknown"
+	}
+	if len(addr) > 10 {
+		return addr[:6] + "..." + addr[len(addr)-4:]
+	}
+	return addr
 }

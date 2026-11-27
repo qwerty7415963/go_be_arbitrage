@@ -79,9 +79,11 @@ type GroupRef struct {
 }
 
 type FollowStatus struct {
-	IsFollowed    bool       `json:"is_followed"`
-	NotifyEnabled bool       `json:"notify_enabled"`
-	Alias         *string    `json:"alias"`
-	DisplayName   *string    `json:"display_name"`
-	InGroups      []GroupRef `json:"in_groups"`
+	IsFollowed        bool       `json:"is_followed"`
+	NotifyEnabled     bool       `json:"notify_enabled"`
+	Alias             *string    `json:"alias"`
+	DisplayName       *string    `json:"display_name"`
+	InGroups          []GroupRef `json:"in_groups"`
+	FollowedAt        *time.Time `json:"followed_at"`
+	TelegramConnected bool       `json:"telegram_connected"`
 }

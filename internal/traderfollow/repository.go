@@ -192,22 +192,35 @@ func (r *Repository) Status(ctx context.Context, userID uuid.UUID, venue, addr s
 	st := &FollowStatus{InGroups: []GroupRef{}}
 	var alias, display *string
 	var notify bool
+	var followedAt *time.Time
+	var telegramConnected bool
 	err := r.pool.QueryRow(ctx, `
-		SELECT f.alias, f.notify_enabled, r.display_name
+		SELECT f.alias, f.notify_enabled, r.display_name, f.created_at,
+		       EXISTS(SELECT 1 FROM telegram_bindings b WHERE b.user_id=$1 AND b.status='active')
 		FROM trader_follows f
 		LEFT JOIN trader_registry r ON r.venue_id=f.venue_id AND r.wallet_address=f.wallet_address
-		WHERE f.user_id=$1 AND f.venue_id=$2 AND f.wallet_address=$3`, userID, venueID, addr).Scan(&alias, &notify, &display)
+		WHERE f.user_id=$1 AND f.venue_id=$2 AND f.wallet_address=$3`, userID, venueID, addr).Scan(&alias, &notify, &display, &followedAt, &telegramConnected)
 	if err == nil {
 		st.IsFollowed = true
 		st.NotifyEnabled = notify
 		st.Alias = alias
+		st.FollowedAt = followedAt
+		st.TelegramConnected = telegramConnected
 	} else if err != pgx.ErrNoRows {
 		return nil, err
+	}
+	if !st.IsFollowed {
+		_ = r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM telegram_bindings WHERE user_id=$1 AND status='active')`, userID).Scan(&telegramConnected)
+		st.TelegramConnected = telegramConnected
 	}
 	if !st.IsFollowed {
 		_ = r.pool.QueryRow(ctx, `SELECT display_name FROM trader_registry WHERE venue_id=$1 AND wallet_address=$2`, venueID, addr).Scan(&display)
 	}
 	st.DisplayName = display
+	// telegram connected
+	var tc bool
+	_ = r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM telegram_bindings WHERE user_id=$1 AND status='active')`, userID).Scan(&tc)
+	st.TelegramConnected = tc
 	grows, err := r.pool.Query(ctx, `
 		SELECT g.id, g.name
 		FROM trader_group_members m
