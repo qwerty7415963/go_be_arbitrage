@@ -1000,7 +1000,7 @@ func (r *Repository) ListMembers(ctx context.Context, groupID, userID uuid.UUID,
 	var bases []memberBase
 	for mrows.Next() {
 		var b memberBase
-		if err := mrows.Scan(&b.venueID, &b.venue, &b.addr, &b.display, &b.alias, &b.note, &b.updated); err != nil {
+		if err := mrows.Scan(&b.venueID, &b.venue, &b.addr, &b.display, &b.alias, &b.note, &b.updated, &b.isFollowed); err != nil {
 			mrows.Close()
 			return nil, 0, err
 		}
