@@ -9,6 +9,7 @@
 ## 1. Scope & locked decisions
 
 **In scope**
+
 - Đóng public admin/trading surface; tách public API và admin API.
 - Admin API + Dokploy + SSH admin chỉ qua Tailscale.
 - Refresh token sang HttpOnly cookie; access token giữ trong memory.
@@ -19,6 +20,7 @@
 - Test + rollout/rollback.
 
 **Out of scope v1**
+
 - Email verification (không có mail service).
 - App-level MFA; Tailscale là lớp ngoài.
 - Cloudflare Access/WAF/DDoS.
@@ -30,15 +32,15 @@
 
 **Locked decisions**
 
-| # | Decision |
-|---|---|
-| 1 | Register public; CAPTCHA **Cloudflare Turnstile** + rate limit; không email verification |
-| 2 | Admin/trading API chỉ qua Tailscale, listener riêng `:8081` |
-| 3 | Dokploy chỉ truy cập qua Tailscale |
-| 4 | Rotate JWT/admin/DB/Telegram secrets |
-| 5 | Refresh token: `HttpOnly; Secure; SameSite=Lax` cookie; access token memory |
-| 6 | Public frontend/API vẫn qua Traefik 80/443; backend `:8080` không publish public |
-| 7 | CAPTCHA provider mặc định Turnstile; đổi sang hCaptcha phải sửa trước freeze |
+| #   | Decision                                                                                 |
+| --- | ---------------------------------------------------------------------------------------- |
+| 1   | Register public; CAPTCHA **Cloudflare Turnstile** + rate limit; không email verification |
+| 2   | Admin/trading API chỉ qua Tailscale, listener riêng `:8081`                              |
+| 3   | Dokploy chỉ truy cập qua Tailscale                                                       |
+| 4   | Rotate JWT/admin/DB/Telegram secrets                                                     |
+| 5   | Refresh token: `HttpOnly; Secure; SameSite=Lax` cookie; access token memory              |
+| 6   | Public frontend/API vẫn qua Traefik 80/443; backend `:8080` không publish public         |
+| 7   | CAPTCHA provider mặc định Turnstile; đổi sang hCaptcha phải sửa trước freeze             |
 
 ## 2. Verified baseline (2026-11-28)
 
@@ -73,6 +75,7 @@ Tailnet 100.64.0.0/10
 ```
 
 Rules:
+
 - Public `:8080` không publish; chỉ Traefik gọi qua `dokploy-network` (`10.0.1.0/24`).
 - Admin `:8081` publish nhưng firewall chỉ cho `tailscale0`; drop từ `eth0`.
 - Admin API dùng HTTP trong Tailscale WireGuard; nếu cần browser admin UI sau này mới dùng Tailscale Serve HTTPS.
@@ -84,6 +87,7 @@ Rules:
 ### 4.1 Public listener `:8080`
 
 Chỉ đăng ký:
+
 - `/health`, `/ready`
 - `/v1/ping`
 - `/v1/auth/register|login|refresh|wallet/nonce|wallet/verify`
@@ -98,6 +102,7 @@ Chỉ đăng ký:
 ### 4.2 Admin listener `:8081` (Tailscale only)
 
 Đăng ký:
+
 - `/v1/admin/*` (traders, telegram/settings, perp-dexes, settings, asset logos)
 - `/v1/venues` (toàn bộ)
 - `/v1/instruments` POST/PUT/DELETE, `/v1/instruments/:id/trading`
@@ -143,6 +148,7 @@ Chỉ đăng ký:
 ### 5.3 Rotation & reuse
 
 Migration `000043_security_refresh_family`:
+
 ```sql
 ALTER TABLE refresh_tokens
   ADD COLUMN family_id UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -150,13 +156,16 @@ ALTER TABLE refresh_tokens
   ADD COLUMN replaced_by_hash TEXT NULL;
 CREATE INDEX idx_refresh_tokens_family ON refresh_tokens(family_id);
 ```
+
 - Rotate atomic trong transaction:
+
 ```sql
 UPDATE refresh_tokens
 SET revoked = TRUE, rotated_at = NOW()
 WHERE token_hash = $1 AND revoked = FALSE AND expires_at > NOW()
 RETURNING id, user_id, family_id;
 ```
+
 - Insert token mới cùng `family_id` trong cùng transaction.
 - Token cũ bị dùng lại → revoke toàn bộ family, trả `401 AUTH-004`.
 - Refresh token hash SHA-256; không lưu plaintext.
@@ -174,6 +183,7 @@ RETURNING id, user_id, family_id;
 
 - Bỏ pattern `GetValidNonce` → verify signature → `MarkNonceUsed`.
 - Thay bằng atomic:
+
 ```sql
 UPDATE wallet_nonces
 SET used = TRUE
@@ -181,6 +191,7 @@ WHERE nonce = $1 AND address = $2 AND chain_id = $3
   AND used = FALSE AND expires_at > NOW()
 RETURNING id;
 ```
+
 - Chỉ sau khi verify signature; update fail → reject.
 - Không bỏ qua lỗi `MarkNonceUsed`.
 - Áp dụng cho `VerifySignature` và `LinkWallet`.
@@ -213,15 +224,15 @@ RETURNING id;
 
 ### 6.2 Rate limit
 
-| Endpoint | Limit |
-|---|---|
-| `POST /auth/register` | 3/giờ/IP + 10/ngày/IP; CAPTCHA mỗi request |
-| `POST /auth/login` | 5/phút/IP + 10/giờ/email; backoff |
-| `POST /auth/wallet/nonce` | 10/phút/IP + 5/phút/address |
-| `POST /auth/wallet/verify` | 10/phút/IP + 5/phút/address |
-| `POST /auth/refresh` | 30/phút/IP |
-| Public scanner/search | 60/phút/IP (edge + app) |
-| General authenticated API | 120/phút/user |
+| Endpoint                   | Limit                                      |
+| -------------------------- | ------------------------------------------ |
+| `POST /auth/register`      | 3/giờ/IP + 10/ngày/IP; CAPTCHA mỗi request |
+| `POST /auth/login`         | 5/phút/IP + 10/giờ/email; backoff          |
+| `POST /auth/wallet/nonce`  | 10/phút/IP + 5/phút/address                |
+| `POST /auth/wallet/verify` | 10/phút/IP + 5/phút/address                |
+| `POST /auth/refresh`       | 30/phút/IP                                 |
+| Public scanner/search      | 60/phút/IP (edge + app)                    |
+| General authenticated API  | 120/phút/user                              |
 
 - Key IP lấy từ trusted proxy; email key hash.
 - In-memory cho 1 replica; interface sẵn sàng Redis sau.
@@ -241,14 +252,14 @@ RETURNING id;
 
 ### 7.1 Ports / firewall
 
-| Port | Public | Tailnet |
-|---|---|---|
-| 80, 443 | allow | allow |
-| 22 | key-only + fail2ban (v1) | allow |
-| 8080 public API | **deny** | deny (Traefik only) |
-| 8081 admin API | **deny** | allow |
-| 3000, 5000 Dokploy | **deny** | allow |
-| 3001, 5434, 6379 other stack | deny | deny; bind `127.0.0.1` |
+| Port                         | Public                   | Tailnet                |
+| ---------------------------- | ------------------------ | ---------------------- |
+| 80, 443                      | allow                    | allow                  |
+| 22                           | key-only + fail2ban (v1) | allow                  |
+| 8080 public API              | **deny**                 | deny (Traefik only)    |
+| 8081 admin API               | **deny**                 | allow                  |
+| 3000, 5000 Dokploy           | **deny**                 | allow                  |
+| 3001, 5434, 6379 other stack | deny                     | deny; bind `127.0.0.1` |
 
 - UFW default deny; remove allow `8080`, `3000`.
 - Docker bypass UFW → thêm `DOCKER-USER` persistent:
@@ -302,6 +313,7 @@ RETURNING id;
 ## 8. Configuration
 
 **Backend mới**
+
 ```env
 ARBITRAGE_MODE=release
 ARBITRAGE_HOST=0.0.0.0
@@ -323,6 +335,7 @@ ARBITRAGE_DB_PASSWORD=<32+ random>
 ```
 
 **Frontend mới**
+
 ```env
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<public>
 NEXT_PUBLIC_API_BASE_URL=
@@ -331,6 +344,7 @@ BACKEND_URL=https://api.hyperscanai.xyz
 ```
 
 Fail-closed ở `release`:
+
 - admin listener bật, JWT ≥ 32 (khuyến nghị ≥ 64), CORS không wildcard, cookie Secure, CAPTCHA bật, SIWE domain không `localhost`, Turnstile secret tồn tại.
 
 ## 9. Headers / CSP / CORS
@@ -351,6 +365,7 @@ Fail-closed ở `release`:
 ## 10. Testing requirements
 
 **Go unit**
+
 - JWT: none/HS512/wrong iss/aud/expired; secret length.
 - Cookie flags; refresh rotation; reuse revokes family.
 - Nonce concurrent consume.
@@ -360,6 +375,7 @@ Fail-closed ở `release`:
 - Storage cleanup/instrument writes admin-only.
 
 **Go handler/integration**
+
 - Register no CAPTCHA → 400 AUTH-017; invalid → 400; rate limit → 429; valid → 201 + cookie.
 - Login sets cookie; refresh reads cookie; logout clears.
 - Migration 000043; concurrent refresh only one succeeds.
@@ -367,6 +383,7 @@ Fail-closed ở `release`:
 - Public listener does not register admin routes.
 
 **FE**
+
 - No token in localStorage.
 - Initialize refresh; reload session; 401 retry once; no infinite loop.
 - Turnstile widget + AUTH-017 reset.
@@ -375,6 +392,7 @@ Fail-closed ở `release`:
 - Existing tests pass.
 
 **Infra acceptance**
+
 - External scan: only `80/443` (+ `22` v1).
 - `8080/8081/3000/5000/3001/5434/6379` closed from Internet.
 - Admin `8081` works from Tailscale; timeout from Internet.
@@ -403,6 +421,7 @@ Fail-closed ở `release`:
 ## 12. Rollout & rollback
 
 **Rollout**
+
 1. Freeze contract; backup DB + VPS snapshot.
 2. Generate secrets mới; chuẩn bị image BE/FE.
 3. Maintenance window: migrate `000043`, deploy BE + FE cùng lúc, cập nhật Dokploy env.
@@ -412,6 +431,7 @@ Fail-closed ở `release`:
 7. Monitor 24h: 401/403/429, CAPTCHA fail, refresh reuse, firewall drops.
 
 **Rollback**
+
 - DB migration additive; old code ignores new columns.
 - Rollback cả BE + FE cùng phiên bản; cookie cũ bị clear, user login lại.
 - Nếu admin listener lỗi, tạm thời mở `8080` nội bộ/Tailscale (không public) và rollback image.
