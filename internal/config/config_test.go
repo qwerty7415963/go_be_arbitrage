@@ -10,7 +10,7 @@ func TestLoad(t *testing.T) {
 	os.Setenv("ARBITRAGE_PORT", "9090")
 	os.Setenv("ARBITRAGE_DB_HOST", "db.example.com")
 	os.Setenv("ARBITRAGE_DB_NAME", "testdb")
-	os.Setenv("ARBITRAGE_JWT_SECRET", "test-secret-key")
+	os.Setenv("ARBITRAGE_JWT_SECRET", "0123456789abcdef0123456789abcdef")
 	defer os.Unsetenv("ARBITRAGE_PORT")
 	defer os.Unsetenv("ARBITRAGE_DB_HOST")
 	defer os.Unsetenv("ARBITRAGE_DB_NAME")
@@ -30,7 +30,7 @@ func TestLoad(t *testing.T) {
 	if cfg.Database.Name != "testdb" {
 		t.Errorf("expected name testdb, got %s", cfg.Database.Name)
 	}
-	if cfg.Auth.JWTSecret != "test-secret-key" {
+	if cfg.Auth.JWTSecret != "0123456789abcdef0123456789abcdef" {
 		t.Errorf("expected JWT secret, got empty")
 	}
 }
@@ -39,7 +39,7 @@ func TestLoadDefaults(t *testing.T) {
 	os.Unsetenv("ARBITRAGE_PORT")
 	os.Unsetenv("ARBITRAGE_DB_HOST")
 	os.Unsetenv("ARBITRAGE_DB_NAME")
-	os.Setenv("ARBITRAGE_JWT_SECRET", "test-secret")
+	os.Setenv("ARBITRAGE_JWT_SECRET", "0123456789abcdef0123456789abcdef")
 	defer os.Unsetenv("ARBITRAGE_JWT_SECRET")
 
 	cfg, err := Load()
@@ -73,7 +73,7 @@ func TestValidate(t *testing.T) {
 					Name: "testdb",
 				},
 				Auth: AuthConfig{
-					JWTSecret: "secret",
+					JWTSecret: "0123456789abcdef0123456789abcdef",
 				},
 			},
 			wantErr: false,

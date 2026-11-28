@@ -55,14 +55,43 @@ func (s *Server) SetupRoutes(
 	appSettingsHandler *appsettings.Handler,
 	assetLogoHandler *assetlogo.Handler,
 ) {
-	s.engine.Use(middleware.RequestID())
-	s.engine.Use(middleware.Logger(s.logger))
-	s.engine.Use(middleware.CORS(s.config.CORS.AllowOrigins))
+	s.SetupPublicRoutes(healthHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, traderHandler, traderGroupHandler, traderFollowHandler, telegramHandler, assetLogoHandler)
+	s.SetupAdminRoutes(venueHandler, instrumentHandler, marketHandler, orderbookHandler, storageHandler, authService, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, appSettingsHandler, assetLogoHandler)
+}
 
-	s.engine.GET("/health", healthHandler.Health)
-	s.engine.GET("/ready", healthHandler.Ready)
+func (s *Server) trustedProxies() []string {
+	if s.config.Server.TrustedProxies != nil {
+		return s.config.Server.TrustedProxies
+	}
+	return s.config.TrustedProxies
+}
 
-	v1 := s.engine.Group("/v1")
+func (s *Server) SetupPublicRoutes(
+	healthHandler *health.Handler,
+	instrumentHandler *instrument.Handler,
+	marketHandler *market.Handler,
+	orderbookHandler *orderbook.Handler,
+	unifiedHandler *unifiedstate.Handler,
+	authService *auth.Service,
+	authHandler *auth.Handler,
+	web3Handler *auth.Web3Handler,
+	fundingArbitrageHandler *fundingarbitrage.Handler,
+	opportunityHandler *opportunity.Handler,
+	traderHandler *trader.Handler,
+	traderGroupHandler *tradergroup.Handler,
+	traderFollowHandler *traderfollow.Handler,
+	telegramHandler *telegram.Handler,
+	assetLogoHandler *assetlogo.Handler,
+) {
+	s.publicEngine.Use(middleware.RequestID())
+	s.publicEngine.Use(middleware.Logger(s.logger))
+	s.publicEngine.Use(middleware.CORS(s.config.CORS.AllowOrigins))
+	s.publicEngine.SetTrustedProxies(s.trustedProxies())
+
+	s.publicEngine.GET("/health", healthHandler.Health)
+	s.publicEngine.GET("/ready", healthHandler.Ready)
+
+	v1 := s.publicEngine.Group("/v1")
 	v1.Use(middleware.LocaleMiddleware())
 	{
 		v1.GET("/ping", pingHandler)
@@ -70,13 +99,13 @@ func (s *Server) SetupRoutes(
 		// Auth
 		authRoutes := v1.Group("/auth")
 		{
-			authRoutes.POST("/register", authHandler.Register)
-			authRoutes.POST("/login", middleware.LoginRateLimit(5, 1*time.Minute), authHandler.Login)
-			authRoutes.POST("/refresh", authHandler.Refresh)
+			authRoutes.POST("/register", middleware.RegisterRateLimit(), authHandler.Register)
+			authRoutes.POST("/login", middleware.LoginRateLimitFull(), authHandler.Login)
+			authRoutes.POST("/refresh", middleware.RefreshRateLimit(), authHandler.Refresh)
 
 			// Web3 wallet auth
-			authRoutes.POST("/wallet/nonce", middleware.LoginRateLimit(10, 1*time.Minute), web3Handler.GetNonce)
-			authRoutes.POST("/wallet/verify", middleware.LoginRateLimit(10, 1*time.Minute), web3Handler.Verify)
+			authRoutes.POST("/wallet/nonce", middleware.WalletRateLimit(), web3Handler.GetNonce)
+			authRoutes.POST("/wallet/verify", middleware.WalletRateLimit(), web3Handler.Verify)
 
 			// Protected auth routes
 			authProtected := authRoutes.Group("")
@@ -93,67 +122,6 @@ func (s *Server) SetupRoutes(
 			}
 		}
 
-		// Venues (admin only)
-		venues := v1.Group("/venues")
-		venues.Use(middleware.JWT(authService))
-		venues.Use(middleware.RequireRole("admin"))
-		{
-			venues.GET("", venueHandler.List)
-			venues.POST("", venueHandler.Create)
-			venues.GET("/:id", venueHandler.GetByID)
-			venues.PUT("/:id", venueHandler.Update)
-			venues.DELETE("/:id", venueHandler.Delete)
-		}
-
-		// Instruments
-		instruments := v1.Group("/instruments")
-		{
-			instruments.GET("", instrumentHandler.List)
-			instruments.POST("", instrumentHandler.Create)
-			instruments.GET("/tradable", instrumentHandler.ListTradable)
-			instruments.GET("/:id", instrumentHandler.GetByID)
-			instruments.PUT("/:id", instrumentHandler.Update)
-			instruments.DELETE("/:id", instrumentHandler.Delete)
-			instruments.PUT("/:id/trading", instrumentHandler.EnableTrading)
-		}
-
-		// Venue Instruments
-		venueInstruments := v1.Group("/venue-instruments")
-		{
-			venueInstruments.GET("", instrumentHandler.ListVenueInstruments)
-			venueInstruments.POST("", instrumentHandler.CreateVenueInstrument)
-		}
-
-		// Market Data
-		marketData := v1.Group("/market")
-		{
-			marketData.GET("/subscribe", marketHandler.Subscribe)
-			marketData.GET("/trades", marketHandler.GetTrades)
-			marketData.GET("/ticker", marketHandler.GetTicker)
-			marketData.GET("/funding", marketHandler.GetFunding)
-			marketData.GET("/subscriptions", marketHandler.GetSubscriptions)
-		}
-
-		// Order Book
-		orderbookRoutes := v1.Group("/orderbook")
-		{
-			orderbookRoutes.GET("/depth", orderbookHandler.GetOrderBook)
-			orderbookRoutes.GET("/health", orderbookHandler.GetHealth)
-			orderbookRoutes.GET("/tradable", orderbookHandler.GetTradable)
-			orderbookRoutes.POST("/resync", orderbookHandler.RequestResync)
-			orderbookRoutes.GET("/ws", orderbookHandler.SubscribeWS)
-		}
-
-		// Unified State
-		unifiedRoutes := v1.Group("/unified")
-		{
-			unifiedRoutes.GET("/instruments", unifiedHandler.GetInstruments)
-			unifiedRoutes.GET("/instruments/:id", unifiedHandler.GetInstrument)
-			unifiedRoutes.GET("/instruments/:id/depth", unifiedHandler.GetExecutableDepth)
-			unifiedRoutes.GET("/health", unifiedHandler.GetHealth)
-			unifiedRoutes.GET("/ws", unifiedHandler.SubscribeWS)
-		}
-
 		// Public routes (no auth)
 		public := v1.Group("/public")
 		{
@@ -166,64 +134,155 @@ func (s *Server) SetupRoutes(
 		// Opportunity Scanner
 		opportunityHandler.RegisterRoutes(v1)
 
-		// Strategy Engine
-		strategyHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		// Market Data reads
+		marketData := v1.Group("/market")
+		{
+			marketData.GET("/trades", marketHandler.GetTrades)
+			marketData.GET("/ticker", marketHandler.GetTicker)
+			marketData.GET("/funding", marketHandler.GetFunding)
+			marketData.GET("/subscriptions", marketHandler.GetSubscriptions)
+		}
 
-		// Risk Engine
-		riskHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		// Order Book reads + WS
+		orderbookRoutes := v1.Group("/orderbook")
+		{
+			orderbookRoutes.GET("/depth", orderbookHandler.GetOrderBook)
+			orderbookRoutes.GET("/health", orderbookHandler.GetHealth)
+			orderbookRoutes.GET("/tradable", orderbookHandler.GetTradable)
+			orderbookRoutes.GET("/ws", orderbookHandler.SubscribeWS)
+		}
 
-		// Execution Engine
-		executionHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		// Unified State reads + WS
+		unifiedRoutes := v1.Group("/unified")
+		{
+			unifiedRoutes.GET("/instruments", unifiedHandler.GetInstruments)
+			unifiedRoutes.GET("/instruments/:id", unifiedHandler.GetInstrument)
+			unifiedRoutes.GET("/instruments/:id/depth", unifiedHandler.GetExecutableDepth)
+			unifiedRoutes.GET("/health", unifiedHandler.GetHealth)
+			unifiedRoutes.GET("/ws", unifiedHandler.SubscribeWS)
+		}
 
-		// Reconciliation Engine
-		reconciliationHandler.RegisterRoutes(v1, middleware.JWT(authService))
+		// Instruments reads
+		instruments := v1.Group("/instruments")
+		{
+			instruments.GET("", instrumentHandler.List)
+			instruments.GET("/tradable", instrumentHandler.ListTradable)
+			instruments.GET("/:id", instrumentHandler.GetByID)
+		}
 
-		// Trader Scanner v1.1: generic routes, venue-scoped. Search/detail
-		// are public; trader-groups require JWT.
+		// Venue Instruments reads
+		venueInstruments := v1.Group("/venue-instruments")
+		{
+			venueInstruments.GET("", instrumentHandler.ListVenueInstruments)
+		}
+
+		// Trader Scanner
 		traderHandler.RegisterRoutes(v1, Timeout(55*time.Second))
 		traderGroupHandler.RegisterRoutes(v1, middleware.JWT(authService))
 		if traderFollowHandler != nil {
 			traderFollowHandler.RegisterRoutes(v1, middleware.JWT(authService))
 		}
-		adminTraders := v1.Group("/admin/traders")
-		adminTraders.Use(middleware.JWT(authService))
-		adminTraders.Use(middleware.RequireRole("admin"))
-		traderHandler.RegisterAdminRoutes(adminTraders)
 		if telegramHandler != nil {
 			telegramHandler.RegisterRoutes(v1, middleware.JWT(authService))
 		}
-		if appSettingsHandler != nil {
-			adminTelegram := v1.Group("/admin/telegram/settings")
-			adminTelegram.Use(middleware.JWT(authService))
-			adminTelegram.Use(middleware.RequireRole("admin"))
-			{
-				adminTelegram.GET("", appSettingsHandler.GetSettings)
-				adminTelegram.PATCH("", appSettingsHandler.UpdateSettings)
-			}
-			adminPerpDexes := v1.Group("/admin/perp-dexes")
-			adminPerpDexes.Use(middleware.JWT(authService))
-			adminPerpDexes.Use(middleware.RequireRole("admin"))
-			{
-				adminPerpDexes.GET("", appSettingsHandler.GetPerpDexes)
-				adminPerpDexes.PATCH("", appSettingsHandler.UpdatePerpDexes)
-			}
-			adminSettings := v1.Group("/admin/settings")
-			adminSettings.Use(middleware.JWT(authService))
-			adminSettings.Use(middleware.RequireRole("admin"))
-			{
-				adminSettings.GET("", appSettingsHandler.GetAdminSettings)
-				adminSettings.PATCH("", appSettingsHandler.UpdateAdminSettings)
-			}
-		}
-		// Asset Logos
+
+		// Asset Logos read
 		if assetLogoHandler != nil {
 			assetLogoRoutes := v1.Group("/assets")
 			{
 				assetLogoRoutes.GET("/logos/:assetId", assetLogoHandler.ServeLogo)
 			}
+		}
+	}
+}
+
+func (s *Server) SetupAdminRoutes(
+	venueHandler *venue.Handler,
+	instrumentHandler *instrument.Handler,
+	marketHandler *market.Handler,
+	orderbookHandler *orderbook.Handler,
+	storageHandler *storage.Handler,
+	authService *auth.Service,
+	strategyHandler *strategy.Handler,
+	riskHandler *risk.Handler,
+	executionHandler *execution.Handler,
+	reconciliationHandler *reconciliation.Handler,
+	traderHandler *trader.Handler,
+	appSettingsHandler *appsettings.Handler,
+	assetLogoHandler *assetlogo.Handler,
+) {
+	s.adminEngine.Use(middleware.RequestID())
+	s.adminEngine.Use(middleware.Logger(s.logger))
+	s.adminEngine.Use(middleware.CORS(s.config.CORS.AllowOrigins))
+	s.adminEngine.SetTrustedProxies(nil)
+	s.adminEngine.Use(middleware.JWT(authService))
+	s.adminEngine.Use(middleware.RequireRole("admin"))
+
+	v1 := s.adminEngine.Group("/v1")
+	v1.Use(middleware.LocaleMiddleware())
+	{
+		// Venues (all)
+		venues := v1.Group("/venues")
+		{
+			venues.GET("", venueHandler.List)
+			venues.POST("", venueHandler.Create)
+			venues.GET("/:id", venueHandler.GetByID)
+			venues.PUT("/:id", venueHandler.Update)
+			venues.DELETE("/:id", venueHandler.Delete)
+		}
+
+		// Instruments writes
+		instruments := v1.Group("/instruments")
+		{
+			instruments.POST("", instrumentHandler.Create)
+			instruments.PUT("/:id", instrumentHandler.Update)
+			instruments.DELETE("/:id", instrumentHandler.Delete)
+			instruments.PUT("/:id/trading", instrumentHandler.EnableTrading)
+		}
+
+		// Venue Instruments writes
+		venueInstruments := v1.Group("/venue-instruments")
+		{
+			venueInstruments.POST("", instrumentHandler.CreateVenueInstrument)
+		}
+
+		// Market subscribe (admin)
+		marketData := v1.Group("/market")
+		{
+			marketData.GET("/subscribe", marketHandler.Subscribe)
+		}
+
+		// Orderbook resync
+		orderbookRoutes := v1.Group("/orderbook")
+		{
+			orderbookRoutes.POST("/resync", orderbookHandler.RequestResync)
+		}
+
+		// Admin traders
+		adminTraders := v1.Group("/admin/traders")
+		traderHandler.RegisterAdminRoutes(adminTraders)
+
+		if appSettingsHandler != nil {
+			adminTelegram := v1.Group("/admin/telegram/settings")
+			{
+				adminTelegram.GET("", appSettingsHandler.GetSettings)
+				adminTelegram.PATCH("", appSettingsHandler.UpdateSettings)
+			}
+			adminPerpDexes := v1.Group("/admin/perp-dexes")
+			{
+				adminPerpDexes.GET("", appSettingsHandler.GetPerpDexes)
+				adminPerpDexes.PATCH("", appSettingsHandler.UpdatePerpDexes)
+			}
+			adminSettings := v1.Group("/admin/settings")
+			{
+				adminSettings.GET("", appSettingsHandler.GetAdminSettings)
+				adminSettings.PATCH("", appSettingsHandler.UpdateAdminSettings)
+			}
+		}
+
+		// Asset Logos admin
+		if assetLogoHandler != nil {
 			adminAssetLogos := v1.Group("/admin/assets/logos")
-			adminAssetLogos.Use(middleware.JWT(authService))
-			adminAssetLogos.Use(middleware.RequireRole("admin"))
 			{
 				adminAssetLogos.POST("/refresh", assetLogoHandler.RefreshLogos)
 				adminAssetLogos.GET("", assetLogoHandler.ListLogos)
@@ -242,9 +301,20 @@ func (s *Server) SetupRoutes(
 			storageRoutes.POST("/retention/cleanup", storageHandler.CleanupData)
 		}
 
+		// Strategy Engine
+		strategyHandler.RegisterRoutes(v1, middleware.JWT(authService))
+
+		// Risk Engine
+		riskHandler.RegisterRoutes(v1, middleware.JWT(authService))
+
+		// Execution Engine
+		executionHandler.RegisterRoutes(v1, middleware.JWT(authService))
+
+		// Reconciliation Engine
+		reconciliationHandler.RegisterRoutes(v1, middleware.JWT(authService))
 	}
 
-	s.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	s.adminEngine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 }
 
 // Ping godoc

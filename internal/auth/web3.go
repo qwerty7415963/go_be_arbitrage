@@ -98,13 +98,6 @@ func (s *Web3Service) VerifySignature(ctx context.Context, message string, signa
 	}
 
 	addr := normalizeAddress(msg.Address.Hex())
-	nonceRecord, err := s.repo.GetValidNonce(ctx, msg.Nonce, addr, chainID)
-	if err != nil {
-		return nil, domain.NewError(domain.ErrCodeAuthNonceExpired, "nonce expired or not found")
-	}
-	if nonceRecord.Used {
-		return nil, domain.NewError(domain.ErrCodeAuthNonceAlreadyUsed, "nonce already used")
-	}
 
 	pubKey, err := msg.VerifyEIP191(signature)
 	if err != nil {
@@ -117,7 +110,9 @@ func (s *Web3Service) VerifySignature(ctx context.Context, message string, signa
 			fmt.Sprintf("signature address mismatch: recovered %s, expected %s", recoveredAddr.Hex(), msg.Address.Hex()))
 	}
 
-	_ = s.repo.MarkNonceUsed(ctx, nonceRecord.ID)
+	if _, err := s.repo.ConsumeNonce(ctx, msg.Nonce, addr, chainID); err != nil {
+		return nil, domain.NewError(domain.ErrCodeAuthNonceExpired, "nonce expired or not found")
+	}
 
 	user, err := s.repo.GetUserByAddress(ctx, addr, chainID)
 	if err != nil {
@@ -176,11 +171,6 @@ func (s *Web3Service) LinkWallet(ctx context.Context, userID uuid.UUID, address 
 		return domain.NewError(domain.ErrCodeAuthTokenExpired, "SIWE message expired")
 	}
 
-	nonceRecord, err := s.repo.GetValidNonce(ctx, msg.Nonce, address, chainID)
-	if err != nil || nonceRecord.Used {
-		return domain.NewError(domain.ErrCodeAuthNonceExpired, "nonce expired or already used")
-	}
-
 	pubKey, err := msg.VerifyEIP191(signature)
 	if err != nil {
 		return domain.WrapError(domain.ErrCodeAuthInvalidSignature, "signature verification failed", err)
@@ -191,7 +181,9 @@ func (s *Web3Service) LinkWallet(ctx context.Context, userID uuid.UUID, address 
 		return domain.NewError(domain.ErrCodeAuthInvalidSignature, "signature address mismatch")
 	}
 
-	_ = s.repo.MarkNonceUsed(ctx, nonceRecord.ID)
+	if _, err := s.repo.ConsumeNonce(ctx, msg.Nonce, address, chainID); err != nil {
+		return domain.NewError(domain.ErrCodeAuthNonceExpired, "nonce expired or already used")
+	}
 
 	existing, err := s.repo.GetWalletByAddress(ctx, address, chainID)
 	if err == nil && existing != nil && existing.UserID != userID {

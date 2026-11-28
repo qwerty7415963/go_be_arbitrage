@@ -151,6 +151,19 @@ func (r *Web3Repository) MarkNonceUsed(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
+// ConsumeNonce atomically marks a nonce used and returns its id.
+func (r *Web3Repository) ConsumeNonce(ctx context.Context, nonce, address string, chainID int64) (uuid.UUID, error) {
+	query := `
+		UPDATE wallet_nonces
+		SET used = TRUE
+		WHERE nonce = $1 AND address = $2 AND chain_id = $3
+		  AND used = FALSE AND expires_at > NOW()
+		RETURNING id`
+	var id uuid.UUID
+	err := r.db.QueryRow(ctx, query, nonce, address, chainID).Scan(&id)
+	return id, err
+}
+
 func (r *Web3Repository) CleanupNonces(ctx context.Context) (int64, error) {
 	query := `DELETE FROM wallet_nonces WHERE expires_at < NOW() OR (used = TRUE AND created_at < NOW() - INTERVAL '1 hour')`
 	result, err := r.db.Exec(ctx, query)

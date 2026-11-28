@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -83,6 +84,11 @@ func (h *Web3Handler) Verify(c *gin.Context) {
 		}
 		return
 	}
+
+	authSvc := h.service.auth
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(authSvc.CookieName(), resp.RefreshToken, authSvc.CookieMaxAge(), "/", "", authSvc.CookieSecure(), true)
+	resp.RefreshToken = ""
 
 	api.RespondSuccess(c, resp)
 }

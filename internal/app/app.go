@@ -95,6 +95,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	authRepo := auth.NewRepository(db.Pool())
 	authService := auth.NewService(&cfg.Auth, authRepo)
+	authService.WithAuditRepo(storage.NewAuditRepository(db.Pool()))
 
 	if err := authService.EnsureAdmin(ctx, cfg.Auth.AdminEmail, cfg.Auth.AdminPassword); err != nil {
 		log.Error("failed to ensure admin user", "error", err)
@@ -348,7 +349,8 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	httpServer := httpserver.New(cfg, log)
-	httpServer.SetupRoutes(healthHandler, venueHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, storageHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, traderGroupHandler, traderFollowHandler, telegramHandler, appSettingsHandler, assetLogoHandler)
+	httpServer.SetupPublicRoutes(healthHandler, instrumentHandler, marketHandler, orderbookHandler, unifiedHandler, authService, authHandler, web3Handler, fundingArbitrageHandler, opportunityHandler, traderHandler, traderGroupHandler, traderFollowHandler, telegramHandler, assetLogoHandler)
+	httpServer.SetupAdminRoutes(venueHandler, instrumentHandler, marketHandler, orderbookHandler, storageHandler, authService, strategyHandler, riskHandler, executionHandler, reconciliationHandler, traderHandler, appSettingsHandler, assetLogoHandler)
 
 	return &App{
 		config:             cfg,

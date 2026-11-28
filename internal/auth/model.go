@@ -40,17 +40,21 @@ type WalletNonce struct {
 }
 
 type RefreshToken struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"user_id"`
-	TokenHash string    `json:"-"`
-	ExpiresAt time.Time `json:"expires_at"`
-	Revoked   bool      `json:"revoked"`
-	CreatedAt time.Time `json:"created_at"`
+	ID             uuid.UUID  `json:"id"`
+	UserID         uuid.UUID  `json:"user_id"`
+	TokenHash      string     `json:"-"`
+	FamilyID       uuid.UUID  `json:"family_id"`
+	ExpiresAt      time.Time  `json:"expires_at"`
+	Revoked        bool       `json:"revoked"`
+	RotatedAt      *time.Time `json:"rotated_at,omitempty"`
+	ReplacedByHash *string    `json:"-"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8,max=128"`
+	Email        string `json:"email" binding:"required,email"`
+	Password     string `json:"password" binding:"required,min=8,max=128"`
+	CaptchaToken string `json:"captcha_token"`
 }
 
 type LoginRequest struct {
@@ -69,7 +73,7 @@ type ChangePasswordRequest struct {
 
 type AuthResponse struct {
 	AccessToken  string        `json:"access_token"`
-	RefreshToken string        `json:"refresh_token"`
+	RefreshToken string        `json:"refresh_token,omitempty"`
 	ExpiresAt    int64         `json:"expires_at"`
 	User         *UserResponse `json:"user"`
 }

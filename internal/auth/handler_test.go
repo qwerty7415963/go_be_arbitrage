@@ -117,6 +117,12 @@ func registerAndLogin(t *testing.T, router *gin.Engine, email, password string) 
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	data := resp["data"].(map[string]interface{})
+	// capture refresh token from cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "refresh_token" || c.Name == "__Host-refresh" {
+			data["refresh_token"] = c.Value
+		}
+	}
 	return data
 }
 
@@ -131,7 +137,7 @@ func TestHandler_Register_Success(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	email := fmt.Sprintf("handler-test-%d@register.com", time.Now().UnixNano())
-	body := map[string]string{"email": email, "password": "testpass123"}
+	body := map[string]string{"email": email, "password": "testpassword123"}
 	jsonBody, _ := json.Marshal(body)
 
 	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
@@ -155,8 +161,9 @@ func TestHandler_Register_Success(t *testing.T) {
 	if data["access_token"] == nil || data["access_token"] == "" {
 		t.Error("expected access_token")
 	}
-	if data["refresh_token"] == nil || data["refresh_token"] == "" {
-		t.Error("expected refresh_token")
+	// refresh token is delivered via cookie, not body
+	if _, ok := data["refresh_token"]; ok && data["refresh_token"] != "" {
+		t.Error("did not expect refresh_token in body")
 	}
 
 	user := data["user"].(map[string]interface{})
@@ -179,7 +186,7 @@ func TestHandler_Register_DuplicateEmail(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	email := fmt.Sprintf("handler-test-dup-%d@register.com", time.Now().UnixNano())
-	body := map[string]string{"email": email, "password": "testpass123"}
+	body := map[string]string{"email": email, "password": "testpassword123"}
 
 	// First register
 	jsonBody, _ := json.Marshal(body)
@@ -252,7 +259,7 @@ func TestHandler_Register_InvalidEmail(t *testing.T) {
 	handler := NewHandler(service)
 	router := setupHandlerRouter(handler)
 
-	body := map[string]string{"email": "not-an-email", "password": "testpass123"}
+	body := map[string]string{"email": "not-an-email", "password": "testpassword123"}
 	jsonBody, _ := json.Marshal(body)
 	req, _ := http.NewRequest("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -275,7 +282,7 @@ func TestHandler_Login_Success(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	email := fmt.Sprintf("handler-test-login-%d@test.com", time.Now().UnixNano())
-	password := "testpass123"
+	password := "testpassword123"
 
 	// Register first
 	registerAndLogin(t, router, email, password)
@@ -364,13 +371,11 @@ func TestHandler_Refresh_Success(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	email := fmt.Sprintf("handler-test-refresh-%d@test.com", time.Now().UnixNano())
-	data := registerAndLogin(t, router, email, "testpass123")
+	data := registerAndLogin(t, router, email, "testpassword123")
 	refreshToken := data["refresh_token"].(string)
 
-	body := map[string]string{"refresh_token": refreshToken}
-	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
+	req, _ := http.NewRequest("POST", "/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -397,14 +402,12 @@ func TestHandler_Refresh_ReuseOldToken(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	email := fmt.Sprintf("handler-test-replay-%d@test.com", time.Now().UnixNano())
-	data := registerAndLogin(t, router, email, "testpass123")
+	data := registerAndLogin(t, router, email, "testpassword123")
 	oldRefreshToken := data["refresh_token"].(string)
 
 	// First refresh (success)
-	body := map[string]string{"refresh_token": oldRefreshToken}
-	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
+	req, _ := http.NewRequest("POST", "/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: oldRefreshToken})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -413,9 +416,8 @@ func TestHandler_Refresh_ReuseOldToken(t *testing.T) {
 	}
 
 	// Second refresh with same old token (should fail)
-	jsonBody, _ = json.Marshal(body)
-	req, _ = http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
+	req, _ = http.NewRequest("POST", "/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: oldRefreshToken})
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -442,9 +444,9 @@ func TestHandler_Logout_NoToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	// Without user_id set by JWT middleware, should fail
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403 without auth, got %d", w.Code)
+	// Logout clears cookie and returns 204 even without auth
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected 204 without auth, got %d", w.Code)
 	}
 }
 
@@ -459,7 +461,7 @@ func TestHandler_Logout_RefreshDies(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	email := fmt.Sprintf("handler-test-logout-%d@test.com", time.Now().UnixNano())
-	data := registerAndLogin(t, router, email, "testpass123")
+	data := registerAndLogin(t, router, email, "testpassword123")
 	refreshToken := data["refresh_token"].(string)
 	accessToken := data["access_token"].(string)
 
@@ -505,7 +507,7 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	handler := NewHandler(service)
 
 	email := fmt.Sprintf("handler-test-changepw-%d@test.com", time.Now().UnixNano())
-	body := map[string]string{"email": email, "password": "oldpass123"}
+	body := map[string]string{"email": email, "password": "oldpassword123"}
 	jsonBody, _ := json.Marshal(body)
 
 	// Register
@@ -525,7 +527,7 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	userID := userData["id"].(string)
 
 	// Change password
-	changeBody := map[string]string{"old_password": "oldpass123", "new_password": "newpass456"}
+	changeBody := map[string]string{"old_password": "oldpassword123", "new_password": "newpassword456"}
 	changeJSON, _ := json.Marshal(changeBody)
 
 	changeRouter := gin.New()
@@ -545,7 +547,7 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	}
 
 	// Old password should no longer work
-	loginBody := map[string]string{"email": email, "password": "oldpass123"}
+	loginBody := map[string]string{"email": email, "password": "oldpassword123"}
 	loginJSON, _ := json.Marshal(loginBody)
 	loginReq, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(loginJSON))
 	loginReq.Header.Set("Content-Type", "application/json")
@@ -561,7 +563,7 @@ func TestHandler_ChangePassword_Success(t *testing.T) {
 	}
 
 	// New password should work
-	loginBody2 := map[string]string{"email": email, "password": "newpass456"}
+	loginBody2 := map[string]string{"email": email, "password": "newpassword456"}
 	loginJSON2, _ := json.Marshal(loginBody2)
 	loginReq2, _ := http.NewRequest("POST", "/v1/auth/login", bytes.NewBuffer(loginJSON2))
 	loginReq2.Header.Set("Content-Type", "application/json")
@@ -581,7 +583,7 @@ func TestHandler_ChangePassword_WrongOld(t *testing.T) {
 	handler := NewHandler(service)
 
 	email := fmt.Sprintf("handler-test-changepw-wrong-%d@test.com", time.Now().UnixNano())
-	body := map[string]string{"email": email, "password": "correctpass"}
+	body := map[string]string{"email": email, "password": "correctpassword"}
 	jsonBody, _ := json.Marshal(body)
 
 	gin.SetMode(gin.TestMode)
@@ -599,7 +601,7 @@ func TestHandler_ChangePassword_WrongOld(t *testing.T) {
 	userData := regData["user"].(map[string]interface{})
 	userID := userData["id"].(string)
 
-	changeBody := map[string]string{"old_password": "wrongpass", "new_password": "newpass123"}
+	changeBody := map[string]string{"old_password": "wrongpass", "new_password": "newpassword123"}
 	changeJSON, _ := json.Marshal(changeBody)
 
 	changeRouter := gin.New()
@@ -629,7 +631,7 @@ func TestHandler_Me_Success(t *testing.T) {
 	handler := NewHandler(service)
 
 	email := fmt.Sprintf("handler-test-me-%d@test.com", time.Now().UnixNano())
-	body := map[string]string{"email": email, "password": "testpass123"}
+	body := map[string]string{"email": email, "password": "testpassword123"}
 	jsonBody, _ := json.Marshal(body)
 
 	gin.SetMode(gin.TestMode)
@@ -703,16 +705,14 @@ func TestHandler_Refresh_ExpiredToken(t *testing.T) {
 	router := setupHandlerRouter(handler)
 
 	email := fmt.Sprintf("handler-test-expired-%d@test.com", time.Now().UnixNano())
-	data := registerAndLogin(t, router, email, "testpass123")
+	data := registerAndLogin(t, router, email, "testpassword123")
 	refreshToken := data["refresh_token"].(string)
 
 	// Wait for token to expire (use very short expiration for test)
 	// Instead, we test with a token that was revoked/expired by manipulating DB
 	// For unit test, just verify the refresh flow works with valid token
-	body := map[string]string{"refresh_token": refreshToken}
-	jsonBody, _ := json.Marshal(body)
-	req, _ := http.NewRequest("POST", "/v1/auth/refresh", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
+	req, _ := http.NewRequest("POST", "/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

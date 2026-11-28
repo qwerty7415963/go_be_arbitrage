@@ -75,13 +75,13 @@ func TestCORS_Wildcard_AllowsAnyOrigin(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "http://anything.com" {
+	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
 		t.Error("expected wildcard to allow any origin")
 	}
 }
 
 func TestCORS_CredentialsHeader(t *testing.T) {
-	router := setupCORSRouter([]string{"*"})
+	router := setupCORSRouter([]string{"http://localhost:3000"})
 
 	req, _ := http.NewRequest("GET", "/test", nil)
 	req.Header.Set("Origin", "http://localhost:3000")

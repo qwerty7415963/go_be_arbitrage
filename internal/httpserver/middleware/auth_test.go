@@ -21,8 +21,8 @@ func testAuthConfig() *config.AuthConfig {
 }
 
 func genToken(svc *auth.Service, userID, tenantID, role string) string {
-	pair, _ := svc.GenerateTokenPair(userID, tenantID, role)
-	return pair.AccessToken
+	tok, _ := svc.GenerateAccessToken(userID, tenantID, role)
+	return tok
 }
 
 func setupTestMiddlewareRouter(jwtMiddleware gin.HandlerFunc) *gin.Engine {
@@ -141,7 +141,7 @@ func TestJWT_WrongSecret(t *testing.T) {
 func TestJWT_ExpiredToken(t *testing.T) {
 	cfg := &config.AuthConfig{
 		JWTSecret:         "middleware-test-secret",
-		JWTExpiration:     -1 * time.Second,
+		JWTExpiration:     -1 * time.Hour,
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 

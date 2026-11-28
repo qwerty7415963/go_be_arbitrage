@@ -30,6 +30,7 @@ const (
 	ErrCodeAuthWalletAlreadyLinked ErrorCode = "AUTH-014"
 	ErrCodeAuthWalletNotFound      ErrorCode = "AUTH-015"
 	ErrCodeAuthUnsupportedChain    ErrorCode = "AUTH-016"
+	ErrCodeAuthCaptchaFailed       ErrorCode = "AUTH-017"
 
 	// EXCHANGE — Exchange Adapter (101-199)
 	ErrCodeExchangeConnectionFailed  ErrorCode = "EXCHANGE-101"
@@ -230,6 +231,7 @@ var errorStatusMap = map[ErrorCode]int{
 	ErrCodeAuthWalletAlreadyLinked: http.StatusConflict,
 	ErrCodeAuthWalletNotFound:      http.StatusNotFound,
 	ErrCodeAuthUnsupportedChain:    http.StatusBadRequest,
+	ErrCodeAuthCaptchaFailed:       http.StatusBadRequest,
 
 	ErrCodeExchangeConnectionFailed:  http.StatusBadGateway,
 	ErrCodeExchangeAuthFailed:        http.StatusBadGateway,

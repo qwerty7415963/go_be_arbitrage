@@ -47,6 +47,9 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, resp.RefreshToken)
+	resp.RefreshToken = ""
+
 	c.JSON(http.StatusCreated, api.Response{
 		Success: true,
 		Data:    resp,
@@ -82,6 +85,9 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	h.setRefreshCookie(c, resp.RefreshToken)
+	resp.RefreshToken = ""
+
 	api.RespondSuccess(c, resp)
 }
 
@@ -96,15 +102,10 @@ func (h *Handler) Login(c *gin.Context) {
 // @Failure      401   {object}  api.Response
 // @Router       /v1/auth/refresh [post]
 func (h *Handler) Refresh(c *gin.Context) {
-	var req RefreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		api.RespondValidationError(c, []api.FieldError{
-			{Field: "body", Code: "INVALID", Message: "invalid request body"},
-		})
-		return
-	}
+	cookieName := h.service.CookieName()
+	token, _ := c.Cookie(cookieName)
 
-	resp, err := h.service.Refresh(c.Request.Context(), req.RefreshToken)
+	resp, err := h.service.Refresh(c.Request.Context(), token)
 	if err != nil {
 		if appErr, ok := err.(*domain.AppError); ok {
 			api.RespondError(c, appErr)
@@ -113,6 +114,9 @@ func (h *Handler) Refresh(c *gin.Context) {
 		}
 		return
 	}
+
+	h.setRefreshCookie(c, resp.RefreshToken)
+	resp.RefreshToken = ""
 
 	api.RespondSuccess(c, resp)
 }
@@ -127,24 +131,35 @@ func (h *Handler) Refresh(c *gin.Context) {
 // @Failure      401  {object}  api.Response
 // @Router       /v1/auth/logout [post]
 func (h *Handler) Logout(c *gin.Context) {
-	userIDStr, exists := c.Get("user_id")
-	if !exists {
-		api.RespondError(c, domain.NewError(domain.ErrCodeAuthForbidden, "user not authenticated"))
-		return
-	}
+	cookieName := h.service.CookieName()
+	token, _ := c.Cookie(cookieName)
 
-	userID, err := uuid.Parse(userIDStr.(string))
-	if err != nil {
-		api.RespondError(c, domain.NewError(domain.ErrCodeValidation, "invalid user ID"))
-		return
-	}
+	_ = h.service.Logout(c.Request.Context(), token)
 
-	if err := h.service.Logout(c.Request.Context(), userID); err != nil {
-		api.RespondError(c, domain.WrapError(domain.ErrCodeInternal, "logout failed", err))
-		return
-	}
+	h.clearRefreshCookie(c, cookieName)
 
 	api.RespondNoContent(c)
+}
+
+func (h *Handler) setRefreshCookie(c *gin.Context, token string) {
+	if token == "" {
+		return
+	}
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		h.service.CookieName(),
+		token,
+		h.service.CookieMaxAge(),
+		"/",
+		"",
+		h.service.CookieSecure(),
+		true,
+	)
+}
+
+func (h *Handler) clearRefreshCookie(c *gin.Context, name string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(name, "", -1, "/", "", h.service.CookieSecure(), true)
 }
 
 // ChangePassword godoc

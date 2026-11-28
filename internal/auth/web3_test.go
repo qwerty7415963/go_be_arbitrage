@@ -317,8 +317,8 @@ func TestVerifySignature_NonceNotFound(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected AppError, got %T", err)
 	}
-	if appErr.Code != domain.ErrCodeAuthNonceExpired {
-		t.Errorf("expected code %s, got %s", domain.ErrCodeAuthNonceExpired, appErr.Code)
+	if appErr.Code != domain.ErrCodeAuthInvalidSignature {
+		t.Errorf("expected code %s, got %s", domain.ErrCodeAuthInvalidSignature, appErr.Code)
 	}
 }
 

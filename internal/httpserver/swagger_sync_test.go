@@ -106,6 +106,11 @@ var expectedSecured = []string{
 	"PATCH /v1/trader-groups/{id}/members",
 	"DELETE /v1/trader-groups/{id}/members",
 	"GET /v1/trader-groups/{id}/members",
+	"GET /v1/trader-groups/{id}/stats",
+	"GET /v1/trader-groups/{id}/positions",
+	"GET /v1/trader-groups/{id}/exposure",
+	"GET /v1/trader-groups/{id}/performance",
+	"POST /v1/trader-groups/compare",
 	// strategy engine (JWT + admin role)
 	"GET /v1/strategies",
 	"POST /v1/strategies",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -74,16 +75,19 @@ func expectedVersion(t *testing.T) uint {
 	if err != nil {
 		t.Fatalf("read embedded migrations: %v", err)
 	}
-	var n uint
+	var maxV uint
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".up.sql") {
-			n++
+			parts := strings.SplitN(e.Name(), "_", 2)
+			if v, err := strconv.Atoi(parts[0]); err == nil && uint(v) > maxV {
+				maxV = uint(v)
+			}
 		}
 	}
-	if n == 0 {
+	if maxV == 0 {
 		t.Fatal("no embedded migrations found")
 	}
-	return n
+	return maxV
 }
 
 // MIG-01 + MIG-05: up applies all migrations on a clean database

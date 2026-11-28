@@ -68,7 +68,7 @@ func defaultTestCfg() *config.AuthConfig {
 func TestRegister_Success(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-%d@register.com", time.Now().UnixNano())
-	req := &RegisterRequest{Email: email, Password: "testpass123"}
+	req := &RegisterRequest{Email: email, Password: "testpassword123"}
 	resp, err := svc.Register(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -98,7 +98,7 @@ func TestRegister_Success(t *testing.T) {
 func TestRegister_DuplicateEmail(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-dup-%d@register.com", time.Now().UnixNano())
-	req := &RegisterRequest{Email: email, Password: "testpass123"}
+	req := &RegisterRequest{Email: email, Password: "testpassword123"}
 	_, err := svc.Register(context.Background(), req)
 	if err != nil {
 		t.Fatalf("first register: unexpected error: %v", err)
@@ -120,7 +120,7 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 
 func TestRegister_InvalidEmailFormat(t *testing.T) {
 	svc, _ := testServiceDB(t)
-	req := &RegisterRequest{Email: "not-an-email", Password: "testpass123"}
+	req := &RegisterRequest{Email: "not-an-email", Password: "testpassword123"}
 	_, err := svc.Register(context.Background(), req)
 	if err == nil {
 		t.Error("expected error for invalid email")
@@ -143,7 +143,7 @@ func TestRegister_ShortPassword(t *testing.T) {
 func TestLogin_Success(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-login-%d@test.com", time.Now().UnixNano())
-	password := "testpass123"
+	password := "testpassword123"
 	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: password})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
@@ -188,7 +188,7 @@ func TestLogin_NonExistentEmail(t *testing.T) {
 func TestLogin_WrongPassword(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-wrongpw-%d@test.com", time.Now().UnixNano())
-	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "correctpass"})
+	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "correctpassword"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -210,12 +210,12 @@ func TestLogin_WrongPassword(t *testing.T) {
 func TestLogin_DisabledUser(t *testing.T) {
 	svc, pool := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-disabled-%d@test.com", time.Now().UnixNano())
-	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpass123"})
+	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
 	pool.Exec(context.Background(), "UPDATE users SET status = 'DISABLED' WHERE email = $1", email)
-	_, err = svc.Login(context.Background(), &LoginRequest{Email: email, Password: "testpass123"})
+	_, err = svc.Login(context.Background(), &LoginRequest{Email: email, Password: "testpassword123"})
 	if err == nil {
 		t.Fatal("expected error for disabled user")
 	}
@@ -233,7 +233,7 @@ func TestLogin_DisabledUser(t *testing.T) {
 func TestRefresh_Success(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-refresh-%d@test.com", time.Now().UnixNano())
-	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpass123"})
+	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestRefresh_TokenNotFound(t *testing.T) {
 func TestRefresh_RevokedToken(t *testing.T) {
 	svc, pool := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-revoked-%d@test.com", time.Now().UnixNano())
-	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpass123"})
+	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestRefresh_RevokedToken(t *testing.T) {
 func TestRefresh_ExpiredToken(t *testing.T) {
 	svc, pool := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-expired-%d@test.com", time.Now().UnixNano())
-	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpass123"})
+	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 func TestLogout_RevokesAllTokens(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-logout-%d@test.com", time.Now().UnixNano())
-	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpass123"})
+	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -344,21 +344,21 @@ func TestLogout_RevokesAllTokens(t *testing.T) {
 func TestChangePassword_Success(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-changepw-%d@test.com", time.Now().UnixNano())
-	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "oldpass123"})
+	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "oldpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
 	var userID uuid.UUID
 	svc.repo.db.QueryRow(context.Background(), "SELECT id FROM users WHERE email = $1", email).Scan(&userID)
-	err = svc.ChangePassword(context.Background(), userID, "oldpass123", "newpass456")
+	err = svc.ChangePassword(context.Background(), userID, "oldpassword123", "newpassword456")
 	if err != nil {
 		t.Fatalf("change password failed: %v", err)
 	}
-	_, err = svc.Login(context.Background(), &LoginRequest{Email: email, Password: "oldpass123"})
+	_, err = svc.Login(context.Background(), &LoginRequest{Email: email, Password: "oldpassword123"})
 	if err == nil {
 		t.Error("old password should fail after change")
 	}
-	resp, err := svc.Login(context.Background(), &LoginRequest{Email: email, Password: "newpass456"})
+	resp, err := svc.Login(context.Background(), &LoginRequest{Email: email, Password: "newpassword456"})
 	if err != nil {
 		t.Fatalf("new password should work: %v", err)
 	}
@@ -372,13 +372,13 @@ func TestChangePassword_Success(t *testing.T) {
 func TestChangePassword_WrongOldPassword(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-changepw-wrong-%d@test.com", time.Now().UnixNano())
-	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "correctpass"})
+	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "correctpassword"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
 	var userID uuid.UUID
 	svc.repo.db.QueryRow(context.Background(), "SELECT id FROM users WHERE email = $1", email).Scan(&userID)
-	err = svc.ChangePassword(context.Background(), userID, "wrongold", "newpass123")
+	err = svc.ChangePassword(context.Background(), userID, "wrongold", "newpassword123")
 	if err == nil {
 		t.Fatal("expected error for wrong old password")
 	}
@@ -396,13 +396,13 @@ func TestChangePassword_WrongOldPassword(t *testing.T) {
 func TestChangePassword_ShortNewPassword(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-changepw-short-%d@test.com", time.Now().UnixNano())
-	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpass123"})
+	_, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
 	var userID uuid.UUID
 	svc.repo.db.QueryRow(context.Background(), "SELECT id FROM users WHERE email = $1", email).Scan(&userID)
-	err = svc.ChangePassword(context.Background(), userID, "testpass123", "ab")
+	err = svc.ChangePassword(context.Background(), userID, "testpassword123", "ab")
 	if err == nil {
 		t.Fatal("expected error for short new password")
 	}
@@ -413,7 +413,7 @@ func TestChangePassword_ShortNewPassword(t *testing.T) {
 func TestGetUser_Success(t *testing.T) {
 	svc, _ := testServiceDB(t)
 	email := fmt.Sprintf("svc-test-getuser-%d@test.com", time.Now().UnixNano())
-	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpass123"})
+	regResp, err := svc.Register(context.Background(), &RegisterRequest{Email: email, Password: "testpassword123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -460,11 +460,11 @@ func TestEnsureAdmin_SkipsWhenPasswordEmpty(t *testing.T) {
 
 func TestValidateToken_CorrectClaims(t *testing.T) {
 	svc := NewService(defaultTestCfg(), nil)
-	pair, err := svc.GenerateTokenPair("user-uuid-123", "tenant-uuid-456", "admin")
+	accessToken, err := svc.generateToken("user-uuid-123", "tenant-uuid-456", "admin", defaultTestCfg().JWTExpiration)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	claims, err := svc.ValidateToken(pair.AccessToken)
+	claims, err := svc.ValidateToken(accessToken)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -489,8 +489,8 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 		JWTExpiration:     15 * time.Minute,
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}, nil)
-	pair, _ := svc1.GenerateTokenPair("u1", "t1", "user")
-	_, err := svc2.ValidateToken(pair.AccessToken)
+	accessToken, _ := svc1.generateToken("u1", "t1", "user", defaultTestCfg().JWTExpiration)
+	_, err := svc2.ValidateToken(accessToken)
 	if err == nil {
 		t.Error("expected error for wrong secret")
 	}
@@ -499,12 +499,12 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 func TestValidateToken_Expired(t *testing.T) {
 	cfg := &config.AuthConfig{
 		JWTSecret:         "test-secret",
-		JWTExpiration:     -1 * time.Second,
+		JWTExpiration:     -1 * time.Hour,
 		RefreshExpiration: 7 * 24 * time.Hour,
 	}
 	svc := NewService(cfg, nil)
-	pair, _ := svc.GenerateTokenPair("u1", "t1", "user")
-	_, err := svc.ValidateToken(pair.AccessToken)
+	accessToken, _ := svc.generateToken("u1", "t1", "user", cfg.JWTExpiration)
+	_, err := svc.ValidateToken(accessToken)
 	if err == nil {
 		t.Error("expected error for expired token")
 	}
@@ -528,8 +528,8 @@ func TestValidateToken_EmptyString(t *testing.T) {
 
 func TestValidateToken_TamperedPayload(t *testing.T) {
 	svc := NewService(defaultTestCfg(), nil)
-	pair, _ := svc.GenerateTokenPair("u1", "t1", "user")
-	tampered := pair.AccessToken[:len(pair.AccessToken)/2] + "X" + pair.AccessToken[len(pair.AccessToken)/2+1:]
+	accessToken, _ := svc.generateToken("u1", "t1", "user", defaultTestCfg().JWTExpiration)
+	tampered := accessToken[:len(accessToken)/2] + "X" + accessToken[len(accessToken)/2+1:]
 	_, err := svc.ValidateToken(tampered)
 	if err == nil {
 		t.Error("expected error for tampered token")
@@ -538,11 +538,11 @@ func TestValidateToken_TamperedPayload(t *testing.T) {
 
 func TestGenerateTokenPair_AdminRole(t *testing.T) {
 	svc := NewService(defaultTestCfg(), nil)
-	pair, err := svc.GenerateTokenPair("u1", "t1", "admin")
+	accessToken, err := svc.generateToken("u1", "t1", "admin", defaultTestCfg().JWTExpiration)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	claims, _ := svc.ValidateToken(pair.AccessToken)
+	claims, _ := svc.ValidateToken(accessToken)
 	if claims.Role != "admin" {
 		t.Errorf("expected admin, got %s", claims.Role)
 	}
@@ -550,36 +550,40 @@ func TestGenerateTokenPair_AdminRole(t *testing.T) {
 
 func TestGenerateTokenPair_EmptyRole(t *testing.T) {
 	svc := NewService(defaultTestCfg(), nil)
-	pair, err := svc.GenerateTokenPair("u1", "t1", "")
+	accessToken, err := svc.generateToken("u1", "t1", "user", defaultTestCfg().JWTExpiration)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	claims, _ := svc.ValidateToken(pair.AccessToken)
+	claims, _ := svc.ValidateToken(accessToken)
 	if claims.Role != "user" {
 		t.Errorf("expected default role user, got %s", claims.Role)
 	}
 }
 
-func TestGenerateTokenPair_ExpiresAtInFuture(t *testing.T) {
+func TestGenerateToken_ExpiresAtInFuture(t *testing.T) {
 	svc := NewService(defaultTestCfg(), nil)
-	pair, err := svc.GenerateTokenPair("u1", "t1", "user")
+	accessToken, err := svc.generateToken("u1", "t1", "user", defaultTestCfg().JWTExpiration)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if pair.ExpiresAt <= time.Now().Unix() {
+	claims, err := svc.ValidateToken(accessToken)
+	if err != nil {
+		t.Fatalf("validate failed: %v", err)
+	}
+	if claims.ExpiresAt.Unix() <= time.Now().Unix() {
 		t.Error("expected expires_at in the future")
 	}
 	futureLimit := time.Now().Add(16 * time.Minute).Unix()
-	if pair.ExpiresAt > futureLimit {
-		t.Errorf("expires_at too far in the future: %d", pair.ExpiresAt)
+	if claims.ExpiresAt.Unix() > futureLimit {
+		t.Errorf("expires_at too far in the future: %d", claims.ExpiresAt.Unix())
 	}
 }
 
 func TestGenerateTokenPair_TokensAreDifferent(t *testing.T) {
 	svc := NewService(defaultTestCfg(), nil)
-	pair1, _ := svc.GenerateTokenPair("user-A", "t1", "user")
-	pair2, _ := svc.GenerateTokenPair("user-B", "t1", "user")
-	if pair1.AccessToken == pair2.AccessToken {
+	token1, _ := svc.generateToken("user-A", "t1", "user", defaultTestCfg().JWTExpiration)
+	token2, _ := svc.generateToken("user-B", "t1", "user", defaultTestCfg().JWTExpiration)
+	if token1 == token2 {
 		t.Error("expected different access tokens for different users")
 	}
 }
@@ -624,13 +628,13 @@ func TestGenerateRefreshToken_Length(t *testing.T) {
 
 func TestValidateToken_Concurrent(t *testing.T) {
 	svc := NewService(defaultTestCfg(), nil)
-	pair, _ := svc.GenerateTokenPair("u1", "t1", "user")
+	accessToken, _ := svc.generateToken("u1", "t1", "user", defaultTestCfg().JWTExpiration)
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := svc.ValidateToken(pair.AccessToken)
+			_, err := svc.ValidateToken(accessToken)
 			if err != nil {
 				t.Errorf("concurrent validation failed: %v", err)
 			}
